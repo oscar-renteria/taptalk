@@ -47,6 +47,8 @@ export default defineConfig({
         NODE_ENV: 'development',
         API_PORT: String(apiPort),
         DATABASE_PATH: databasePath,
+        // Every test registers its own learner from localhost, so the per-IP limit is raised.
+        AUTH_RATE_LIMIT_MAX: '100000',
       },
     },
     {

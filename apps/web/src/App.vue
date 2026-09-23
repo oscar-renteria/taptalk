@@ -115,9 +115,14 @@ async function submit(): Promise<void> {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: username.value, password: password.value }),
     });
-    const payload = (await response.json()) as { user?: User; error?: { message?: string } };
+    const payload = (await response.json()) as {
+      user?: User;
+      error?: { message?: string; details?: Array<{ message: string }> };
+    };
     if (!response.ok || !payload.user) {
-      message.value = payload.error?.message ?? 'The request could not be completed.';
+      message.value = payload.error?.details?.length
+        ? payload.error.details.map((detail) => detail.message).join(' ')
+        : (payload.error?.message ?? 'The request could not be completed.');
       return;
     }
     user.value = payload.user;

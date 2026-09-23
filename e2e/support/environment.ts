@@ -8,5 +8,5 @@ export const webPort = 5174;
 export const databasePath = join(__dirname, '..', '.data', 'taptalk-e2e.db');
 
 // Test-only credentials for the throwaway e2e database. They are not secrets.
-export const administrator = { username: 'e2e-admin', password: 'e2e-admin-password' };
+export const administrator = { username: 'e2e-admin', password: 'setup-only-secret-9' };
 export const learnerPassword = 'e2e-learner-password';

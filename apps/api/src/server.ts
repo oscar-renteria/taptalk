@@ -1,5 +1,10 @@
-import Fastify from 'fastify';
-import { practiceDirectionSchema, userPreferencesSchema } from '@taptalk/shared';
+import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
+import {
+  practiceDirectionSchema,
+  registrationErrors,
+  registrationSchema,
+  userPreferencesSchema,
+} from '@taptalk/shared';
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createId, openDatabase, type SqliteDatabase } from './database.js';
 import {
@@ -17,10 +22,12 @@ import {
   recordAttempt,
   startPracticeSession,
   updatePreferences,
+  RepositoryError,
   type PracticeSessionRecord,
 } from './repositories.js';
 import { calculateScore, matchAnswer } from './learning.js';
 import { previewVocabularyImport } from './vocabulary.js';
+import { createRateLimiter, type RateLimitOptions } from './rate-limit.js';
 
 const sessionCookieName = 'taptalk_session';
 const sessionDurationMs = 1000 * 60 * 60 * 24 * 14;
@@ -98,54 +105,106 @@ function findAuthenticatedUser(
     : undefined;
 }
 
-export function buildServer(database: SqliteDatabase = openDatabase()) {
+function createSession(database: SqliteDatabase, userId: string, now: string): string {
+  const token = randomBytes(32).toString('base64url');
+  database
+    .prepare(
+      'INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run(
+      createId(),
+      userId,
+      hashSessionToken(token),
+      new Date(Date.parse(now) + sessionDurationMs).toISOString(),
+      now,
+    );
+  return token;
+}
+
+export type ServerOptions = {
+  // Per-IP limit shared by login and registration attempts.
+  authRateLimit?: RateLimitOptions;
+};
+
+const defaultAuthRateLimit: RateLimitOptions = {
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX ?? 20),
+  windowMs: 15 * 60 * 1000,
+};
+
+export function buildServer(
+  database: SqliteDatabase = openDatabase(),
+  options: ServerOptions = {},
+) {
   const server = Fastify({ logger: true });
+  const authLimiter = createRateLimiter(options.authRateLimit ?? defaultAuthRateLimit);
+
+  function rejectIfRateLimited(request: FastifyRequest, reply: FastifyReply): boolean {
+    const decision = authLimiter.check(request.ip);
+    if (decision.allowed) return false;
+    void reply
+      .code(429)
+      .header('retry-after', String(decision.retryAfterSeconds))
+      .send({
+        error: { code: 'RATE_LIMITED', message: 'Too many attempts. Try again in a few minutes.' },
+      });
+    return true;
+  }
+
+  // Unexpected failures (for example database errors) never expose internals to the client.
+  server.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => {
+    const statusCode = error.statusCode ?? 500;
+    if (statusCode >= 500) {
+      request.log.error({ err: error }, 'request failed');
+      return reply
+        .code(500)
+        .send({ error: { code: 'INTERNAL_ERROR', message: 'Something went wrong. Try again.' } });
+    }
+    return reply
+      .code(statusCode)
+      .send({ error: { code: 'BAD_REQUEST', message: 'The request is invalid.' } });
+  });
 
   server.get('/health', async () => ({ status: 'ok' }));
 
   server.post<{ Body: { username?: unknown; password?: unknown } }>(
     '/api/v1/auth/register',
     async (request, reply) => {
-      const { username, password } = request.body;
-      if (
-        typeof username !== 'string' ||
-        typeof password !== 'string' ||
-        username.trim().length < 2 ||
-        password.length < 8
-      ) {
+      if (rejectIfRateLimited(request, reply)) return reply;
+      const parsed = registrationSchema.safeParse(request.body);
+      if (!parsed.success) {
         return reply.code(400).send({
-          error: { code: 'INVALID_CREDENTIALS', message: 'Username or password is invalid.' },
+          error: {
+            code: 'INVALID_REGISTRATION',
+            message: 'Check the highlighted fields.',
+            details: registrationErrors(request.body),
+          },
         });
       }
       const now = new Date().toISOString();
       const user = {
         id: createId(),
-        username: username.trim(),
-        passwordHash: hashPassword(password),
+        username: parsed.data.username,
+        passwordHash: hashPassword(parsed.data.password),
         role: 'user' as const,
         createdAt: now,
         updatedAt: now,
       };
+      let token: string;
+      database.exec('BEGIN');
       try {
         insertUser(database, user);
         ensurePreferences(database, user.id, now);
-      } catch {
-        return reply
-          .code(409)
-          .send({ error: { code: 'USERNAME_UNAVAILABLE', message: 'Username is unavailable.' } });
+        token = createSession(database, user.id, now);
+        database.exec('COMMIT');
+      } catch (error) {
+        database.exec('ROLLBACK');
+        if (error instanceof RepositoryError && error.code === 'conflict') {
+          return reply
+            .code(409)
+            .send({ error: { code: 'USERNAME_UNAVAILABLE', message: 'Username is unavailable.' } });
+        }
+        throw error;
       }
-      const token = randomBytes(32).toString('base64url');
-      database
-        .prepare(
-          'INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
-        )
-        .run(
-          createId(),
-          user.id,
-          hashSessionToken(token),
-          new Date(Date.now() + sessionDurationMs).toISOString(),
-          now,
-        );
       setSessionCookie(reply, token);
       return reply.code(201).send({ user: safeUser(user) });
     },
@@ -154,6 +213,7 @@ export function buildServer(database: SqliteDatabase = openDatabase()) {
   server.post<{ Body: { username?: unknown; password?: unknown } }>(
     '/api/v1/auth/login',
     async (request, reply) => {
+      if (rejectIfRateLimited(request, reply)) return reply;
       const { username, password } = request.body;
       const user =
         typeof username === 'string' && typeof password === 'string'
@@ -164,19 +224,7 @@ export function buildServer(database: SqliteDatabase = openDatabase()) {
           .code(401)
           .send({ error: { code: 'INVALID_LOGIN', message: 'Username or password is invalid.' } });
       }
-      const now = new Date().toISOString();
-      const token = randomBytes(32).toString('base64url');
-      database
-        .prepare(
-          'INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
-        )
-        .run(
-          createId(),
-          user.id,
-          hashSessionToken(token),
-          new Date(Date.now() + sessionDurationMs).toISOString(),
-          now,
-        );
+      const token = createSession(database, user.id, new Date().toISOString());
       setSessionCookie(reply, token);
       return reply.send({ user: safeUser(user) });
     },

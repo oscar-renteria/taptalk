@@ -5,6 +5,8 @@ import {
   practiceDirectionSchema,
   projectName,
   publicUserSchema,
+  registrationErrors,
+  registrationSchema,
   userPreferencesSchema,
   vocabularyImportRecordSchema,
 } from './index.js';
@@ -77,5 +79,36 @@ describe('shared package', () => {
       sessionLength: 5,
       repetitionPreference: 'errors-first',
     });
+  });
+});
+
+describe('credential policy', () => {
+  it('accepts a valid registration and trims the username', () => {
+    expect(
+      registrationSchema.parse({ username: '  learner ', password: 'a-secure-password' }),
+    ).toEqual({ username: 'learner', password: 'a-secure-password' });
+    expect(registrationErrors({ username: 'Émile_2', password: 'grüne-Äpfel' })).toEqual([]);
+  });
+
+  it.each([
+    [{ username: 'a', password: 'a-secure-password' }, 'username', 'at least 2'],
+    [{ username: 'x'.repeat(33), password: 'a-secure-password' }, 'username', 'at most 32'],
+    [{ username: 'has space', password: 'a-secure-password' }, 'username', 'letters, numbers'],
+    [{ username: 'learner', password: 'short' }, 'password', 'at least 8'],
+    [{ username: 'learner', password: 'x'.repeat(129) }, 'password', 'at most 128'],
+    [{ username: 'learner', password: 'Password' }, 'password', 'too common'],
+    [{ username: 'learner', password: 'aaaabbbb' }, 'password', '4 different'],
+    [{ username: 'learner', password: 'my-learner-pw' }, 'password', 'must not contain'],
+    [{ username: 42, password: null }, 'username', ''],
+  ])('rejects %j with a field-level message', (input, field, message) => {
+    const errors = registrationErrors(input);
+    expect(errors.some((error) => error.field === field && error.message.includes(message))).toBe(
+      true,
+    );
+  });
+
+  it('never echoes the submitted password in error messages', () => {
+    const errors = registrationErrors({ username: 'learner', password: 'learner123' });
+    expect(JSON.stringify(errors)).not.toContain('learner123');
   });
 });

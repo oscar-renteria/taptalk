@@ -34,6 +34,7 @@ Global rules for every prompt:
 - Prompt 006: Shared validation package
 - Prompt 007: Database schema
 - Prompt 008: Database migrations and repositories
+- Prompt 009: Secure account creation (credential policy ADR-006, rate limiting, transactional registration)
 - Prompt 012: Vocabulary parser and normalizer
 - Prompt 013: Vocabulary import preview
 - Prompt 014: Transactional vocabulary import
@@ -48,7 +49,6 @@ Global rules for every prompt:
 
 ### IN PROGRESS
 
-- Prompt 009: Account flow needs the complete weak-credential and database-failure test matrix.
 - Prompt 010: Session expiration and full authorization middleware coverage remain.
 - Prompt 011: Provisioning is documented (`docs/operations/administrator-provisioning.md`, `set-role` CLI). Role checks are still repeated per endpoint instead of centralized.
 - Prompt 015: Reusable design-system components and component tests remain.
@@ -332,7 +332,7 @@ details.
 
 ------------------------------------------------------------------------
 
-## Prompt 009 --- Implement secure account creation [IN PROGRESS]
+## Prompt 009 --- Implement secure account creation [DONE]
 
 **Goal:** Add account registration without email.
 

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Shared credential policy (`registrationSchema`, ADR-006) with field-level registration errors; per-IP rate limiting of login and registration (`AUTH_RATE_LIMIT_MAX`); transactional registration with safe `500 INTERNAL_ERROR` mapping (Prompt 009).
 - Practice sessions: `POST /api/v1/practice/sessions`, `POST /api/v1/practice/sessions/:id/end` and `GET /api/v1/practice/sessions/:id`, with migration `002_practice_sessions.sql` (Prompts 022, 024).
 - Practice screen shows session progress, a next-question action, an end-session action and a completion summary with practice-again and progress actions (Prompts 023, 024).
 - `npm run set-role --workspace @taptalk/api -- <username> <role>` for administrator provisioning (Prompt 011).

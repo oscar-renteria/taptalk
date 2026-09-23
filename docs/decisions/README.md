@@ -9,3 +9,4 @@ ADRs capture decisions that affect multiple modules or constrain later implement
 - [ADR-003 API style](ADR-003-api-style.md)
 - [ADR-004 Validation strategy](ADR-004-validation-strategy.md)
 - [ADR-005 Authentication and session strategy](ADR-005-authentication-session.md)
+- [ADR-006 Account identifier and credential policy](ADR-006-credential-policy.md) (Proposed)
