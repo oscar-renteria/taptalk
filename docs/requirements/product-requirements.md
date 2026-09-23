@@ -63,7 +63,7 @@ Status: baseline for the first release. Items marked `OPEN DECISION` must be res
 ## Open decisions
 
 - **OPEN DECISION 001** Choose the account identifier and credential policy: username or nickname, and password or PIN-equivalent. Define uniqueness, recovery, and age-appropriate constraints. *Proposed in [ADR-006](../decisions/ADR-006-credential-policy.md); awaiting product confirmation.*
-- **OPEN DECISION 002** Choose the session strategy, including cookie attributes, expiration, revocation, CSRF protection, and whether refresh records are stored.
+- **OPEN DECISION 002** Choose the session strategy, including cookie attributes, expiration, revocation, CSRF protection, and whether refresh records are stored. *Resolved in [ADR-005](../decisions/ADR-005-authentication-session.md).*
 - **OPEN DECISION 003** Define how the initial administrator is provisioned without hardcoded credentials.
 - **OPEN DECISION 004** Choose the approved vocabulary import policy: replace, merge, or versioned imports, including how updates and deletions affect existing attempts.
 - **OPEN DECISION 005** Define answer normalization for punctuation, capitalization, Unicode, placeholders, ellipses, and approximate answers. Approximate matching must not be enabled implicitly.

@@ -35,6 +35,7 @@ Global rules for every prompt:
 - Prompt 007: Database schema
 - Prompt 008: Database migrations and repositories
 - Prompt 009: Secure account creation (credential policy ADR-006, rate limiting, transactional registration)
+- Prompt 010: Login, logout and session protection (deny-by-default guard, expiry, ADR-005 session strategy)
 - Prompt 012: Vocabulary parser and normalizer
 - Prompt 013: Vocabulary import preview
 - Prompt 014: Transactional vocabulary import
@@ -49,7 +50,6 @@ Global rules for every prompt:
 
 ### IN PROGRESS
 
-- Prompt 010: Session expiration and full authorization middleware coverage remain.
 - Prompt 011: Provisioning is documented (`docs/operations/administrator-provisioning.md`, `set-role` CLI). Role checks are still repeated per endpoint instead of centralized.
 - Prompt 015: Reusable design-system components and component tests remain.
 - Prompt 016: Refresh now restores the authenticated session. Real client routing, URL-based views and a not-found page remain.
@@ -362,7 +362,7 @@ details.
 
 ------------------------------------------------------------------------
 
-## Prompt 010 --- Implement login, logout, and session protection [IN PROGRESS]
+## Prompt 010 --- Implement login, logout, and session protection [DONE]
 
 **Goal:** Provide secure authenticated sessions.
 

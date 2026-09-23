@@ -5,7 +5,6 @@ import {
   registrationSchema,
   userPreferencesSchema,
 } from '@taptalk/shared';
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createId, openDatabase, type SqliteDatabase } from './database.js';
 import {
   commitVocabularyImport,
@@ -28,51 +27,17 @@ import {
 import { calculateScore, matchAnswer } from './learning.js';
 import { previewVocabularyImport } from './vocabulary.js';
 import { createRateLimiter, type RateLimitOptions } from './rate-limit.js';
-
-const sessionCookieName = 'taptalk_session';
-const sessionDurationMs = 1000 * 60 * 60 * 24 * 14;
-
-function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('hex');
-  const hash = scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password: string, storedHash: string): boolean {
-  const [salt, expectedHash] = storedHash.split(':');
-  if (!salt || !expectedHash) {
-    return false;
-  }
-  const actualHash = scryptSync(password, salt, 64);
-  const expectedBuffer = Buffer.from(expectedHash, 'hex');
-  return actualHash.length === expectedBuffer.length && timingSafeEqual(actualHash, expectedBuffer);
-}
-
-function hashSessionToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
-
-function setSessionCookie(
-  reply: { header: (name: string, value: string) => void },
-  token: string,
-): void {
-  reply.header(
-    'set-cookie',
-    `${sessionCookieName}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${sessionDurationMs / 1000}`,
-  );
-}
-
-function readSessionToken(request: {
-  headers: Record<string, string | string[] | undefined>;
-}): string | undefined {
-  const cookieHeader = request.headers.cookie;
-  const cookie = Array.isArray(cookieHeader) ? cookieHeader.join(';') : cookieHeader;
-  return cookie
-    ?.split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${sessionCookieName}=`))
-    ?.slice(sessionCookieName.length + 1);
-}
+import {
+  clearedSessionCookie,
+  createAccessGuard,
+  createSession,
+  currentUser,
+  hashPassword,
+  readSessionToken,
+  revokeSession,
+  sessionCookie,
+  verifyLogin,
+} from './auth.js';
 
 function safeUser(user: {
   id: string;
@@ -89,41 +54,11 @@ function publicSession<T extends PracticeSessionRecord>(session: T): Omit<T, 'us
   return rest;
 }
 
-function findAuthenticatedUser(
-  database: SqliteDatabase,
-  request: { headers: Record<string, string | string[] | undefined> },
-) {
-  const token = readSessionToken(request);
-  return token
-    ? (database
-        .prepare(
-          `SELECT u.id, u.username, u.role, u.created_at AS createdAt FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ?`,
-        )
-        .get(hashSessionToken(token), new Date().toISOString()) as
-        | { id: string; username: string; role: 'user' | 'administrator'; createdAt: string }
-        | undefined)
-    : undefined;
-}
-
-function createSession(database: SqliteDatabase, userId: string, now: string): string {
-  const token = randomBytes(32).toString('base64url');
-  database
-    .prepare(
-      'INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
-    )
-    .run(
-      createId(),
-      userId,
-      hashSessionToken(token),
-      new Date(Date.parse(now) + sessionDurationMs).toISOString(),
-      now,
-    );
-  return token;
-}
-
 export type ServerOptions = {
   // Per-IP limit shared by login and registration attempts.
   authRateLimit?: RateLimitOptions;
+  // Adds the Secure cookie attribute; defaults to true in production.
+  secureCookies?: boolean;
 };
 
 const defaultAuthRateLimit: RateLimitOptions = {
@@ -137,6 +72,10 @@ export function buildServer(
 ) {
   const server = Fastify({ logger: true });
   const authLimiter = createRateLimiter(options.authRateLimit ?? defaultAuthRateLimit);
+  const secureCookies = options.secureCookies ?? process.env.NODE_ENV === 'production';
+
+  server.decorateRequest('user', null);
+  server.addHook('preHandler', createAccessGuard(database));
 
   function rejectIfRateLimited(request: FastifyRequest, reply: FastifyReply): boolean {
     const decision = authLimiter.check(request.ip);
@@ -168,6 +107,7 @@ export function buildServer(
 
   server.post<{ Body: { username?: unknown; password?: unknown } }>(
     '/api/v1/auth/register',
+    { config: { access: 'public' } },
     async (request, reply) => {
       if (rejectIfRateLimited(request, reply)) return reply;
       const parsed = registrationSchema.safeParse(request.body);
@@ -205,50 +145,44 @@ export function buildServer(
         }
         throw error;
       }
-      setSessionCookie(reply, token);
+      reply.header('set-cookie', sessionCookie(token, secureCookies));
       return reply.code(201).send({ user: safeUser(user) });
     },
   );
 
   server.post<{ Body: { username?: unknown; password?: unknown } }>(
     '/api/v1/auth/login',
+    { config: { access: 'public' } },
     async (request, reply) => {
       if (rejectIfRateLimited(request, reply)) return reply;
-      const { username, password } = request.body;
+      const { username, password } = request.body ?? {};
       const user =
-        typeof username === 'string' && typeof password === 'string'
+        typeof username === 'string' && username.length <= 64
           ? findUserByUsername(database, username.trim())
           : undefined;
-      if (!user || !verifyPassword(password as string, user.passwordHash)) {
+      // Oversized passwords are not hashed, which bounds the scrypt cost per request.
+      const candidate = typeof password === 'string' && password.length <= 128 ? password : '';
+      const valid = verifyLogin(candidate, user?.passwordHash) && candidate === password;
+      if (!user || !valid) {
         return reply
           .code(401)
           .send({ error: { code: 'INVALID_LOGIN', message: 'Username or password is invalid.' } });
       }
       const token = createSession(database, user.id, new Date().toISOString());
-      setSessionCookie(reply, token);
+      reply.header('set-cookie', sessionCookie(token, secureCookies));
       return reply.send({ user: safeUser(user) });
     },
   );
 
   server.get('/api/v1/auth/me', async (request, reply) => {
-    const user = findAuthenticatedUser(database, request);
-    if (!user) {
-      return reply
-        .code(401)
-        .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-    }
+    const user = currentUser(request);
     return reply.send({ user: safeUser(user) });
   });
 
   server.post<{ Body: { content?: unknown; sourceName?: unknown } }>(
     '/api/v1/admin/vocabulary/preview',
     async (request, reply) => {
-      const user = findAuthenticatedUser(database, request);
-      if (!user) {
-        return reply
-          .code(401)
-          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-      }
+      const user = currentUser(request);
       if (user.role !== 'administrator') {
         return reply
           .code(403)
@@ -274,12 +208,7 @@ export function buildServer(
   server.post<{ Body: { content?: unknown; sourceName?: unknown; confirm?: unknown } }>(
     '/api/v1/admin/vocabulary/import',
     async (request, reply) => {
-      const user = findAuthenticatedUser(database, request);
-      if (!user) {
-        return reply
-          .code(401)
-          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-      }
+      const user = currentUser(request);
       if (user.role !== 'administrator') {
         return reply
           .code(403)
@@ -328,12 +257,7 @@ export function buildServer(
   );
 
   server.get('/api/v1/admin/vocabulary/imports', async (request, reply) => {
-    const user = findAuthenticatedUser(database, request);
-    if (!user) {
-      return reply
-        .code(401)
-        .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-    }
+    const user = currentUser(request);
     if (user.role !== 'administrator') {
       return reply
         .code(403)
@@ -345,12 +269,7 @@ export function buildServer(
   server.get<{ Querystring: { direction?: string } }>(
     '/api/v1/practice/question',
     async (request, reply) => {
-      const user = findAuthenticatedUser(database, request);
-      if (!user) {
-        return reply
-          .code(401)
-          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-      }
+      const user = currentUser(request);
       const direction = request.query.direction ?? getPreferences(database, user.id).direction;
       if (!['english-to-german', 'german-to-english', 'random'].includes(direction)) {
         return reply.code(400).send({
@@ -390,12 +309,7 @@ export function buildServer(
       practiceSessionId?: unknown;
     };
   }>('/api/v1/practice/answer', async (request, reply) => {
-    const user = findAuthenticatedUser(database, request);
-    if (!user) {
-      return reply
-        .code(401)
-        .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-    }
+    const user = currentUser(request);
     const { vocabularyEntryId, direction, prompt, submittedAnswer, practiceSessionId } =
       request.body;
     if (
@@ -475,12 +389,7 @@ export function buildServer(
   server.post<{ Body: { direction?: unknown } | undefined }>(
     '/api/v1/practice/sessions',
     async (request, reply) => {
-      const user = findAuthenticatedUser(database, request);
-      if (!user) {
-        return reply
-          .code(401)
-          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-      }
+      const user = currentUser(request);
       const preferences = getPreferences(database, user.id);
       const direction = practiceDirectionSchema.safeParse(
         request.body?.direction ?? preferences.direction,
@@ -512,12 +421,7 @@ export function buildServer(
   server.get<{ Params: { sessionId: string } }>(
     '/api/v1/practice/sessions/:sessionId',
     async (request, reply) => {
-      const user = findAuthenticatedUser(database, request);
-      if (!user) {
-        return reply
-          .code(401)
-          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-      }
+      const user = currentUser(request);
       const summary = getPracticeSessionSummary(database, user.id, request.params.sessionId);
       if (!summary) {
         return reply.code(404).send({
@@ -531,12 +435,7 @@ export function buildServer(
   server.post<{ Params: { sessionId: string } }>(
     '/api/v1/practice/sessions/:sessionId/end',
     async (request, reply) => {
-      const user = findAuthenticatedUser(database, request);
-      if (!user) {
-        return reply
-          .code(401)
-          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-      }
+      const user = currentUser(request);
       const session = getPracticeSession(database, user.id, request.params.sessionId);
       if (!session) {
         return reply.code(404).send({
@@ -552,32 +451,17 @@ export function buildServer(
   );
 
   server.get('/api/v1/dashboard', async (request, reply) => {
-    const user = findAuthenticatedUser(database, request);
-    if (!user) {
-      return reply
-        .code(401)
-        .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-    }
+    const user = currentUser(request);
     return reply.send({ dashboard: getDashboardSummary(database, user.id) });
   });
 
   server.get('/api/v1/settings', async (request, reply) => {
-    const user = findAuthenticatedUser(database, request);
-    if (!user) {
-      return reply
-        .code(401)
-        .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-    }
+    const user = currentUser(request);
     return reply.send({ settings: getPreferences(database, user.id) });
   });
 
   server.put<{ Body: unknown }>('/api/v1/settings', async (request, reply) => {
-    const user = findAuthenticatedUser(database, request);
-    if (!user) {
-      return reply
-        .code(401)
-        .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
-    }
+    const user = currentUser(request);
     const parsed = userPreferencesSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply
@@ -589,14 +473,12 @@ export function buildServer(
     });
   });
 
-  server.post('/api/v1/auth/logout', async (request, reply) => {
+  server.post('/api/v1/auth/logout', { config: { access: 'public' } }, async (request, reply) => {
     const token = readSessionToken(request);
     if (token) {
-      database
-        .prepare('UPDATE sessions SET revoked_at = ? WHERE token_hash = ?')
-        .run(new Date().toISOString(), hashSessionToken(token));
+      revokeSession(database, token, new Date().toISOString());
     }
-    reply.header('set-cookie', `${sessionCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+    reply.header('set-cookie', clearedSessionCookie(secureCookies));
     return reply.code(204).send();
   });
 
