@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import App from './App.vue';
-import { bodyOf, mockApi, signedIn, signedOut } from './test-api';
+import { bodyOf, mockApi, mountApp, signedIn, signedInAdmin, signedOut } from './test-api';
 
 const question = {
   vocabularyEntryId: 'entry-1',
@@ -43,9 +42,8 @@ async function mountSignedIn(routes: Parameters<typeof mockApi>[0]) {
     'GET /api/v1/practice/question': { body: { question } },
     ...routes,
   });
-  const wrapper = mount(App, { attachTo: document.body });
-  await flushPromises();
-  return { wrapper, fetchMock };
+  const { wrapper, router } = await mountApp('/practice');
+  return { wrapper, fetchMock, router };
 }
 
 describe('practice session flow', () => {
@@ -54,11 +52,10 @@ describe('practice session flow', () => {
     document.body.innerHTML = '';
   });
 
-  it('shows the login screen when no session can be restored', async () => {
+  it('redirects to the login screen when no session can be restored', async () => {
     mockApi(signedOut);
-    const wrapper = mount(App);
-    expect(wrapper.text()).toContain('Checking your session...');
-    await flushPromises();
+    const { wrapper, router } = await mountApp('/practice');
+    expect(router.currentRoute.value.fullPath).toBe('/login?redirect=/practice');
     expect(wrapper.find('#username').exists()).toBe(true);
   });
 
@@ -152,13 +149,14 @@ describe('practice session flow', () => {
   });
 
   it('clears the previous user state on logout', async () => {
-    const { wrapper } = await mountSignedIn({
+    const { wrapper, router } = await mountSignedIn({
       'POST /api/v1/auth/logout': { status: 204 },
     });
     await button(wrapper, 'Start practice').trigger('click');
     await flushPromises();
     await button(wrapper, 'Log out').trigger('click');
     await flushPromises();
+    expect(router.currentRoute.value.name).toBe('login');
     expect(wrapper.find('#username').exists()).toBe(true);
     expect(wrapper.text()).not.toContain('hello');
   });
@@ -167,11 +165,12 @@ describe('practice session flow', () => {
 describe('administrator import feedback', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    document.body.innerHTML = '';
   });
 
   it('keeps the success message after the history reloads', async () => {
     mockApi({
-      'GET /api/v1/auth/me': { body: { user: { username: 'admin', role: 'administrator' } } },
+      ...signedInAdmin,
       'GET /api/v1/admin/vocabulary/imports': { body: { imports: [] } },
       'POST /api/v1/admin/vocabulary/preview': {
         body: {
@@ -187,10 +186,7 @@ describe('administrator import feedback', () => {
       },
       'POST /api/v1/admin/vocabulary/import': { status: 201, body: { result: {} } },
     });
-    const wrapper = mount(App);
-    await flushPromises();
-    await button(wrapper, 'Import vocabulary').trigger('click');
-    await flushPromises();
+    const { wrapper } = await mountApp('/admin/import');
     const input = wrapper.get('#vocabulary-file');
     const file = new File(['[{"english":"tree","german":"Baum"}]'], 'tree.json', {
       type: 'application/json',

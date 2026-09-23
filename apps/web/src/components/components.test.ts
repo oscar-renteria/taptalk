@@ -2,6 +2,7 @@
 
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import {
   AppButton,
   AppCard,
@@ -150,21 +151,29 @@ describe('layout components', () => {
     expect(mount(AppCard, { props: { as: 'form' } }).element.tagName).toBe('FORM');
   });
 
-  it('marks the current navigation item and emits navigation', async () => {
+  it('renders router links and marks the active one as the current page', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: ['/practice', '/progress'].map((path) => ({
+        path,
+        component: { template: '<p />' },
+      })),
+    });
+    await router.push('/progress');
     const nav = mount(AppNav, {
+      global: { plugins: [router] },
       props: {
         label: 'Main navigation',
         items: [
-          { id: 'practice', label: 'Practice', current: true },
-          { id: 'progress', label: 'Progress', current: false },
+          { to: '/practice', label: 'Practice' },
+          { to: '/progress', label: 'Progress' },
         ],
       },
     });
     expect(nav.get('nav').attributes('aria-label')).toBe('Main navigation');
-    const [practice, progress] = nav.findAll('button');
-    expect(practice?.attributes('aria-current')).toBe('page');
-    expect(progress?.attributes('aria-current')).toBeUndefined();
-    await progress?.trigger('click');
-    expect(nav.emitted('navigate')).toEqual([['progress']]);
+    const [practice, progress] = nav.findAll('a');
+    expect(practice?.attributes('href')).toBe('/practice');
+    expect(practice?.attributes('aria-current')).toBeUndefined();
+    expect(progress?.attributes('aria-current')).toBe('page');
   });
 });

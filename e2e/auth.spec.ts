@@ -6,7 +6,7 @@ test.describe('registration and login', () => {
   test('a new learner registers and lands on the practice desk', async ({ page }, testInfo) => {
     const username = uniqueUsername(testInfo, 'register');
     await page.goto('/');
-    await page.getByRole('button', { name: 'Need an account?' }).click();
+    await page.getByRole('link', { name: 'Need an account?' }).click();
     await page.getByLabel('Username').fill(username);
     await page.getByLabel('Password').fill(learnerPassword);
     await page.getByRole('button', { name: 'Create account' }).click();
@@ -19,7 +19,7 @@ test.describe('registration and login', () => {
   test('registering an existing username is rejected', async ({ page, request }, testInfo) => {
     const username = await registerLearner(request, testInfo, 'taken');
     await page.goto('/');
-    await page.getByRole('button', { name: 'Need an account?' }).click();
+    await page.getByRole('link', { name: 'Need an account?' }).click();
     await page.getByLabel('Username').fill(username);
     await page.getByLabel('Password').fill(learnerPassword);
     await page.getByRole('button', { name: 'Create account' }).click();

@@ -1,22 +1,15 @@
 <script setup lang="ts">
-export type NavItem = { id: string; label: string; current: boolean };
+// Primary navigation. RouterLink sets aria-current="page" on the active item automatically.
+export type NavItem = { to: string; label: string };
 
 defineProps<{ items: NavItem[]; label: string }>();
-defineEmits<{ navigate: [id: string] }>();
 </script>
 
 <template>
   <nav :aria-label="label">
     <ul class="tabs">
-      <li v-for="item in items" :key="item.id">
-        <button
-          class="tab"
-          type="button"
-          :aria-current="item.current ? 'page' : undefined"
-          @click="$emit('navigate', item.id)"
-        >
-          {{ item.label }}
-        </button>
+      <li v-for="item in items" :key="item.to">
+        <RouterLink class="tab" :to="item.to">{{ item.label }}</RouterLink>
       </li>
     </ul>
   </nav>

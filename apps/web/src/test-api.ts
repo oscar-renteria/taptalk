@@ -1,9 +1,17 @@
-import { vi } from 'vitest';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
+import { afterEach, vi } from 'vitest';
+import { createMemoryHistory } from 'vue-router';
+import App from './App.vue';
+import { createAppRouter, installSessionExpiry } from './router';
+import { resetSession } from './session';
 
 type MockResponse = { status?: number; body?: unknown };
 
 // Stubs `fetch` by "METHOD /path" (query ignored). An array answers consecutive calls in order and
 // repeats its last entry. Unknown routes answer 404, so an unexpected call fails visibly.
+// Mounted apps share the session store, so each test unmounts its app to avoid cross-talk.
+enableAutoUnmount(afterEach);
+
 export function mockApi(routes: Record<string, MockResponse | MockResponse[]>) {
   const calls = new Map<string, number>();
   const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
@@ -35,3 +43,21 @@ export const signedOut = {
     body: { error: { message: 'Authentication is required.' } },
   },
 };
+
+export const admin = { username: 'admin', role: 'administrator' };
+export const signedInAdmin = { 'GET /api/v1/auth/me': { body: { user: admin } } };
+
+// Mounts the whole app with an in-memory router at `path`, after the session check and the
+// first navigation (including guard redirects) have completed.
+export async function mountApp(path: string) {
+  resetSession();
+  // Installing the router starts the first navigation from the history location.
+  const history = createMemoryHistory();
+  history.replace(path);
+  const router = createAppRouter(history);
+  installSessionExpiry(router);
+  const wrapper = mount(App, { global: { plugins: [router] }, attachTo: document.body });
+  await router.isReady();
+  await flushPromises();
+  return { wrapper, router };
+}

@@ -4,6 +4,7 @@
 
 ### Added
 
+- URL routing with `vue-router`: `/login`, `/register`, `/practice`, `/progress`, `/settings`, `/admin/import`, a not-found page, guarded redirects with safe return paths, session-expiry handling, and an error boundary (Prompt 016).
 - Design system: CSS tokens and reusable components (`AppButton`, `TextField`, `SelectField`, `AppCard`, `StatusMessage`, `ProgressIndicator`, `LoadingState`, `ErrorState`, `StatTile`, `AppNav`) with component tests and `docs/engineering/design-system.md` (Prompt 015).
 - Weighted, explainable question selection (`docs/architecture/question-selection.md`): new and error-prone words are favoured, the previous word is not repeated, `random` direction is resolved per question, and questions carry a `selectionReason` (Prompt 019).
 - Answer matching policy v1 (`apps/api/src/matching.ts`, `docs/architecture/answer-matching.md`): whitespace, punctuation, quote, ellipsis and case normalization, optional parenthesized parts, and `exact-match` / `normalized-match` / `empty-answer` / `invalid-answer` / `incorrect` classification (Prompt 018).
@@ -21,6 +22,7 @@
 
 ### Changed
 
+- `App.vue` is now a shell; each screen is a routed view in `apps/web/src/views/`. Navigation items are links (Prompt 016).
 - Scoring applies the documented per-word penalty for earlier errors in the same session (`docs/architecture/scoring.md`); previously the penalty input was always 0 (Prompt 020).
 - Import merges alternatives that are equal after normalization and rejects German values with no answerable content (Prompt 018).
 

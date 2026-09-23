@@ -34,6 +34,6 @@ export function navigateTo(
 ) {
   return page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: tab })
+    .getByRole('link', { name: tab })
     .click();
 }
