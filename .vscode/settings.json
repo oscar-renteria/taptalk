@@ -1,0 +1,11 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "test": true,
+        "npx prettier": true,
+        "npm install": true,
+        "/^node -v && node -e \"import\\('node:sqlite'\\)\\.then\\(\\(\\) => console\\.log\\('node:sqlite available'\\)\\)\\.catch\\(\\(\\) => console\\.log\\('node:sqlite unavailable'\\)\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

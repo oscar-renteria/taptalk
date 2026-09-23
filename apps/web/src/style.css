@@ -1,0 +1,264 @@
+:root {
+  color: #23302c;
+  background: #f5f1e8;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+.shell {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  background: radial-gradient(circle at 80% 10%, #d9e8dc 0 18%, transparent 19%), #f5f1e8;
+}
+
+.offline-banner {
+  width: min(100%, 38rem);
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d49a4a;
+  color: #6f451d;
+  background: #fff2d9;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+}
+
+.panel {
+  display: grid;
+  gap: 1rem;
+  max-width: 38rem;
+  padding: clamp(1.5rem, 5vw, 3.5rem);
+  border: 1px solid #c9d4c8;
+  background: rgb(255 252 245 / 88%);
+  box-shadow: 0.75rem 0.75rem 0 #d9e8dc;
+}
+
+.app-header,
+.tabs,
+.content-section {
+  width: min(100%, 44rem);
+}
+
+.practice-card {
+  max-width: 30rem;
+  padding: 1rem;
+  border: 1px solid #c9d4c8;
+  background: #fffdf7;
+}
+
+.prompt {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.preview-summary {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 30rem;
+  padding: 1rem;
+  border: 1px solid #c9d4c8;
+  background: #fffdf7;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.history-list {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 34rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.history-list li {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-block: 1px solid #c9d4c8;
+}
+
+.app-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.user-label {
+  margin: 0.35rem 0 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-block: 0.75rem;
+  border-block: 1px solid #c9d4c8;
+}
+
+.tab {
+  min-height: 2.5rem;
+  margin: 0;
+  color: #23302c;
+  background: transparent;
+}
+
+.tab.active {
+  color: #fffdf7;
+  background: #23302c;
+}
+
+.content-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.content-section h1 {
+  max-width: 28rem;
+}
+
+select {
+  min-height: 2.75rem;
+  max-width: 22rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #829589;
+  border-radius: 0.25rem;
+  color: #23302c;
+  background: #fffdf7;
+  font: inherit;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  max-width: 34rem;
+}
+
+.stat {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  border: 1px solid #c9d4c8;
+  background: #fffdf7;
+}
+
+.stat strong {
+  font-size: 1.8rem;
+}
+
+.stat span,
+.muted {
+  color: #5e6f66;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+
+.panel > * {
+  max-width: 38rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #b9573d;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 8vw, 5.5rem);
+  line-height: 0.95;
+}
+
+.intro {
+  max-width: 28rem;
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+
+form {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 22rem;
+}
+
+label {
+  margin-top: 0.5rem;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+input,
+button {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #829589;
+  border-radius: 0.25rem;
+  font: inherit;
+}
+
+button {
+  margin-top: 0.75rem;
+  color: #fffdf7;
+  background: #b9573d;
+  cursor: pointer;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #df9b43;
+  outline-offset: 2px;
+}
+
+.text-button {
+  width: fit-content;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: #23302c;
+  background: transparent;
+  text-decoration: underline;
+}
+
+.message {
+  color: #9c352c;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+}
+
+a {
+  width: fit-content;
+  color: #23302c;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+}
