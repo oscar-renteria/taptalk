@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { AppButton, SelectField, StatusMessage, TextField } from '../components';
+import { AppButton, SelectField, LiveMessage, TextField } from '../components';
 import { apiFetch, jsonRequest } from '../api';
 import { directionOptions, type Direction, type Tone } from '../types';
 
@@ -91,6 +91,6 @@ async function save(): Promise<void> {
       />
       <AppButton :loading="loading" @click="save">Save settings</AppButton>
     </fieldset>
-    <StatusMessage v-if="message" :tone="tone" :message="message" />
+    <LiveMessage :tone="tone" :message="message" />
   </section>
 </template>

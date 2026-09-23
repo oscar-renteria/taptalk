@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { AppButton, AppCard, LoadingState, StatusMessage } from '../components';
+import { AppButton, AppCard, LoadingState, LiveMessage } from '../components';
 import { apiFetch, jsonRequest } from '../api';
 import type { Tone } from '../types';
 
@@ -164,7 +164,7 @@ async function commitImport(): Promise<void> {
         Confirm and import
       </AppButton>
     </AppCard>
-    <StatusMessage v-if="adminMessage" :tone="adminTone" :message="adminMessage" />
+    <LiveMessage :tone="adminTone" :message="adminMessage" />
     <h2>Import history</h2>
     <LoadingState v-if="adminLoading && !adminHistory.length" label="Loading history..." />
     <ul v-else-if="adminHistory.length" class="history-list" aria-label="Import history">

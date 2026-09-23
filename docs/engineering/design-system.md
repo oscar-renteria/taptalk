@@ -17,11 +17,12 @@ The design system is deliberately small: CSS custom properties (tokens) plus com
 | Component | Purpose | Key props | Accessibility |
 | --- | --- | --- | --- |
 | `AppButton` | All buttons | `variant` (`primary`, `secondary`, `text`), `type`, `loading`, `loadingLabel`, `disabled`; exposes `focus()` | Disabled and `aria-busy` while loading, so double submission is impossible; 44px minimum size, including text buttons |
-| `TextField` | Labelled input | `id`, `label`, `type`, `hint`, `error`, `v-model`; other attributes pass through to the `<input>`; `#after` slot; exposes `focus()` | `<label for>`, `aria-describedby` for hint and error, `aria-invalid`; errors are prefixed with "!" |
+| `TextField` | Labelled input | `id`, `label`, `type`, `hint`, `error`, `describedby` (extra ids), `v-model`; other attributes pass through to the `<input>`; `#after` slot; exposes `focus()` | `<label for>`, `aria-describedby` for hint and error, `aria-invalid`; errors are prefixed with "!" |
 | `SelectField` | Labelled select | `id`, `label`, `options`, `v-model` | Native `<select>` |
 | `AppCard` | Bordered surface | `as` (element, for example `form`) | Semantic element of your choice |
 | `StatusMessage` | Feedback | `tone` (`info`, `success`, `warning`, `error`), `message` or slot | `role="alert"` for errors, `role="status"` otherwise; tone is shown by an icon (✓ → ✕ i), a border and the text, never by colour alone |
-| `ProgressIndicator` | Session progress | `value`, `max`, `label` | `role="progressbar"` with `aria-valuenow`, `aria-valuemax` and `aria-valuetext` |
+| `ProgressIndicator` | Session progress | `value`, `max`, `label`, `name` (accessible name) | `role="progressbar"` with `aria-valuenow`, `aria-valuemax` and `aria-valuetext` |
+| `LiveMessage` | Messages that should be announced | `tone`, `message` | Always renders an empty `role="status"` region, so screen readers announce content changes; errors render as `role="alert"` |
 | `LoadingState` | Loading placeholder | `label` | `role="status"`; the spinner is decorative and stops with reduced motion |
 | `ErrorState` | Failure with retry | `message`, `retryLabel`, emits `retry` | Alert plus a focusable retry button |
 | `StatTile` | Metric | `value`, `label` | Readable as "42 points" |

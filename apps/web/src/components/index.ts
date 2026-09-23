@@ -2,6 +2,7 @@ export { default as AppButton } from './AppButton.vue';
 export { default as AppCard } from './AppCard.vue';
 export { default as AppNav } from './AppNav.vue';
 export { default as ErrorState } from './ErrorState.vue';
+export { default as LiveMessage } from './LiveMessage.vue';
 export { default as LoadingState } from './LoadingState.vue';
 export { default as ProgressIndicator } from './ProgressIndicator.vue';
 export { default as SelectField } from './SelectField.vue';

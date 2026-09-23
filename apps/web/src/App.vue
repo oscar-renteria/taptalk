@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onErrorCaptured, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onErrorCaptured, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   AppButton,
@@ -48,8 +48,22 @@ onErrorCaptured((error) => {
   return false;
 });
 
-router.afterEach(() => {
+// After an in-app navigation, move focus to the new page heading so screen reader and keyboard
+// users learn that the page changed. The first load keeps the browser's default focus.
+let initialNavigation = true;
+router.afterEach(async (to, from) => {
   viewFailed.value = false;
+  if (initialNavigation) {
+    initialNavigation = false;
+    return;
+  }
+  if (to.path === from.path) return;
+  await nextTick();
+  const heading = document.querySelector<HTMLElement>('main h1');
+  if (heading) {
+    heading.tabIndex = -1;
+    heading.focus();
+  }
 });
 
 async function logout(): Promise<void> {

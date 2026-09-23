@@ -67,6 +67,14 @@ h1 {
   line-height: 0.95;
 }
 
+h1,
+h2,
+h3,
+.intro {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
 h2,
 h3 {
   margin: 0;
@@ -118,10 +126,14 @@ form {
 
 .shell {
   display: grid;
+  /* A bounded column (not place-content: center) lets content shrink and wrap instead of
+     widening the page when text is enlarged (WCAG 1.4.10 reflow). */
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  justify-items: center;
   min-height: 100vh;
-  place-content: center;
   gap: var(--space-4);
-  padding: var(--space-4);
+  padding: var(--space-4) clamp(0.5rem, 3vw, var(--space-4));
   background:
     radial-gradient(circle at 80% 10%, var(--color-highlight) 0 18%, transparent 19%),
     var(--color-paper);
@@ -131,7 +143,7 @@ form {
   display: grid;
   gap: var(--space-4);
   width: min(100%, 38rem);
-  padding: clamp(1.25rem, 5vw, 3.5rem);
+  padding: clamp(1rem, 5vw, 3.5rem);
   border: 1px solid var(--color-border);
   background: var(--color-panel);
   box-shadow: 0.75rem 0.75rem 0 var(--color-highlight);
@@ -153,9 +165,19 @@ form {
 
 .app-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: start;
   justify-content: space-between;
   gap: var(--space-4);
+}
+
+.app-header > div {
+  min-width: 0;
+}
+
+.user-label,
+.eyebrow {
+  overflow-wrap: anywhere;
 }
 
 .user-label {
@@ -287,6 +309,14 @@ form {
 
 .field__error::before {
   content: '! ' / '';
+}
+
+/* Percentage widths remove the inputs' intrinsic ~20-character minimum, so fields shrink with
+   the screen instead of forcing horizontal scrolling at large text sizes. */
+.field input,
+.field select {
+  width: 100%;
+  min-width: 0;
 }
 
 .field__control {
@@ -433,9 +463,11 @@ form {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Three tiles per row where they fit; fewer on narrow screens or with enlarged text. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
   gap: var(--space-3);
-  max-width: 34rem;
+  /* No max-width: with auto-fit, a max-width makes the browser size the column count from it
+     (for example 4 columns at 200% text on a 320px screen) and forces horizontal scrolling. */
 }
 
 .stat {
@@ -452,6 +484,7 @@ form {
 }
 
 .stat span {
+  overflow-wrap: anywhere;
   color: var(--color-muted);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
@@ -541,4 +574,14 @@ form {
   display: grid;
   gap: var(--space-2);
   width: min(100%, 38rem);
+}
+
+/* An empty live region stays in the accessibility tree but takes no space in the layout. */
+.live-message:empty {
+  position: absolute;
+}
+
+/* Headings receive programmatic focus after navigation; they are not interactive. */
+h1[tabindex='-1']:focus {
+  outline: none;
 }

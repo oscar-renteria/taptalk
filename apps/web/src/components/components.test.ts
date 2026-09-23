@@ -8,6 +8,7 @@ import {
   AppCard,
   AppNav,
   ErrorState,
+  LiveMessage,
   LoadingState,
   ProgressIndicator,
   SelectField,
@@ -175,5 +176,34 @@ describe('layout components', () => {
     expect(practice?.attributes('href')).toBe('/practice');
     expect(practice?.attributes('aria-current')).toBeUndefined();
     expect(progress?.attributes('aria-current')).toBe('page');
+  });
+});
+
+describe('LiveMessage', () => {
+  it('keeps an empty polite live region in place and fills it with the message', async () => {
+    const live = mount(LiveMessage, { props: { tone: 'success', message: '' } });
+    const region = live.get('[role="status"]');
+    expect(region.attributes('aria-live')).toBe('polite');
+    expect(region.text()).toBe('');
+
+    await live.setProps({ message: 'Saved.' });
+    expect(live.get('[role="status"]').element).toBe(region.element);
+    expect(region.text()).toBe('Saved.');
+    expect(region.find('.status').attributes('role')).toBeUndefined();
+  });
+
+  it('renders errors as an alert outside the polite region', () => {
+    const live = mount(LiveMessage, { props: { tone: 'error', message: 'Failed.' } });
+    expect(live.get('[role="status"]').text()).toBe('');
+    expect(live.get('[role="alert"]').text()).toBe('Failed.');
+  });
+});
+
+describe('TextField descriptions', () => {
+  it('adds extra described-by ids before its hint and error', () => {
+    const input = mount(TextField, {
+      props: { id: 'answer', label: 'Answer', describedby: 'prompt', error: 'Empty.' },
+    }).get('input');
+    expect(input.attributes('aria-describedby')).toBe('prompt answer-error');
   });
 });

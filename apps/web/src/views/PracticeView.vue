@@ -7,7 +7,7 @@ import {
   ProgressIndicator,
   SelectField,
   StatTile,
-  StatusMessage,
+  LiveMessage,
   TextField,
 } from '../components';
 import { apiFetch, jsonRequest } from '../api';
@@ -283,6 +283,7 @@ async function endSession(): Promise<void> {
     </template>
     <template v-else>
       <ProgressIndicator
+        name="Session progress"
         :value="practiceSession.answeredCount"
         :max="practiceSession.questionCount"
         :label="`Question ${Math.min(
@@ -291,13 +292,26 @@ async function endSession(): Promise<void> {
         )} of ${practiceSession.questionCount}`"
       />
       <AppCard v-if="question" as="form" @submit.prevent="submitAnswer">
-        <p class="prompt" data-testid="practice-prompt">{{ question.prompt }}</p>
-        <p v-if="question.phonetics" class="muted">{{ question.phonetics }}</p>
+        <p
+          id="practice-prompt-text"
+          class="prompt"
+          data-testid="practice-prompt"
+          :lang="question.direction === 'english-to-german' ? 'en' : 'de'"
+        >
+          {{ question.prompt }}
+        </p>
+        <p v-if="question.phonetics" id="practice-phonetics" class="muted">
+          {{ question.phonetics }}
+        </p>
         <TextField
           id="answer"
           ref="answerInput"
           v-model="submittedAnswer"
           label="Your answer"
+          :lang="question.direction === 'english-to-german' ? 'de' : 'en'"
+          :describedby="
+            question.phonetics ? 'practice-prompt-text practice-phonetics' : 'practice-prompt-text'
+          "
           autocomplete="off"
           autocapitalize="off"
           spellcheck="false"
@@ -313,7 +327,9 @@ async function endSession(): Promise<void> {
           Submit answer
         </AppButton>
       </AppCard>
-      <StatusMessage v-if="practiceMessage" :tone="practiceTone" :message="practiceMessage" />
+    </template>
+    <LiveMessage :tone="practiceTone" :message="practiceMessage" />
+    <template v-if="practiceSession">
       <div class="button-row">
         <AppButton
           v-if="answered"
@@ -328,10 +344,5 @@ async function endSession(): Promise<void> {
         </AppButton>
       </div>
     </template>
-    <StatusMessage
-      v-if="practiceMessage && !practiceSession"
-      :tone="practiceTone"
-      :message="practiceMessage"
-    />
   </section>
 </template>

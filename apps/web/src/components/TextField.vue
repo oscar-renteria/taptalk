@@ -12,14 +12,16 @@ const props = withDefaults(
     type?: string;
     hint?: string;
     error?: string;
+    // Extra element ids that describe the input, for example the question it answers.
+    describedby?: string;
   }>(),
-  { type: 'text', hint: '', error: '' },
+  { type: 'text', hint: '', error: '', describedby: '' },
 );
 const model = defineModel<string | number>({ default: '' });
 const input = ref<HTMLInputElement | null>(null);
 const describedBy = computed(
   () =>
-    [props.hint && `${props.id}-hint`, props.error && `${props.id}-error`]
+    [props.describedby, props.hint && `${props.id}-hint`, props.error && `${props.id}-error`]
       .filter(Boolean)
       .join(' ') || undefined,
 );

@@ -72,7 +72,8 @@ describe('practice screen', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
 
-    const feedback = wrapper.get('[role="status"].status');
+    // The persistent live region announces the message placed inside it.
+    const feedback = wrapper.get('[role="status"][aria-live="polite"] .status');
     expect(feedback.text()).toBe('Correct. +10 points.');
     expect(feedback.attributes('data-tone')).toBe('success');
     expect(wrapper.get('#answer').attributes('readonly')).toBeDefined();
@@ -96,7 +97,9 @@ describe('practice screen', () => {
     const feedback = wrapper.get('.status');
     expect(feedback.text()).toBe('Not quite. The answer is hallo.');
     expect(feedback.attributes('data-tone')).toBe('warning');
-    expect(feedback.attributes('role')).toBe('status');
+    expect(wrapper.get('[role="status"][aria-live="polite"]').text()).toBe(
+      'Not quite. The answer is hallo.',
+    );
   });
 
   it('shows the checking state and sends one request for repeated submits', async () => {

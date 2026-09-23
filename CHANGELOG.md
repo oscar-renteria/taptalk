@@ -4,6 +4,7 @@
 
 ### Added
 
+- Automated accessibility suite (`e2e/accessibility.spec.ts`): axe-core WCAG 2.2 AA scans of 12 screen states, a keyboard-only journey, touch-target, reflow, reduced-motion, non-colour feedback and language checks (Prompt 031).
 - PWA: PNG and maskable icons, a complete manifest, an update prompt instead of automatic reloads, `Cache-Control: no-store` on API responses, and a Playwright `pwa` project that checks installability, cache contents and offline start against the production build (Prompt 028).
 - Practice screen tests for success, wrong-answer, loading, failure and error states, single submission and retry; documented in `docs/engineering/practice-screen.md` (Prompt 023).
 - Login and registration screens with shared client-side validation, field-level server errors, focus on the first invalid field, a password visibility toggle and double-submit protection (Prompt 017).
@@ -32,6 +33,7 @@
 
 ### Fixed
 
+- Accessibility review (Prompt 031, `docs/engineering/accessibility-review.md`): the progress bar got an accessible name; reflow at 200 % text on 320 px screens; persistent live regions for status messages; `lang="de"` on German prompts and answers; the answer field is described by its question; focus moves to the page heading after navigation.
 - The service worker's API rule never matched (the regex was tested against the full URL), and navigations to `/api/` could receive the offline fallback (Prompt 028).
 - Fresh checkouts (including CI) failed `npm run typecheck` and `npm test` because `packages/shared/dist` was only built by `npm run build`; the root scripts now build the shared contracts first.
 - Correct answers are no longer shown in error red; feedback tone is conveyed by icon and text. Focus ring contrast raised from 2.1:1 to 4.8:1. Text buttons meet the 44px touch target. Stat tiles read as "42 points" instead of "42points" (Prompt 015).

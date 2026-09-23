@@ -56,6 +56,7 @@ Global rules for every prompt:
 - Prompt 028: PWA behaviour (installable, shell-only cache, update prompt, docs/engineering/pwa.md)
 - Prompt 029: Backend integration test suite
 - Prompt 030: End-to-end browser tests (`npm run test:e2e`, all 9 journeys, mobile and tablet)
+- Prompt 031: Accessibility review (axe-core suite, keyboard journey, docs/engineering/accessibility-review.md; screen reader pass recommended before release)
 
 ### IN PROGRESS
 
@@ -63,7 +64,7 @@ Global rules for every prompt:
 
 ### NOT STARTED
 
-- Prompts 031–038: Accessibility, security and responsive reviews, deployment, operations, smoke testing, and handover
+- Prompts 032–038: Security and responsive reviews, deployment, operations, smoke testing, and handover
 
 ------------------------------------------------------------------------
 
@@ -982,7 +983,7 @@ assertions.
 
 ------------------------------------------------------------------------
 
-## Prompt 031 --- Perform accessibility review [NOT STARTED]
+## Prompt 031 --- Perform accessibility review [DONE]
 
 **Goal:** Improve usability for children and users with accessibility
 needs.
