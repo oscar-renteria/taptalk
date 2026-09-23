@@ -19,6 +19,58 @@ export type VocabularyRecord = {
   answers: string[];
 };
 
+export type PracticeSessionStatus = 'active' | 'completed' | 'abandoned';
+
+export type PracticeSessionRecord = {
+  id: string;
+  userId: string;
+  direction: PracticeDirection;
+  questionCount: number;
+  status: PracticeSessionStatus;
+  startedAt: string;
+  endedAt: string | null;
+  answeredCount: number;
+};
+
+export type PracticeSessionSummary = PracticeSessionRecord & {
+  correctCount: number;
+  incorrectCount: number;
+  pointsEarned: number;
+  accuracy: number;
+  wordsToPractice: string[];
+};
+
+export class RepositoryError extends Error {
+  constructor(
+    message: string,
+    readonly code: 'conflict' | 'invalid' | 'storage',
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'RepositoryError';
+  }
+}
+
+function mapDatabaseError(error: unknown): RepositoryError {
+  const message = error instanceof Error ? error.message : 'Database operation failed.';
+  if (message.includes('UNIQUE constraint failed')) {
+    return new RepositoryError('The record conflicts with existing data.', 'conflict', {
+      cause: error,
+    });
+  }
+  if (
+    message.includes('FOREIGN KEY constraint failed') ||
+    message.includes('CHECK constraint failed')
+  ) {
+    return new RepositoryError('The record violates a data constraint.', 'invalid', {
+      cause: error,
+    });
+  }
+  return new RepositoryError('The database operation could not be completed.', 'storage', {
+    cause: error,
+  });
+}
+
 export function findUserByUsername(
   database: SqliteDatabase,
   username: string,
@@ -33,12 +85,16 @@ export function findUserByUsername(
 }
 
 export function insertUser(database: SqliteDatabase, user: UserRecord): void {
-  database
-    .prepare(
-      `INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    )
-    .run(user.id, user.username, user.passwordHash, user.role, user.createdAt, user.updatedAt);
+  try {
+    database
+      .prepare(
+        `INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(user.id, user.username, user.passwordHash, user.role, user.createdAt, user.updatedAt);
+  } catch (error) {
+    throw mapDatabaseError(error);
+  }
 }
 
 export function getVocabulary(database: SqliteDatabase): VocabularyRecord[] {
@@ -93,7 +149,7 @@ export function upsertVocabulary(
     database.exec('COMMIT');
   } catch (error) {
     database.exec('ROLLBACK');
-    throw error;
+    throw mapDatabaseError(error);
   }
 }
 
@@ -156,7 +212,7 @@ export function commitVocabularyImport(
     return { importId, addedCount, updatedCount };
   } catch (error) {
     database.exec('ROLLBACK');
-    throw error;
+    throw mapDatabaseError(error);
   }
 }
 
@@ -258,14 +314,15 @@ export function recordAttempt(
     scoreDelta: number;
     matchingReason: string;
     attemptedAt: string;
+    practiceSessionId?: string | null;
   },
 ): void {
   database
     .prepare(
       `INSERT INTO learning_attempts
        (id, user_id, vocabulary_entry_id, direction, prompt, submitted_answer, normalized_answer,
-        correct, score_delta, matching_reason, attempted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        correct, score_delta, matching_reason, attempted_at, practice_session_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       attempt.id,
@@ -279,6 +336,7 @@ export function recordAttempt(
       attempt.scoreDelta,
       attempt.matchingReason,
       attempt.attemptedAt,
+      attempt.practiceSessionId ?? null,
     );
 }
 
@@ -319,5 +377,109 @@ export function getDashboardSummary(database: SqliteDatabase, userId: string): D
       correct: activity.correct === 1,
     })),
     repeatedErrorWords: repeatedErrorWords.map((entry) => entry.word),
+  };
+}
+
+export function setUserRole(
+  database: SqliteDatabase,
+  username: string,
+  role: UserRecord['role'],
+  now: string,
+): boolean {
+  const result = database
+    .prepare('UPDATE users SET role = ?, updated_at = ? WHERE LOWER(username) = LOWER(?)')
+    .run(role, now, username);
+  return Number(result.changes) === 1;
+}
+
+// Policy: a user has at most one active session. Starting a new one abandons the previous one.
+export function startPracticeSession(
+  database: SqliteDatabase,
+  session: { id: string; userId: string; direction: PracticeDirection; questionCount: number },
+  now: string,
+): PracticeSessionRecord {
+  database.exec('BEGIN');
+  try {
+    database
+      .prepare(
+        `UPDATE practice_sessions SET status = 'abandoned', ended_at = ?
+         WHERE user_id = ? AND status = 'active'`,
+      )
+      .run(now, session.userId);
+    database
+      .prepare(
+        `INSERT INTO practice_sessions (id, user_id, direction, question_count, status, started_at)
+         VALUES (?, ?, ?, ?, 'active', ?)`,
+      )
+      .run(session.id, session.userId, session.direction, session.questionCount, now);
+    database.exec('COMMIT');
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  }
+  return { ...session, status: 'active', startedAt: now, endedAt: null, answeredCount: 0 };
+}
+
+export function getPracticeSession(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string,
+): PracticeSessionRecord | undefined {
+  const row = database
+    .prepare(
+      `SELECT s.id, s.user_id AS userId, s.direction, s.question_count AS questionCount, s.status,
+              s.started_at AS startedAt, s.ended_at AS endedAt,
+              (SELECT COUNT(*) FROM learning_attempts a WHERE a.practice_session_id = s.id) AS answeredCount
+       FROM practice_sessions s WHERE s.id = ? AND s.user_id = ?`,
+    )
+    .get(sessionId, userId) as PracticeSessionRecord | undefined;
+  return row ? { ...row, answeredCount: Number(row.answeredCount) } : undefined;
+}
+
+// Policy: ending a session after every question was answered completes it; ending earlier abandons it.
+export function endPracticeSession(
+  database: SqliteDatabase,
+  session: PracticeSessionRecord,
+  now: string,
+): PracticeSessionStatus {
+  const status = session.answeredCount >= session.questionCount ? 'completed' : 'abandoned';
+  database
+    .prepare(
+      `UPDATE practice_sessions SET status = ?, ended_at = ? WHERE id = ? AND status = 'active'`,
+    )
+    .run(status, now, session.id);
+  return status;
+}
+
+export function getPracticeSessionSummary(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string,
+): PracticeSessionSummary | undefined {
+  const session = getPracticeSession(database, userId, sessionId);
+  if (!session) {
+    return undefined;
+  }
+  const totals = database
+    .prepare(
+      `SELECT COALESCE(SUM(correct), 0) AS correctCount, COALESCE(SUM(score_delta), 0) AS pointsEarned
+       FROM learning_attempts WHERE practice_session_id = ?`,
+    )
+    .get(sessionId) as { correctCount: number; pointsEarned: number };
+  const wordsToPractice = database
+    .prepare(
+      `SELECT DISTINCT v.english AS word FROM learning_attempts a
+       JOIN vocabulary_entries v ON v.id = a.vocabulary_entry_id
+       WHERE a.practice_session_id = ? AND a.correct = 0 ORDER BY v.english`,
+    )
+    .all(sessionId) as Array<{ word: string }>;
+  const correctCount = Number(totals.correctCount);
+  return {
+    ...session,
+    correctCount,
+    incorrectCount: session.answeredCount - correctCount,
+    pointsEarned: Number(totals.pointsEarned),
+    accuracy: session.answeredCount === 0 ? 0 : correctCount / session.answeredCount,
+    wordsToPractice: wordsToPractice.map((entry) => entry.word),
   };
 }

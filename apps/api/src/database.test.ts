@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { migrateDatabase, openDatabase } from './database.js';
-import { ensurePreferences, findUserByUsername, insertUser } from './repositories.js';
+import {
+  ensurePreferences,
+  findUserByUsername,
+  insertUser,
+  commitVocabularyImport,
+  RepositoryError,
+  upsertVocabulary,
+} from './repositories.js';
 
 describe('database foundation', () => {
   it('applies migrations idempotently and persists repository data', () => {
@@ -24,5 +31,59 @@ describe('database foundation', () => {
     expect(database.prepare('SELECT COUNT(*) AS count FROM user_preferences').get()).toEqual({
       count: 1,
     });
+  });
+
+  it('maps invalid repository operations to safe errors', () => {
+    const database = openDatabase();
+    const now = '2026-09-23T00:00:00.000Z';
+    const user = {
+      id: 'user-1',
+      username: 'learner',
+      passwordHash: 'hash',
+      role: 'user' as const,
+      createdAt: now,
+      updatedAt: now,
+    };
+    insertUser(database, user);
+    expect(() => insertUser(database, user)).toThrowError(RepositoryError);
+    expect(() => insertUser(database, user)).toThrow(/conflicts with existing data/);
+    expect(() =>
+      upsertVocabulary(
+        database,
+        {
+          id: 'entry-1',
+          english: 'hello',
+          phonetics: null,
+          germanDisplay: 'hallo',
+          answers: ['hallo', 'hallo'],
+        },
+        now,
+      ),
+    ).toThrow(/conflicts with existing data/);
+    expect(database.prepare('SELECT COUNT(*) AS count FROM vocabulary_entries').get()).toEqual({
+      count: 0,
+    });
+  });
+
+  it('maps foreign-key failures without exposing SQLite details', () => {
+    const database = openDatabase();
+    expect(() =>
+      commitVocabularyImport(
+        database,
+        'missing-user',
+        [{ english: 'hello', phonetics: undefined, german: 'hallo', alternatives: ['hallo'] }],
+        'missing-user.json',
+        '2026-09-23T00:00:00.000Z',
+      ),
+    ).toThrowError(RepositoryError);
+    expect(() =>
+      commitVocabularyImport(
+        database,
+        'missing-user',
+        [{ english: 'hello', phonetics: undefined, german: 'hallo', alternatives: ['hallo'] }],
+        'missing-user.json',
+        '2026-09-23T00:00:00.000Z',
+      ),
+    ).toThrow(/data constraint/);
   });
 });

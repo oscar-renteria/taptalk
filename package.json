@@ -10,13 +10,16 @@
     "dev": "concurrently \"npm run dev --workspace @taptalk/api\" \"npm run dev --workspace @taptalk/web\"",
     "build": "npm run build --workspace @taptalk/shared && npm run build --workspace @taptalk/api && npm run build --workspace @taptalk/web",
     "lint": "eslint . --max-warnings 0 && npm run format:check",
-    "typecheck": "npm run typecheck --workspace @taptalk/shared && npm run typecheck --workspace @taptalk/api && npm run typecheck --workspace @taptalk/web",
+    "typecheck": "npm run typecheck --workspace @taptalk/shared && npm run typecheck --workspace @taptalk/api && npm run typecheck --workspace @taptalk/web && tsc -p e2e/tsconfig.json",
     "test": "npm run test --workspaces --if-present",
     "test:coverage": "npm run test:coverage --workspaces --if-present",
-    "format:check": "prettier --check package.json tsconfig.base.json .prettierrc.json eslint.config.mjs vitest.config.ts apps packages .github/workflows/ci.yml"
+    "format:check": "prettier --check package.json tsconfig.base.json .prettierrc.json eslint.config.mjs vitest.config.ts playwright.config.ts e2e apps packages .github/workflows/ci.yml",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22.10.2",
     "concurrently": "^9.1.2",
     "eslint": "^9.17.0",

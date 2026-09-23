@@ -4,7 +4,7 @@ TapTalk is a responsive Vue 3 PWA with a Node.js TypeScript API and SQLite persi
 
 ## Current status
 
-The workspace foundation is scaffolded. Authentication, vocabulary, learning behavior, and persistence are intentionally not implemented yet.
+The workspace foundation, authentication, vocabulary ingestion, practice loop, dashboard, settings, administrator import workflow, PWA build, and backend integration suite are implemented. Remaining roadmap work is tracked in `.roadmap/taptalk_atomic_copilot_prompts.md`.
 
 ## Prerequisites
 
@@ -31,6 +31,17 @@ npm test
 npm run test:coverage
 ```
 
+## End-to-end tests
+
+```sh
+npm run test:e2e:install   # once: downloads Chromium for Playwright
+npm run test:e2e
+```
+
+The suite starts its own API (port 3100) and web server (port 5174) against a throwaway SQLite database and covers mobile and tablet viewports. See [docs/engineering/e2e-testing.md](docs/engineering/e2e-testing.md).
+
 Follow the atomic roadmap prompts in `.roadmap/taptalk_atomic_copilot_prompts.md` and do not move to a later phase before its gate passes.
 
-CI runs linting, formatting, strict typechecking, coverage-enabled tests, and production builds with the same workspace commands.
+CI runs linting, formatting, strict typechecking, coverage-enabled tests, and production builds with the same workspace commands, followed by the Playwright suite. The Playwright report is uploaded when it fails.
+
+See [development tooling](docs/engineering/development-tooling.md) for the quality gate, coverage reports, test conventions, and CI parity.

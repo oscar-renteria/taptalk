@@ -1,0 +1,21 @@
+# Changelog
+
+## Unreleased
+
+### Added
+
+- Practice sessions: `POST /api/v1/practice/sessions`, `POST /api/v1/practice/sessions/:id/end` and `GET /api/v1/practice/sessions/:id`, with migration `002_practice_sessions.sql` (Prompts 022, 024).
+- Practice screen shows session progress, a next-question action, an end-session action and a completion summary with practice-again and progress actions (Prompts 023, 024).
+- `npm run set-role --workspace @taptalk/api -- <username> <role>` for administrator provisioning (Prompt 011).
+- "Questions per session" setting.
+
+- Playwright end-to-end suite (`npm run test:e2e`) covering registration, login, settings, practice feedback, dashboard, administrator import and unauthorized access at mobile and tablet viewports (Prompt 030).
+- CI `e2e` job that uploads the Playwright report and failure traces as artifacts.
+- `API_PROXY_TARGET` environment variable for the Vite dev proxy (defaults to `http://localhost:3000`).
+
+### Fixed
+
+- Login survives a page reload.
+- The settings form is locked while loading, and saving no longer resets the session length and repetition preference.
+- The vocabulary import success message stays visible, and the preview cannot be committed twice.
+- Logging out clears the previous user's practice, dashboard and admin state.

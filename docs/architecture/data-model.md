@@ -9,6 +9,7 @@
 - `user_preferences`: one row per user for direction, vocabulary filter, session length, and repetition preference.
 - `learning_attempts`: immutable user-attributed answer history, matching result, score delta, prompt, and timestamp.
 - `sessions`: opaque authenticated session hashes with expiry and revocation timestamps.
+- `practice_sessions`: one practice round per row with direction, question count, status (`active`, `completed` or `abandoned`) and start/end timestamps. `learning_attempts.practice_session_id` links attempts to their round (migration `002_practice_sessions.sql`). See [practice-session-api.md](practice-session-api.md).
 - `schema_migrations`: applied migration identifiers and timestamps.
 
 ## Integrity rules

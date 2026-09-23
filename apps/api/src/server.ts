@@ -1,18 +1,23 @@
 import Fastify from 'fastify';
-import { userPreferencesSchema } from '@taptalk/shared';
+import { practiceDirectionSchema, userPreferencesSchema } from '@taptalk/shared';
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createId, openDatabase, type SqliteDatabase } from './database.js';
 import {
   commitVocabularyImport,
+  endPracticeSession,
   ensurePreferences,
   findUserByUsername,
   getDashboardSummary,
   getVocabularyImportHistory,
+  getPracticeSession,
+  getPracticeSessionSummary,
   getPreferences,
   getVocabulary,
   insertUser,
   recordAttempt,
+  startPracticeSession,
   updatePreferences,
+  type PracticeSessionRecord,
 } from './repositories.js';
 import { calculateScore, matchAnswer } from './learning.js';
 import { previewVocabularyImport } from './vocabulary.js';
@@ -69,6 +74,12 @@ function safeUser(user: {
   createdAt: string;
 }) {
   return { id: user.id, username: user.username, role: user.role, createdAt: user.createdAt };
+}
+
+function publicSession<T extends PracticeSessionRecord>(session: T): Omit<T, 'userId'> {
+  const rest: Omit<T, 'userId'> & { userId?: string } = { ...session };
+  delete rest.userId;
+  return rest;
 }
 
 function findAuthenticatedUser(
@@ -328,6 +339,7 @@ export function buildServer(database: SqliteDatabase = openDatabase()) {
       direction?: unknown;
       prompt?: unknown;
       submittedAnswer?: unknown;
+      practiceSessionId?: unknown;
     };
   }>('/api/v1/practice/answer', async (request, reply) => {
     const user = findAuthenticatedUser(database, request);
@@ -336,16 +348,37 @@ export function buildServer(database: SqliteDatabase = openDatabase()) {
         .code(401)
         .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
     }
-    const { vocabularyEntryId, direction, prompt, submittedAnswer } = request.body;
+    const { vocabularyEntryId, direction, prompt, submittedAnswer, practiceSessionId } =
+      request.body;
     if (
       typeof vocabularyEntryId !== 'string' ||
       (direction !== 'english-to-german' && direction !== 'german-to-english') ||
       typeof prompt !== 'string' ||
-      typeof submittedAnswer !== 'string'
+      typeof submittedAnswer !== 'string' ||
+      (practiceSessionId !== undefined && typeof practiceSessionId !== 'string')
     ) {
       return reply
         .code(400)
         .send({ error: { code: 'INVALID_ANSWER', message: 'Answer submission is invalid.' } });
+    }
+    const practiceSession =
+      typeof practiceSessionId === 'string'
+        ? getPracticeSession(database, user.id, practiceSessionId)
+        : undefined;
+    if (typeof practiceSessionId === 'string') {
+      if (!practiceSession) {
+        return reply.code(404).send({
+          error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
+        });
+      }
+      if (
+        practiceSession.status !== 'active' ||
+        practiceSession.answeredCount >= practiceSession.questionCount
+      ) {
+        return reply.code(409).send({
+          error: { code: 'SESSION_NOT_ACTIVE', message: 'Practice session is no longer active.' },
+        });
+      }
     }
     const entry = getVocabulary(database).find((candidate) => candidate.id === vocabularyEntryId);
     if (!entry) {
@@ -369,6 +402,7 @@ export function buildServer(database: SqliteDatabase = openDatabase()) {
       scoreDelta,
       matchingReason: match.reason,
       attemptedAt: new Date().toISOString(),
+      practiceSessionId: practiceSession?.id ?? null,
     });
     return reply.send({
       result: {
@@ -378,8 +412,96 @@ export function buildServer(database: SqliteDatabase = openDatabase()) {
         matchingReason: match.reason,
         correctAnswer: direction === 'english-to-german' ? entry.germanDisplay : entry.english,
       },
+      ...(practiceSession
+        ? {
+            session: {
+              id: practiceSession.id,
+              answeredCount: practiceSession.answeredCount + 1,
+              questionCount: practiceSession.questionCount,
+            },
+          }
+        : {}),
     });
   });
+
+  server.post<{ Body: { direction?: unknown } | undefined }>(
+    '/api/v1/practice/sessions',
+    async (request, reply) => {
+      const user = findAuthenticatedUser(database, request);
+      if (!user) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
+      }
+      const preferences = getPreferences(database, user.id);
+      const direction = practiceDirectionSchema.safeParse(
+        request.body?.direction ?? preferences.direction,
+      );
+      if (!direction.success) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_DIRECTION', message: 'Practice direction is invalid.' },
+        });
+      }
+      if (getVocabulary(database).length === 0) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'NO_VOCABULARY', message: 'No vocabulary is available.' } });
+      }
+      const session = startPracticeSession(
+        database,
+        {
+          id: createId(),
+          userId: user.id,
+          direction: direction.data,
+          questionCount: preferences.sessionLength,
+        },
+        new Date().toISOString(),
+      );
+      return reply.code(201).send({ session: publicSession(session) });
+    },
+  );
+
+  server.get<{ Params: { sessionId: string } }>(
+    '/api/v1/practice/sessions/:sessionId',
+    async (request, reply) => {
+      const user = findAuthenticatedUser(database, request);
+      if (!user) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
+      }
+      const summary = getPracticeSessionSummary(database, user.id, request.params.sessionId);
+      if (!summary) {
+        return reply.code(404).send({
+          error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
+        });
+      }
+      return reply.send({ session: publicSession(summary) });
+    },
+  );
+
+  server.post<{ Params: { sessionId: string } }>(
+    '/api/v1/practice/sessions/:sessionId/end',
+    async (request, reply) => {
+      const user = findAuthenticatedUser(database, request);
+      if (!user) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
+      }
+      const session = getPracticeSession(database, user.id, request.params.sessionId);
+      if (!session) {
+        return reply.code(404).send({
+          error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
+        });
+      }
+      if (session.status === 'active') {
+        endPracticeSession(database, session, new Date().toISOString());
+      }
+      const summary = getPracticeSessionSummary(database, user.id, session.id);
+      return reply.send({ session: summary ? publicSession(summary) : null });
+    },
+  );
 
   server.get('/api/v1/dashboard', async (request, reply) => {
     const user = findAuthenticatedUser(database, request);

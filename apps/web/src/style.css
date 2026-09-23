@@ -262,3 +262,41 @@ a {
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-weight: 700;
 }
+
+.session-summary {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.session-summary h2:focus {
+  outline: none;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.button-row button {
+  margin-top: 0;
+}
+
+.plain-fieldset {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 22rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

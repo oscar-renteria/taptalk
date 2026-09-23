@@ -20,11 +20,55 @@ Global rules for every prompt:
     changes.
 -   Never commit secrets, real credentials, or production data.
 
+## Current execution status
+
+`DONE` means the prompt's implementation and acceptance checks have been completed and verified. `IN PROGRESS` means code exists but one or more acceptance criteria remain. `NOT STARTED` means the prompt has not been implemented.
+
+### DONE
+
+- Prompt 001: Repository operating rules
+- Prompt 002: Product requirements baseline
+- Prompt 003: Architecture and ADR process
+- Prompt 004: Workspace scaffold
+- Prompt 005: Code quality and test tooling
+- Prompt 006: Shared validation package
+- Prompt 007: Database schema
+- Prompt 008: Database migrations and repositories
+- Prompt 012: Vocabulary parser and normalizer
+- Prompt 013: Vocabulary import preview
+- Prompt 014: Transactional vocabulary import
+- Prompt 021: Attempt recording
+- Prompt 022: Practice session API (lifecycle endpoints, contract in `docs/architecture/practice-session-api.md`)
+- Prompt 024: Session completion summary
+- Prompt 025: Dashboard APIs and UI
+- Prompt 026: User settings
+- Prompt 027: Administrator import UI (E2E coverage in `e2e/admin-import.spec.ts`)
+- Prompt 029: Backend integration test suite
+- Prompt 030: End-to-end browser tests (`npm run test:e2e`, all 9 journeys, mobile and tablet)
+
+### IN PROGRESS
+
+- Prompt 009: Account flow needs the complete weak-credential and database-failure test matrix.
+- Prompt 010: Session expiration and full authorization middleware coverage remain.
+- Prompt 011: Provisioning is documented (`docs/operations/administrator-provisioning.md`, `set-role` CLI). Role checks are still repeated per endpoint instead of centralized.
+- Prompt 015: Reusable design-system components and component tests remain.
+- Prompt 016: Refresh now restores the authenticated session. Real client routing, URL-based views and a not-found page remain.
+- Prompt 017: Dedicated registration/login component and integration tests remain.
+- Prompt 018: Matching policy documentation remains.
+- Prompt 019: Adaptive weighted question selection remains.
+- Prompt 020: Documented scoring formula and boundary tests remain.
+- Prompt 023: Session progress, next-question action, deliberate focus and double-submit protection are done. A loading-state UI test remains, and question variety depends on Prompt 019.
+- Prompt 028: Browser-level PWA verification remains.
+
+### NOT STARTED
+
+- Prompts 031–038: Accessibility, security and responsive reviews, deployment, operations, smoke testing, and handover
+
 ------------------------------------------------------------------------
 
 # Phase 0 --- Governance and discovery
 
-## Prompt 001 --- Establish repository operating rules
+## Prompt 001 --- Establish repository operating rules [DONE]
 
 **Goal:** Create the project-wide engineering rules used by all future
 agents.
@@ -61,7 +105,7 @@ agents.
 
 ------------------------------------------------------------------------
 
-## Prompt 002 --- Create the product requirements baseline
+## Prompt 002 --- Create the product requirements baseline [DONE]
 
 **Goal:** Capture the initial functional and non-functional
 requirements.
@@ -97,7 +141,7 @@ than inventing requirements.
 
 ------------------------------------------------------------------------
 
-## Prompt 003 --- Define architecture and ADR process
+## Prompt 003 --- Define architecture and ADR process [DONE]
 
 **Goal:** Establish the technical architecture before feature
 implementation.
@@ -134,7 +178,7 @@ implementation.
 
 # Phase 1 --- Project foundation
 
-## Prompt 004 --- Scaffold the workspace
+## Prompt 004 --- Scaffold the workspace [DONE]
 
 **Goal:** Create a runnable full-stack workspace.
 
@@ -168,7 +212,7 @@ implementation.
 
 ------------------------------------------------------------------------
 
-## Prompt 005 --- Configure code quality and test tooling
+## Prompt 005 --- Configure code quality and test tooling [DONE]
 
 **Goal:** Establish consistent automated checks.
 
@@ -195,7 +239,7 @@ Use the chosen tools consistently across the workspace.
 
 ------------------------------------------------------------------------
 
-## Prompt 006 --- Create the shared validation package
+## Prompt 006 --- Create the shared validation package [DONE]
 
 **Goal:** Establish shared contracts without duplicating schemas.
 
@@ -224,7 +268,7 @@ Use the chosen tools consistently across the workspace.
 
 # Phase 2 --- Database and backend foundation
 
-## Prompt 007 --- Design the database schema
+## Prompt 007 --- Design the database schema [DONE]
 
 **Goal:** Create a normalized schema for the first release.
 
@@ -264,7 +308,7 @@ Create `docs/architecture/data-model.md`.
 
 ------------------------------------------------------------------------
 
-## Prompt 008 --- Implement database migrations and repositories
+## Prompt 008 --- Implement database migrations and repositories [DONE]
 
 **Goal:** Implement persistence without coupling business logic to SQL
 details.
@@ -288,7 +332,7 @@ details.
 
 ------------------------------------------------------------------------
 
-## Prompt 009 --- Implement secure account creation
+## Prompt 009 --- Implement secure account creation [IN PROGRESS]
 
 **Goal:** Add account registration without email.
 
@@ -318,7 +362,7 @@ details.
 
 ------------------------------------------------------------------------
 
-## Prompt 010 --- Implement login, logout, and session protection
+## Prompt 010 --- Implement login, logout, and session protection [IN PROGRESS]
 
 **Goal:** Provide secure authenticated sessions.
 
@@ -341,7 +385,7 @@ details.
 
 ------------------------------------------------------------------------
 
-## Prompt 011 --- Implement authorization roles
+## Prompt 011 --- Implement authorization roles [IN PROGRESS]
 
 **Goal:** Separate regular users from vocabulary administrators.
 
@@ -365,7 +409,7 @@ details.
 
 # Phase 3 --- Vocabulary ingestion
 
-## Prompt 012 --- Build the vocabulary parser and normalizer
+## Prompt 012 --- Build the vocabulary parser and normalizer [DONE]
 
 **Goal:** Parse the supplied JSON format safely.
 
@@ -402,7 +446,7 @@ normalization policy and add tests for placeholder phrases.
 
 ------------------------------------------------------------------------
 
-## Prompt 013 --- Implement vocabulary import preview
+## Prompt 013 --- Implement vocabulary import preview [DONE]
 
 **Goal:** Allow administrators to inspect an import before committing
 it.
@@ -431,7 +475,7 @@ it.
 
 ------------------------------------------------------------------------
 
-## Prompt 014 --- Implement transactional vocabulary import
+## Prompt 014 --- Implement transactional vocabulary import [DONE]
 
 **Goal:** Commit approved vocabulary changes safely.
 
@@ -456,7 +500,7 @@ it.
 
 # Phase 4 --- Frontend foundation
 
-## Prompt 015 --- Create the TapTalk design system
+## Prompt 015 --- Create the TapTalk design system [IN PROGRESS]
 
 **Goal:** Establish a consistent child-friendly interface.
 
@@ -489,7 +533,7 @@ excessive visual complexity.
 
 ------------------------------------------------------------------------
 
-## Prompt 016 --- Implement routing and authenticated application shell
+## Prompt 016 --- Implement routing and authenticated application shell [IN PROGRESS]
 
 **Goal:** Create the main application navigation.
 
@@ -522,7 +566,7 @@ Add:
 
 ------------------------------------------------------------------------
 
-## Prompt 017 --- Implement registration and login screens
+## Prompt 017 --- Implement registration and login screens [IN PROGRESS]
 
 **Goal:** Connect the frontend account flow to the API.
 
@@ -552,7 +596,7 @@ mechanism.
 
 # Phase 5 --- Learning domain
 
-## Prompt 018 --- Define answer matching rules
+## Prompt 018 --- Define answer matching rules [IN PROGRESS]
 
 **Goal:** Create deterministic answer validation.
 
@@ -583,7 +627,7 @@ components.
 
 ------------------------------------------------------------------------
 
-## Prompt 019 --- Implement practice question selection
+## Prompt 019 --- Implement practice question selection [IN PROGRESS]
 
 **Goal:** Select questions according to user preferences and learning
 history.
@@ -614,7 +658,7 @@ machine learning.
 
 ------------------------------------------------------------------------
 
-## Prompt 020 --- Implement scoring rules
+## Prompt 020 --- Implement scoring rules [IN PROGRESS]
 
 **Goal:** Define and implement the points system.
 
@@ -637,7 +681,7 @@ machine learning.
 
 ------------------------------------------------------------------------
 
-## Prompt 021 --- Implement attempt recording
+## Prompt 021 --- Implement attempt recording [DONE]
 
 **Goal:** Persist every submitted answer safely.
 
@@ -668,7 +712,7 @@ together.
 
 ------------------------------------------------------------------------
 
-## Prompt 022 --- Implement the practice session API
+## Prompt 022 --- Implement the practice session API [DONE]
 
 **Goal:** Provide backend endpoints for the learning loop.
 
@@ -697,7 +741,7 @@ Document the API contract and error responses.
 
 # Phase 6 --- Practice UI and user progress
 
-## Prompt 023 --- Implement the practice screen
+## Prompt 023 --- Implement the practice screen [IN PROGRESS]
 
 **Goal:** Build the core child-facing learning experience.
 
@@ -730,7 +774,7 @@ screens.
 
 ------------------------------------------------------------------------
 
-## Prompt 024 --- Implement session completion summary
+## Prompt 024 --- Implement session completion summary [DONE]
 
 **Goal:** Show the results of a completed session.
 
@@ -758,7 +802,7 @@ policy.
 
 ------------------------------------------------------------------------
 
-## Prompt 025 --- Implement dashboard APIs and UI
+## Prompt 025 --- Implement dashboard APIs and UI [DONE]
 
 **Goal:** Make progress visible at any time.
 
@@ -787,7 +831,7 @@ history.
 
 ------------------------------------------------------------------------
 
-## Prompt 026 --- Implement user settings
+## Prompt 026 --- Implement user settings [DONE]
 
 **Goal:** Allow users to choose what appears during practice.
 
@@ -816,7 +860,7 @@ take effect predictably and do not corrupt active sessions.
 
 # Phase 7 --- Administration and PWA
 
-## Prompt 027 --- Implement the administrator import UI
+## Prompt 027 --- Implement the administrator import UI [DONE]
 
 **Goal:** Provide a usable secure vocabulary management screen.
 
@@ -844,7 +888,7 @@ navigation unless the user has the required role.
 
 ------------------------------------------------------------------------
 
-## Prompt 028 --- Configure PWA behavior
+## Prompt 028 --- Configure PWA behavior [IN PROGRESS]
 
 **Goal:** Make the web application installable and responsive as a PWA.
 
@@ -875,7 +919,7 @@ synchronization have been explicitly implemented and tested.
 
 # Phase 8 --- Quality and hardening
 
-## Prompt 029 --- Build the backend integration test suite
+## Prompt 029 --- Build the backend integration test suite [DONE]
 
 **Goal:** Verify the backend across module boundaries.
 
@@ -907,7 +951,7 @@ Use isolated test data and avoid dependence on production resources.
 
 ------------------------------------------------------------------------
 
-## Prompt 030 --- Build end-to-end browser tests
+## Prompt 030 --- Build end-to-end browser tests [DONE]
 
 **Goal:** Verify the principal user journeys.
 
@@ -937,7 +981,7 @@ assertions.
 
 ------------------------------------------------------------------------
 
-## Prompt 031 --- Perform accessibility review
+## Prompt 031 --- Perform accessibility review [NOT STARTED]
 
 **Goal:** Improve usability for children and users with accessibility
 needs.
@@ -969,7 +1013,7 @@ Fix confirmed issues and document any known limitations.
 
 ------------------------------------------------------------------------
 
-## Prompt 032 --- Perform security review
+## Prompt 032 --- Perform security review [NOT STARTED]
 
 **Goal:** Review the application for common web security risks.
 
@@ -1003,7 +1047,7 @@ Document findings by severity and fix issues within scope.
 
 ------------------------------------------------------------------------
 
-## Prompt 033 --- Review responsive design
+## Prompt 033 --- Review responsive design [NOT STARTED]
 
 **Goal:** Validate the UI on small screens and tablets.
 
@@ -1036,7 +1080,7 @@ Fix defects without introducing screen-specific hacks unless justified.
 
 # Phase 9 --- Deployment and operations
 
-## Prompt 034 --- Create the production build configuration
+## Prompt 034 --- Create the production build configuration [NOT STARTED]
 
 **Goal:** Produce reproducible production builds.
 
@@ -1067,7 +1111,7 @@ Separate development, test, and production settings.
 
 ------------------------------------------------------------------------
 
-## Prompt 035 --- Create the container and deployment configuration
+## Prompt 035 --- Create the container and deployment configuration [NOT STARTED]
 
 **Goal:** Prepare the app for the selected hosting target.
 
@@ -1093,7 +1137,7 @@ Based on the approved hosting decision:
 
 ------------------------------------------------------------------------
 
-## Prompt 036 --- Create CI/CD release workflow
+## Prompt 036 --- Create CI/CD release workflow [NOT STARTED]
 
 **Goal:** Automate safe release validation and deployment.
 
@@ -1123,7 +1167,7 @@ and rollback procedures are documented.
 
 ------------------------------------------------------------------------
 
-## Prompt 037 --- Perform production smoke testing
+## Prompt 037 --- Perform production smoke testing [NOT STARTED]
 
 **Goal:** Verify the deployed application.
 
@@ -1159,7 +1203,7 @@ logs or documentation.
 
 # Phase 10 --- Final handover
 
-## Prompt 038 --- Prepare the project handover
+## Prompt 038 --- Prepare the project handover [NOT STARTED]
 
 **Goal:** Make TapTalk maintainable by another developer.
 
