@@ -77,6 +77,35 @@ describe('session protection', () => {
     await server.close();
   });
 
+  it('reports the session state with 200 whether or not someone is signed in', async () => {
+    const { database, server, cookie } = await setup();
+    const session = (headers: Record<string, string> = {}) =>
+      server.inject({ method: 'GET', url: '/api/v1/auth/session', headers });
+
+    const signedIn = await session({ cookie });
+    expect(signedIn.statusCode).toBe(200);
+    expect(signedIn.json().user).toEqual({
+      id: expect.any(String),
+      username: 'learner',
+      role: 'user',
+      createdAt: expect.any(String),
+    });
+    expect(signedIn.body).not.toMatch(/password|hash/i);
+
+    for (const response of [
+      await session(),
+      await session({ cookie: 'taptalk_session=forged-token' }),
+    ]) {
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ user: null });
+    }
+
+    database.prepare('UPDATE sessions SET expires_at = ?').run('2000-01-01T00:00:00.000Z');
+    expect((await session({ cookie })).json()).toEqual({ user: null });
+    expect(signedIn.headers['cache-control']).toBe('no-store');
+    await server.close();
+  });
+
   it('keeps the health check public', async () => {
     const { server } = await setup();
     expect((await server.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);

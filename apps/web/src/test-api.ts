@@ -36,16 +36,11 @@ export function bodyOf(fetchMock: ReturnType<typeof mockApi>, key: string): unkn
 }
 
 export const learner = { username: 'learner', role: 'user' };
-export const signedIn = { 'GET /api/v1/auth/me': { body: { user: learner } } };
-export const signedOut = {
-  'GET /api/v1/auth/me': {
-    status: 401,
-    body: { error: { message: 'Authentication is required.' } },
-  },
-};
+export const signedIn = { 'GET /api/v1/auth/session': { body: { user: learner } } };
+export const signedOut = { 'GET /api/v1/auth/session': { body: { user: null } } };
 
 export const admin = { username: 'admin', role: 'administrator' };
-export const signedInAdmin = { 'GET /api/v1/auth/me': { body: { user: admin } } };
+export const signedInAdmin = { 'GET /api/v1/auth/session': { body: { user: admin } } };
 
 // Mounts the whole app with an in-memory router at `path`, after the session check and the
 // first navigation (including guard redirects) have completed.

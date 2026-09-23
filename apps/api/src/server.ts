@@ -278,6 +278,12 @@ export function buildServer(
     },
   );
 
+  // Startup check for the web app: always 200, with `user: null` when nobody is signed in, so a
+  // signed-out visit does not produce a failed request. `/auth/me` keeps answering 401.
+  server.get('/api/v1/auth/session', { config: { access: 'public' } }, async (request, reply) =>
+    reply.send({ user: request.user ? safeUser(request.user) : null }),
+  );
+
   server.get('/api/v1/auth/me', async (request, reply) => {
     const user = currentUser(request);
     return reply.send({ user: safeUser(user) });

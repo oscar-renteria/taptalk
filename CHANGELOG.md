@@ -4,6 +4,7 @@
 
 ### Added
 
+- `GET /api/v1/auth/session` answers `200 { user }` or `200 { user: null }`; the web app uses it for the startup session check, so signed-out visits no longer log a 401 in the browser console.
 - Automated accessibility suite (`e2e/accessibility.spec.ts`): axe-core WCAG 2.2 AA scans of 12 screen states, a keyboard-only journey, touch-target, reflow, reduced-motion, non-colour feedback and language checks (Prompt 031).
 - PWA: PNG and maskable icons, a complete manifest, an update prompt instead of automatic reloads, `Cache-Control: no-store` on API responses, and a Playwright `pwa` project that checks installability, cache contents and offline start against the production build (Prompt 028).
 - Practice screen tests for success, wrong-answer, loading, failure and error states, single submission and retry; documented in `docs/engineering/practice-screen.md` (Prompt 023).
