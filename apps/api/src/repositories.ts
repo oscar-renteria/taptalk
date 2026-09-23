@@ -1,5 +1,6 @@
 import type { DashboardSummary, PracticeDirection, UserPreferences } from '@taptalk/shared';
 import type { SqliteDatabase } from './database.js';
+import { normalizeAnswer } from './matching.js';
 import type { ParsedVocabularyRecord } from './vocabulary.js';
 
 export type UserRecord = {
@@ -139,12 +140,7 @@ export function upsertVocabulary(
        VALUES (?, ?, ?, ?)`,
     );
     for (const answer of entry.answers) {
-      answerStatement.run(
-        crypto.randomUUID(),
-        entry.id,
-        answer,
-        answer.normalize('NFKC').trim().toLocaleLowerCase(),
-      );
+      answerStatement.run(crypto.randomUUID(), entry.id, answer, normalizeAnswer(answer));
     }
     database.exec('COMMIT');
   } catch (error) {
@@ -193,12 +189,7 @@ export function commitVocabularyImport(
          VALUES (?, ?, ?, ?)`,
       );
       for (const answer of record.alternatives) {
-        answerStatement.run(
-          crypto.randomUUID(),
-          entryId,
-          answer,
-          answer.normalize('NFKC').trim().toLocaleLowerCase(),
-        );
+        answerStatement.run(crypto.randomUUID(), entryId, answer, normalizeAnswer(answer));
       }
     }
     database

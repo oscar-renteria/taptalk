@@ -1,3 +1,4 @@
+import { normalizeAnswer } from './matching.js';
 import type { VocabularyImportRecord } from '@taptalk/shared';
 
 export type ParsedVocabularyRecord = VocabularyImportRecord & {
@@ -113,17 +114,30 @@ function parseRecord(record: unknown, index: number): ParsedVocabularyRecord {
     throw new Error(`Vocabulary record ${index + 1} has invalid phonetics.`);
   }
   const originalGerman = candidate.german.trim();
-  const alternatives = originalGerman
-    .split(';')
-    .map((answer) => answer.normalize('NFKC').trim())
-    .filter(Boolean);
+  const alternatives: string[] = [];
+  const seenNormalized = new Set<string>();
+  const warnings: string[] = [];
+  for (const answer of originalGerman.split(';').map((part) => part.normalize('NFKC').trim())) {
+    const normalized = normalizeAnswer(answer);
+    if (!normalized) continue;
+    if (seenNormalized.has(normalized)) {
+      warnings.push(`"${answer}" repeats another answer and was merged.`);
+      continue;
+    }
+    seenNormalized.add(normalized);
+    alternatives.push(answer);
+  }
+  if (alternatives.length === 0) {
+    throw new Error(`Vocabulary record ${index + 1} requires at least one German answer.`);
+  }
+  if (/\.{3,}|…/u.test(originalGerman)) {
+    warnings.push('Ellipses are shown but ignored when answers are checked.');
+  }
   return {
     english: candidate.english.trim(),
     phonetics: candidate.phonetics?.trim(),
     german: originalGerman,
     alternatives,
-    ...(originalGerman.includes('...')
-      ? { warning: 'Ellipses were preserved in display and answer values.' }
-      : {}),
+    ...(warnings.length ? { warning: `${candidate.english.trim()}: ${warnings.join(' ')}` } : {}),
   };
 }

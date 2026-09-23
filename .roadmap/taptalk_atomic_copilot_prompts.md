@@ -40,6 +40,7 @@ Global rules for every prompt:
 - Prompt 012: Vocabulary parser and normalizer
 - Prompt 013: Vocabulary import preview
 - Prompt 014: Transactional vocabulary import
+- Prompt 018: Answer matching rules (policy v1 in docs/architecture/answer-matching.md)
 - Prompt 021: Attempt recording
 - Prompt 022: Practice session API (lifecycle endpoints, contract in `docs/architecture/practice-session-api.md`)
 - Prompt 024: Session completion summary
@@ -54,7 +55,6 @@ Global rules for every prompt:
 - Prompt 015: Reusable design-system components and component tests remain.
 - Prompt 016: Refresh now restores the authenticated session. Real client routing, URL-based views and a not-found page remain.
 - Prompt 017: Dedicated registration/login component and integration tests remain.
-- Prompt 018: Matching policy documentation remains.
 - Prompt 019: Adaptive weighted question selection remains.
 - Prompt 020: Documented scoring formula and boundary tests remain.
 - Prompt 023: Session progress, next-question action, deliberate focus and double-submit protection are done. A loading-state UI test remains, and question variety depends on Prompt 019.
@@ -596,7 +596,7 @@ mechanism.
 
 # Phase 5 --- Learning domain
 
-## Prompt 018 --- Define answer matching rules [IN PROGRESS]
+## Prompt 018 --- Define answer matching rules [DONE]
 
 **Goal:** Create deterministic answer validation.
 

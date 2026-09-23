@@ -66,7 +66,7 @@ Status: baseline for the first release. Items marked `OPEN DECISION` must be res
 - **OPEN DECISION 002** Choose the session strategy, including cookie attributes, expiration, revocation, CSRF protection, and whether refresh records are stored. *Resolved in [ADR-005](../decisions/ADR-005-authentication-session.md).*
 - **OPEN DECISION 003** Define how the initial administrator is provisioned without hardcoded credentials. *Resolved in [administrator provisioning](../operations/administrator-provisioning.md).*
 - **OPEN DECISION 004** Choose the approved vocabulary import policy: replace, merge, or versioned imports, including how updates and deletions affect existing attempts.
-- **OPEN DECISION 005** Define answer normalization for punctuation, capitalization, Unicode, placeholders, ellipses, and approximate answers. Approximate matching must not be enabled implicitly.
+- **OPEN DECISION 005** Define answer normalization for punctuation, capitalization, Unicode, placeholders, ellipses, and approximate answers. Approximate matching must not be enabled implicitly. *Proposed in [answer-matching.md](../architecture/answer-matching.md); awaiting product confirmation.*
 - **OPEN DECISION 006** Define the scoring formula, including repeated attempts in one session, incorrect-answer effects, and rounding or lower bounds.
 - **OPEN DECISION 007** Define session length, interruption behavior, duplicate submission policy, and whether a session is required for every attempt.
 - **OPEN DECISION 008** Choose the SQLite access layer and migration tool while preserving the documented persistence boundary.

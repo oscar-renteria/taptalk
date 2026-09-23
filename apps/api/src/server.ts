@@ -24,7 +24,8 @@ import {
   RepositoryError,
   type PracticeSessionRecord,
 } from './repositories.js';
-import { calculateScore, matchAnswer } from './learning.js';
+import { calculateScore } from './learning.js';
+import { matchAnswer } from './matching.js';
 import { previewVocabularyImport } from './vocabulary.js';
 import { createRateLimiter, type RateLimitOptions } from './rate-limit.js';
 import {

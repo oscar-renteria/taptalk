@@ -4,6 +4,7 @@
 
 ### Added
 
+- Answer matching policy v1 (`apps/api/src/matching.ts`, `docs/architecture/answer-matching.md`): whitespace, punctuation, quote, ellipsis and case normalization, optional parenthesized parts, and `exact-match` / `normalized-match` / `empty-answer` / `invalid-answer` / `incorrect` classification (Prompt 018).
 - Centralized role policy (`authorize`) with non-downgradable `administrator` access for `/api/v1/admin/*` (Prompt 011).
 - Central deny-by-default authentication guard for `/api` routes, `Secure` cookies in production, expired-session cleanup and timing-safe login for unknown usernames (Prompt 010).
 - Shared credential policy (`registrationSchema`, ADR-006) with field-level registration errors; per-IP rate limiting of login and registration (`AUTH_RATE_LIMIT_MAX`); transactional registration with safe `500 INTERNAL_ERROR` mapping (Prompt 009).
@@ -15,6 +16,10 @@
 - Playwright end-to-end suite (`npm run test:e2e`) covering registration, login, settings, practice feedback, dashboard, administrator import and unauthorized access at mobile and tablet viewports (Prompt 030).
 - CI `e2e` job that uploads the Playwright report and failure traces as artifacts.
 - `API_PROXY_TARGET` environment variable for the Vite dev proxy (defaults to `http://localhost:3000`).
+
+### Changed
+
+- Import merges alternatives that are equal after normalization and rejects German values with no answerable content (Prompt 018).
 
 ### Fixed
 
