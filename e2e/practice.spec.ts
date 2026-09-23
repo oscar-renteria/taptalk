@@ -65,10 +65,12 @@ test.describe('practice journeys', () => {
     await expect(page.getByRole('button', { name: 'Next question' })).toBeFocused();
   });
 
-  test('a wrong answer explains the correct answer', async ({ page }) => {
+  test('a wrong answer submitted with Enter explains the correct answer', async ({ page }) => {
     await startSession(page);
     const prompt = await currentPrompt(page, 1);
-    await answer(page, 'definitely wrong');
+    await expect(page.getByLabel('Your answer')).toBeFocused();
+    await page.keyboard.type('definitely wrong');
+    await page.keyboard.press('Enter');
     await expect(page.getByRole('status')).toHaveText(
       `Not quite. The answer is ${answerFor(prompt)}.`,
     );

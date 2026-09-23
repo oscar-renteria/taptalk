@@ -48,6 +48,7 @@ Global rules for every prompt:
 - Prompt 020: Scoring rules (policy v1 in docs/architecture/scoring.md)
 - Prompt 021: Attempt recording
 - Prompt 022: Practice session API (lifecycle endpoints, contract in `docs/architecture/practice-session-api.md`)
+- Prompt 023: Practice screen (progress, focus, feedback tones, docs/engineering/practice-screen.md)
 - Prompt 024: Session completion summary
 - Prompt 025: Dashboard APIs and UI
 - Prompt 026: User settings
@@ -57,7 +58,6 @@ Global rules for every prompt:
 
 ### IN PROGRESS
 
-- Prompt 023: Session progress, next-question action, deliberate focus and double-submit protection are done. A loading-state UI test remains, and question variety depends on Prompt 019.
 - Prompt 028: Browser-level PWA verification remains.
 
 ### NOT STARTED
@@ -741,7 +741,7 @@ Document the API contract and error responses.
 
 # Phase 6 --- Practice UI and user progress
 
-## Prompt 023 --- Implement the practice screen [IN PROGRESS]
+## Prompt 023 --- Implement the practice screen [DONE]
 
 **Goal:** Build the core child-facing learning experience.
 

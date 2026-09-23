@@ -4,6 +4,7 @@
 
 ### Added
 
+- Practice screen tests for success, wrong-answer, loading, failure and error states, single submission and retry; documented in `docs/engineering/practice-screen.md` (Prompt 023).
 - Login and registration screens with shared client-side validation, field-level server errors, focus on the first invalid field, a password visibility toggle and double-submit protection (Prompt 017).
 - URL routing with `vue-router`: `/login`, `/register`, `/practice`, `/progress`, `/settings`, `/admin/import`, a not-found page, guarded redirects with safe return paths, session-expiry handling, and an error boundary (Prompt 016).
 - Design system: CSS tokens and reusable components (`AppButton`, `TextField`, `SelectField`, `AppCard`, `StatusMessage`, `ProgressIndicator`, `LoadingState`, `ErrorState`, `StatTile`, `AppNav`) with component tests and `docs/engineering/design-system.md` (Prompt 015).
