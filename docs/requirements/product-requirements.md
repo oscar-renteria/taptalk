@@ -71,7 +71,7 @@ Status: baseline for the first release. Items marked `OPEN DECISION` must be res
 - **OPEN DECISION 007** Define session length, interruption behavior, duplicate submission policy, and whether a session is required for every attempt.
 - **OPEN DECISION 008** Choose the SQLite access layer and migration tool while preserving the documented persistence boundary.
 - **OPEN DECISION 009** Choose the hosting target, persistent-storage model, HTTPS/reverse-proxy assumptions, backup schedule, and deployment rollback process.
-- **OPEN DECISION 010** Define the supported browser matrix, PWA update behavior, and whether any authenticated data may be cached.
+- **OPEN DECISION 010** Define the supported browser matrix, PWA update behavior, and whether any authenticated data may be cached. *Update behaviour and caching decided in [pwa.md](../engineering/pwa.md); browser matrix still open.*
 - **OPEN DECISION 011** Define retention and deletion behavior for accounts, attempts, imports, backups, and other personal data.
 
 ## Explicitly out of scope for the first release

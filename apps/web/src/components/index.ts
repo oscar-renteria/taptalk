@@ -8,3 +8,4 @@ export { default as SelectField } from './SelectField.vue';
 export { default as StatTile } from './StatTile.vue';
 export { default as StatusMessage } from './StatusMessage.vue';
 export { default as TextField } from './TextField.vue';
+export { default as UpdateBanner } from './UpdateBanner.vue';

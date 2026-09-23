@@ -84,6 +84,10 @@ export function buildServer(
 
   server.decorateRequest('user', null);
   server.addHook('preHandler', createAccessGuard(database));
+  // API responses contain personal data: never store them in browser, service worker, or proxy caches.
+  server.addHook('onSend', async (request, reply) => {
+    if (request.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
+  });
 
   function rejectIfRateLimited(request: FastifyRequest, reply: FastifyReply): boolean {
     const decision = authLimiter.check(request.ip);

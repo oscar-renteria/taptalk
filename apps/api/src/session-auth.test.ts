@@ -62,6 +62,21 @@ describe('session protection', () => {
     await server.close();
   });
 
+  it('marks every API response, including errors, as not cacheable', async () => {
+    const { server, cookie } = await setup();
+    for (const response of [
+      await me(server, cookie),
+      await me(server),
+      await login(server, { username: 'learner', password: 'a-secure-password' }),
+    ]) {
+      expect(response.headers['cache-control']).toBe('no-store');
+    }
+    expect(
+      (await server.inject({ method: 'GET', url: '/health' })).headers['cache-control'],
+    ).toBeUndefined();
+    await server.close();
+  });
+
   it('keeps the health check public', async () => {
     const { server } = await setup();
     expect((await server.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);

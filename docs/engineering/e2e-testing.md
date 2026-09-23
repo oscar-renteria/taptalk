@@ -13,10 +13,11 @@ npx playwright show-report # opens the HTML report
 
 `npm run test:e2e` starts its own servers, so a running `npm run dev` is not reused and not disturbed:
 
-| Process    | Port | Notes                                                                     |
-| ---------- | ---- | ------------------------------------------------------------------------- |
-| API        | 3100 | Started by `e2e/support/start-api.mts` against `e2e/.data/taptalk-e2e.db` |
-| Web (Vite) | 5174 | Proxies `/api` to port 3100 through `API_PROXY_TARGET`                    |
+| Process       | Port | Notes                                                                     |
+| ------------- | ---- | ------------------------------------------------------------------------- |
+| API           | 3100 | Started by `e2e/support/start-api.mts` against `e2e/.data/taptalk-e2e.db` |
+| Web (Vite)    | 5174 | Proxies `/api` to port 3100 through `API_PROXY_TARGET`                    |
+| Web (preview) | 5176 | Production build with the service worker, for the `pwa` project           |
 
 The e2e database file is deleted and recreated on every run. The start script refuses any `DATABASE_PATH` that does not contain `taptalk-e2e`, so the suite cannot touch a development or production database.
 
@@ -28,11 +29,12 @@ The e2e database file is deleted and recreated on every run. The start script re
 
 ## Projects and viewports
 
-| Project  | Device                             |
-| -------- | ---------------------------------- |
-| `setup`  | Provisioning only, runs first      |
-| `mobile` | Pixel 7 (Chromium, 412×915, touch) |
-| `tablet` | Chromium, 820×1180, touch          |
+| Project  | Device                                                                                             |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| `setup`  | Provisioning only, runs first                                                                      |
+| `mobile` | Pixel 7 (Chromium, 412×915, touch)                                                                 |
+| `tablet` | Chromium, 820×1180, touch                                                                          |
+| `pwa`    | Desktop Chrome against the production build (`vite preview`, port 5176), for service worker checks |
 
 Only Chromium is installed to keep CI fast. WebKit (iOS Safari) coverage is a known gap.
 
@@ -76,4 +78,4 @@ Fixed on 2026-09-23. Each fix has a regression test.
 
 - Question selection still always returns the first vocabulary entry (Prompt 019). A session therefore repeats one word.
 - Only Chromium runs, so there is no WebKit (iOS Safari) coverage.
-- The suite runs against the Vite dev server, not the production build with its service worker (Prompt 028).
+- Most journeys run against the Vite dev server; service worker behaviour is covered separately by the `pwa` project (Prompt 028).

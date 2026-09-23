@@ -53,12 +53,13 @@ Global rules for every prompt:
 - Prompt 025: Dashboard APIs and UI
 - Prompt 026: User settings
 - Prompt 027: Administrator import UI (E2E coverage in `e2e/admin-import.spec.ts`)
+- Prompt 028: PWA behaviour (installable, shell-only cache, update prompt, docs/engineering/pwa.md)
 - Prompt 029: Backend integration test suite
 - Prompt 030: End-to-end browser tests (`npm run test:e2e`, all 9 journeys, mobile and tablet)
 
 ### IN PROGRESS
 
-- Prompt 028: Browser-level PWA verification remains.
+- None.
 
 ### NOT STARTED
 
@@ -888,7 +889,7 @@ navigation unless the user has the required role.
 
 ------------------------------------------------------------------------
 
-## Prompt 028 --- Configure PWA behavior [IN PROGRESS]
+## Prompt 028 --- Configure PWA behavior [DONE]
 
 **Goal:** Make the web application installable and responsive as a PWA.
 

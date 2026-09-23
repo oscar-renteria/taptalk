@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, onErrorCaptured, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { AppButton, AppNav, ErrorState, LoadingState, StatusMessage } from './components';
+import {
+  AppButton,
+  AppNav,
+  ErrorState,
+  LoadingState,
+  StatusMessage,
+  UpdateBanner,
+} from './components';
 import { session, signOut } from './session';
 
 const route = useRoute();
@@ -61,6 +68,7 @@ function reload(): void {
 
 <template>
   <main class="shell">
+    <UpdateBanner />
     <StatusMessage
       v-if="networkUnavailable"
       tone="warning"
