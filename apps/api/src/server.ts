@@ -1,3 +1,5 @@
+// Must stay the first import: loads .env before any module reads process.env.
+import './load-env.js';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import {
   practiceDirectionSchema,

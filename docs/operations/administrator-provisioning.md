@@ -5,11 +5,13 @@ TapTalk has no self-service path to the `administrator` role. Every account regi
 ## Promote an account
 
 1. The future administrator registers normally in the app and picks their own password.
-2. On the server, run the following with the same `DATABASE_PATH` the API uses:
+2. From the repository root, run the command against the same database the API uses:
 
    ```sh
-   DATABASE_PATH=./database/taptalk.db npm run set-role --workspace @taptalk/api -- <username> administrator
+   npm run set-role --workspace @taptalk/api -- <username> administrator
    ```
+
+   The command reads `DATABASE_PATH` from the environment, or in development from `.env`, exactly like the API. Relative paths are resolved from the repository root. In production, set `DATABASE_PATH` explicitly.
 
 3. The change takes effect on the account's next request. No new login is needed, because the role is read on every request.
 

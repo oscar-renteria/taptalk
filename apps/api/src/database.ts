@@ -1,7 +1,8 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { resolveFromRoot } from './paths.js';
 import type { DatabaseSync as DatabaseSyncType } from 'node:sqlite';
 
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as {
@@ -13,7 +14,9 @@ export type SqliteDatabase = DatabaseSyncType;
 export function openDatabase(
   databasePath = process.env.DATABASE_PATH ?? ':memory:',
 ): SqliteDatabase {
-  const database = new DatabaseSync(databasePath);
+  const location = databasePath === ':memory:' ? databasePath : resolveFromRoot(databasePath);
+  if (location !== ':memory:') mkdirSync(dirname(location), { recursive: true });
+  const database = new DatabaseSync(location);
   database.exec('PRAGMA foreign_keys = ON;');
   migrateDatabase(database);
   return database;

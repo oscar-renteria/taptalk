@@ -12,4 +12,7 @@ for (const suffix of ['', '-wal', '-shm', '-journal']) {
   rmSync(`${databasePath}${suffix}`, { force: true });
 }
 
+// The suite controls its own configuration; a developer's .env must not leak into it.
+process.env.ENV_FILE = 'none';
+
 await import('../../apps/api/src/server.ts');

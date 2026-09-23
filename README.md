@@ -19,6 +19,14 @@ npm install
 npm run dev
 ```
 
+`.env` is loaded automatically in development (existing environment variables win), so accounts and vocabulary persist in `database/taptalk.db`. To import vocabulary, register an account in the app and promote it:
+
+```sh
+npm run set-role --workspace @taptalk/api -- <username> administrator
+```
+
+Then reload the page and open **Import vocabulary**. The file format is described in [docs/operations/vocabulary-import.md](docs/operations/vocabulary-import.md).
+
 The web app runs at `http://localhost:5173`; the API health endpoint is `http://localhost:3000/health`.
 
 ## Checks
