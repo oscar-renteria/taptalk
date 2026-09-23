@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- Fresh checkouts (including CI) failed `npm run typecheck` and `npm test` because `packages/shared/dist` was only built by `npm run build`; the root scripts now build the shared contracts first.
 - Correct answers are no longer shown in error red; feedback tone is conveyed by icon and text. Focus ring contrast raised from 2.1:1 to 4.8:1. Text buttons meet the 44px touch target. Stat tiles read as "42 points" instead of "42points" (Prompt 015).
 - Practice no longer asks the same first vocabulary entry every time, and `random` direction no longer always means English to German (Prompt 019).
 - Login survives a page reload.

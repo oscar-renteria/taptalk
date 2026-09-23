@@ -39,7 +39,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run build --workspace @taptalk/shared && npx tsx e2e/support/start-api.mts',
+      command: 'npx tsx e2e/support/start-api.mts',
       url: `http://localhost:${apiPort}/health`,
       reuseExistingServer: false,
       timeout: 60_000,
