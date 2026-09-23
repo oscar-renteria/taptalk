@@ -372,6 +372,17 @@ export function getDashboardSummary(database: SqliteDatabase, userId: string): D
   };
 }
 
+export function updatePasswordHash(
+  database: SqliteDatabase,
+  userId: string,
+  passwordHash: string,
+  now: string,
+): void {
+  database
+    .prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?')
+    .run(passwordHash, now, userId);
+}
+
 export function setUserRole(
   database: SqliteDatabase,
   username: string,

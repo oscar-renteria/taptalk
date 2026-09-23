@@ -23,6 +23,7 @@ import {
   insertUser,
   recordAttempt,
   startPracticeSession,
+  updatePasswordHash,
   updatePreferences,
   RepositoryError,
   type PracticeSessionRecord,
@@ -32,12 +33,14 @@ import { matchAnswer } from './matching.js';
 import { resolveDirection, selectQuestion, type Random } from './selection.js';
 import { previewVocabularyImport } from './vocabulary.js';
 import { createRateLimiter, type RateLimitOptions } from './rate-limit.js';
+import { apiSecurityHeaders, createOriginGuard, parseAllowedOrigins } from './security.js';
 import {
   clearedSessionCookie,
   createAccessGuard,
   createSession,
   currentUser,
   hashPassword,
+  needsRehash,
   readSessionToken,
   revokeSession,
   sessionCookie,
@@ -59,6 +62,18 @@ function publicSession<T extends PracticeSessionRecord>(session: T): Omit<T, 'us
   return rest;
 }
 
+function isValidSourceName(value: unknown): boolean {
+  return (
+    value === undefined || value === null || (typeof value === 'string' && value.length <= 200)
+  );
+}
+
+function rejectSourceName(reply: FastifyReply) {
+  return reply.code(400).send({
+    error: { code: 'INVALID_SOURCE_NAME', message: 'The file name is invalid or too long.' },
+  });
+}
+
 export type ServerOptions = {
   // Per-IP limit shared by login and registration attempts.
   authRateLimit?: RateLimitOptions;
@@ -66,7 +81,51 @@ export type ServerOptions = {
   secureCookies?: boolean;
   // Source of randomness for question selection; injectable for deterministic tests.
   random?: Random;
+  // Browser origins allowed to make state-changing requests (defaults to WEB_ORIGIN, comma
+  // separated). Empty means "same host as the request".
+  allowedOrigins?: string[];
+  // Destination for logs (defaults to stdout); tests pass a stream to inspect what is logged.
+  logStream?: NodeJS.WritableStream;
+  // Which proxies to trust for the client address (defaults to TRUST_PROXY). Must be set behind a
+  // reverse proxy, otherwise every user shares the proxy's address and its rate limit.
+  trustProxy?: boolean | string[];
 };
+
+// TRUST_PROXY: "true" (trust any proxy, for a single reverse proxy in front of the API) or a
+// comma-separated list of trusted proxy addresses or CIDR ranges.
+export function parseTrustProxy(value: string | undefined): boolean | string[] {
+  if (!value || value === 'false') return false;
+  if (value === 'true') return true;
+  return value
+    .split(',')
+    .map((address) => address.trim())
+    .filter(Boolean);
+}
+
+// Refuses to start in production with settings that would silently lose data.
+export function assertProductionConfiguration(environment: NodeJS.ProcessEnv): void {
+  if (environment.NODE_ENV !== 'production') return;
+  if (!environment.DATABASE_PATH || environment.DATABASE_PATH === ':memory:') {
+    throw new Error('DATABASE_PATH must point to a persistent SQLite file in production.');
+  }
+}
+
+// Request bodies are small JSON documents, except vocabulary imports.
+const defaultBodyLimit = 64 * 1024;
+const importBodyLimit = 2 * 1024 * 1024;
+const maxSubmittedAnswerLength = 500;
+
+// Default request logging records method, URL, host and client address only. The redaction list
+// guards against headers or credentials being added to log objects in the future.
+const logRedaction = [
+  'req.headers.cookie',
+  'req.headers.authorization',
+  'res.headers["set-cookie"]',
+  'body.password',
+  'password',
+  'passwordHash',
+  'token',
+];
 
 const defaultAuthRateLimit: RateLimitOptions = {
   max: Number(process.env.AUTH_RATE_LIMIT_MAX ?? 20),
@@ -77,15 +136,30 @@ export function buildServer(
   database: SqliteDatabase = openDatabase(),
   options: ServerOptions = {},
 ) {
-  const server = Fastify({ logger: true });
+  const server = Fastify({
+    logger: {
+      redact: { paths: logRedaction, censor: '[redacted]' },
+      ...(options.logStream ? { stream: options.logStream } : {}),
+    },
+    bodyLimit: defaultBodyLimit,
+    trustProxy: options.trustProxy ?? parseTrustProxy(process.env.TRUST_PROXY),
+  });
+  // Only JSON bodies are accepted. Removing the built-in text/plain parser means HTML forms, the
+  // classic CSRF vector, cannot reach any handler (415 Unsupported Media Type).
+  server.removeContentTypeParser('text/plain');
   const authLimiter = createRateLimiter(options.authRateLimit ?? defaultAuthRateLimit);
   const secureCookies = options.secureCookies ?? process.env.NODE_ENV === 'production';
   const random = options.random ?? Math.random;
 
   server.decorateRequest('user', null);
+  server.addHook(
+    'onRequest',
+    createOriginGuard(options.allowedOrigins ?? parseAllowedOrigins(process.env.WEB_ORIGIN)),
+  );
   server.addHook('preHandler', createAccessGuard(database));
   // API responses contain personal data: never store them in browser, service worker, or proxy caches.
   server.addHook('onSend', async (request, reply) => {
+    reply.headers(apiSecurityHeaders);
     if (request.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
   });
 
@@ -110,10 +184,23 @@ export function buildServer(
         .code(500)
         .send({ error: { code: 'INTERNAL_ERROR', message: 'Something went wrong. Try again.' } });
     }
-    return reply
-      .code(statusCode)
-      .send({ error: { code: 'BAD_REQUEST', message: 'The request is invalid.' } });
+    const clientErrors: Record<number, { code: string; message: string }> = {
+      413: { code: 'PAYLOAD_TOO_LARGE', message: 'The request is too large.' },
+      415: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Send the request as JSON.' },
+    };
+    return reply.code(statusCode).send({
+      error: clientErrors[statusCode] ?? {
+        code: 'BAD_REQUEST',
+        message: 'The request is invalid.',
+      },
+    });
   });
+
+  server.setNotFoundHandler((_request, reply) =>
+    reply
+      .code(404)
+      .send({ error: { code: 'NOT_FOUND', message: 'This resource does not exist.' } }),
+  );
 
   server.get('/health', async () => ({ status: 'ok' }));
 
@@ -136,7 +223,7 @@ export function buildServer(
       const user = {
         id: createId(),
         username: parsed.data.username,
-        passwordHash: hashPassword(parsed.data.password),
+        passwordHash: await hashPassword(parsed.data.password),
         role: 'user' as const,
         createdAt: now,
         updatedAt: now,
@@ -174,13 +261,18 @@ export function buildServer(
           : undefined;
       // Oversized passwords are not hashed, which bounds the scrypt cost per request.
       const candidate = typeof password === 'string' && password.length <= 128 ? password : '';
-      const valid = verifyLogin(candidate, user?.passwordHash) && candidate === password;
+      const valid = (await verifyLogin(candidate, user?.passwordHash)) && candidate === password;
       if (!user || !valid) {
         return reply
           .code(401)
           .send({ error: { code: 'INVALID_LOGIN', message: 'Username or password is invalid.' } });
       }
-      const token = createSession(database, user.id, new Date().toISOString());
+      const now = new Date().toISOString();
+      // Transparently upgrade hashes created with older, weaker parameters.
+      if (needsRehash(user.passwordHash)) {
+        updatePasswordHash(database, user.id, await hashPassword(candidate), now);
+      }
+      const token = createSession(database, user.id, now);
       reply.header('set-cookie', sessionCookie(token, secureCookies));
       return reply.send({ user: safeUser(user) });
     },
@@ -193,9 +285,10 @@ export function buildServer(
 
   server.post<{ Body: { content?: unknown; sourceName?: unknown } }>(
     '/api/v1/admin/vocabulary/preview',
-    { config: { access: 'administrator' } },
+    { config: { access: 'administrator' }, bodyLimit: importBodyLimit },
     async (request, reply) => {
-      const { content, sourceName } = request.body;
+      const { content, sourceName } = request.body ?? {};
+      if (!isValidSourceName(sourceName)) return rejectSourceName(reply);
       if (typeof content !== 'string' || content.length > 1_000_000) {
         return reply.code(413).send({
           error: { code: 'IMPORT_TOO_LARGE', message: 'Import content is invalid or too large.' },
@@ -214,10 +307,11 @@ export function buildServer(
 
   server.post<{ Body: { content?: unknown; sourceName?: unknown; confirm?: unknown } }>(
     '/api/v1/admin/vocabulary/import',
-    { config: { access: 'administrator' } },
+    { config: { access: 'administrator' }, bodyLimit: importBodyLimit },
     async (request, reply) => {
       const user = currentUser(request);
-      const { content, sourceName, confirm } = request.body;
+      const { content, sourceName, confirm } = request.body ?? {};
+      if (!isValidSourceName(sourceName)) return rejectSourceName(reply);
       if (typeof content !== 'string' || content.length > 1_000_000) {
         return reply.code(413).send({
           error: { code: 'IMPORT_TOO_LARGE', message: 'Import content is invalid or too large.' },
@@ -336,18 +430,25 @@ export function buildServer(
     };
   }>('/api/v1/practice/answer', async (request, reply) => {
     const user = currentUser(request);
-    const { vocabularyEntryId, direction, prompt, submittedAnswer, practiceSessionId } =
-      request.body;
+    // `prompt` is accepted for compatibility but ignored: the stored prompt is derived on the
+    // server, so a client cannot write arbitrary text into the attempt history.
+    const { vocabularyEntryId, direction, submittedAnswer, practiceSessionId } = request.body ?? {};
     if (
       typeof vocabularyEntryId !== 'string' ||
+      vocabularyEntryId.length > 64 ||
       (direction !== 'english-to-german' && direction !== 'german-to-english') ||
-      typeof prompt !== 'string' ||
       typeof submittedAnswer !== 'string' ||
-      (practiceSessionId !== undefined && typeof practiceSessionId !== 'string')
+      (practiceSessionId !== undefined &&
+        (typeof practiceSessionId !== 'string' || practiceSessionId.length > 64))
     ) {
       return reply
         .code(400)
         .send({ error: { code: 'INVALID_ANSWER', message: 'Answer submission is invalid.' } });
+    }
+    if (submittedAnswer.length > maxSubmittedAnswerLength) {
+      return reply
+        .code(400)
+        .send({ error: { code: 'ANSWER_TOO_LONG', message: 'The answer is too long.' } });
     }
     const practiceSession =
       typeof practiceSessionId === 'string'
@@ -386,7 +487,7 @@ export function buildServer(
       userId: user.id,
       vocabularyEntryId: entry.id,
       direction,
-      prompt,
+      prompt: direction === 'english-to-german' ? entry.english : entry.germanDisplay,
       submittedAnswer,
       normalizedAnswer: match.normalizedAnswer,
       correct: match.correct,
@@ -514,6 +615,9 @@ export function buildServer(
   return server;
 }
 
+if (process.env.NODE_ENV !== 'test') {
+  assertProductionConfiguration(process.env);
+}
 const server = buildServer();
 const port = Number(process.env.API_PORT ?? 3000);
 

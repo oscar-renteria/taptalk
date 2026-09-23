@@ -32,7 +32,7 @@ describe('account registration', () => {
       hash: string;
     };
     expect(stored.hash).not.toContain('a-secure-password');
-    expect(stored.hash).toMatch(/^[0-9a-f]{32}:[0-9a-f]{128}$/);
+    expect(stored.hash).toMatch(/^scrypt\$16384\$8\$5\$[0-9a-f]{32}\$[0-9a-f]{128}$/);
     expect(database.prepare('SELECT COUNT(*) AS count FROM user_preferences').get()).toEqual({
       count: 1,
     });
