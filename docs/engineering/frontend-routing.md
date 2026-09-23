@@ -28,3 +28,12 @@ TapTalk uses `vue-router` (history mode) in `apps/web/src/router.ts`. Views live
 
 - `apps/web/src/router.test.ts` covers the redirects for each protected route, the return after login, guests-only routes, the admin redirect, not-found, session expiry, the loading state and `safeRedirect`.
 - `e2e/access-control.spec.ts` checks deep links, reload on a deep route, the admin redirect and not-found in a real browser.
+
+## Account screens (`AuthView`)
+
+- **Validation:** registration validates with the shared `registrationSchema` from `@taptalk/shared`, the same rules the API enforces (ADR-006). Login only checks that both fields are filled, so accounts created under older rules can still sign in. The server stays the authority.
+- **When errors appear:** errors show after the first submit attempt and then update as the user types. Server errors are mapped to their field: `details[].field`, and `USERNAME_UNAVAILABLE` for the username. Anything else becomes one safe form-level alert.
+- **Accessibility:** errors are linked to their input with `aria-describedby` and `aria-invalid`. After a failed submit, focus moves to the first invalid field. Enter submits the form (`novalidate`, so the browser's own bubbles don't compete with the messages).
+- **Password visibility:** a "Show password" / "Hide password" toggle (`aria-pressed`, `aria-controls`) switches the input type.
+- **No double submission:** while a request is pending, the submit button is disabled and `aria-busy`, and the handler ignores further submits.
+- **Tests:** `apps/web/src/auth-view.test.ts` and `e2e/auth.spec.ts`.

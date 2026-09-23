@@ -24,8 +24,23 @@ test.describe('registration and login', () => {
     await page.getByLabel('Password').fill(learnerPassword);
     await page.getByRole('button', { name: 'Create account' }).click();
 
-    await expect(page.getByRole('alert')).toHaveText('Username is unavailable.');
+    await expect(page.getByText('This username is taken. Try another one.')).toBeVisible();
+    await expect(page.getByLabel('Username')).toBeFocused();
     await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
+  });
+
+  test('a weak password is explained before anything is sent', async ({ page }, testInfo) => {
+    const username = uniqueUsername(testInfo, 'weak');
+    await page.goto('/register');
+    await page.getByLabel('Username').fill(username);
+    await page.getByLabel('Password').fill('12345678');
+    await page.getByRole('button', { name: 'Show password' }).click();
+    await expect(page.getByLabel('Password')).toHaveAttribute('type', 'text');
+    await page.getByLabel('Password').press('Enter');
+
+    await expect(page.getByText('Password is too common.', { exact: false })).toBeVisible();
+    await expect(page.getByLabel('Password')).toBeFocused();
+    await expect(page).toHaveURL(/\/register$/);
   });
 
   test('an existing learner logs in', async ({ page, request }, testInfo) => {

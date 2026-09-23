@@ -42,6 +42,7 @@ Global rules for every prompt:
 - Prompt 014: Transactional vocabulary import
 - Prompt 015: Design system (tokens, 10 components, docs/engineering/design-system.md)
 - Prompt 016: Routing and authenticated shell (vue-router, guards, not-found, docs/engineering/frontend-routing.md)
+- Prompt 017: Registration and login screens (shared validation, field errors, visibility toggle)
 - Prompt 018: Answer matching rules (policy v1 in docs/architecture/answer-matching.md)
 - Prompt 019: Practice question selection (weighted policy in docs/architecture/question-selection.md; user-facing vocabulary filters await OPEN DECISION 004)
 - Prompt 020: Scoring rules (policy v1 in docs/architecture/scoring.md)
@@ -56,7 +57,6 @@ Global rules for every prompt:
 
 ### IN PROGRESS
 
-- Prompt 017: Dedicated registration/login component and integration tests remain.
 - Prompt 023: Session progress, next-question action, deliberate focus and double-submit protection are done. A loading-state UI test remains, and question variety depends on Prompt 019.
 - Prompt 028: Browser-level PWA verification remains.
 
@@ -566,7 +566,7 @@ Add:
 
 ------------------------------------------------------------------------
 
-## Prompt 017 --- Implement registration and login screens [IN PROGRESS]
+## Prompt 017 --- Implement registration and login screens [DONE]
 
 **Goal:** Connect the frontend account flow to the API.
 
