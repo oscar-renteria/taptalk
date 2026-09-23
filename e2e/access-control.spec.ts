@@ -22,6 +22,20 @@ test.describe('unauthorized access', () => {
     ).toBe(401);
   });
 
+  test('a signed-out visit makes no failed API request', async ({ page }) => {
+    const failed: string[] = [];
+    page.on('response', (response) => {
+      if (response.url().includes('/api/') && response.status() >= 400) {
+        failed.push(`${response.status()} ${response.url()}`);
+      }
+    });
+    await page.goto('/practice');
+    await expect(page).toHaveURL(/\/login\?redirect=\/practice$/);
+    await page.getByRole('link', { name: 'Need an account?' }).click();
+    await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible();
+    expect(failed).toEqual([]);
+  });
+
   test('a learner has no administrator tools and is refused by the API', async ({
     page,
     request,

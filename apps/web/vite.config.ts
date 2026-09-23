@@ -2,6 +2,31 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Security headers for the built web app (docs/security/security-review.md). The production
+// host must send the same headers; `vite preview` applies them so the e2e `pwa` project runs the
+// production bundle under this policy. Not applied to the dev server, whose HMR client needs more.
+export const webSecurityHeaders: Record<string, string> = {
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "font-src 'self'",
+    "manifest-src 'self'",
+    "worker-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; '),
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+};
+
 // PWA policy: docs/engineering/pwa.md.
 export default defineConfig({
   plugins: [
@@ -50,9 +75,18 @@ export default defineConfig({
       },
     }),
   ],
+  preview: {
+    headers: webSecurityHeaders,
+  },
   server: {
     proxy: {
-      '/api': process.env.API_PROXY_TARGET ?? 'http://localhost:3000',
+      // changeOrigin must stay false: the API's CSRF check compares the browser's Origin with the
+      // Host header, so the proxy has to forward the Host the browser used (localhost or a LAN
+      // address). The string shorthand would set changeOrigin: true and break every POST.
+      '/api': {
+        target: process.env.API_PROXY_TARGET ?? 'http://localhost:3000',
+        changeOrigin: false,
+      },
     },
   },
 });

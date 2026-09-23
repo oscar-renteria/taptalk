@@ -11,8 +11,9 @@ export function restoreSession(): Promise<void> {
   if (session.checked) return Promise.resolve();
   restoring ??= (async () => {
     try {
-      const response = await fetch('/api/v1/auth/me');
-      const payload = (await response.json()) as { user?: User };
+      // Answers 200 with `user: null` when signed out, so a normal visit logs no failed request.
+      const response = await fetch('/api/v1/auth/session');
+      const payload = (await response.json()) as { user?: User | null };
       session.user = response.ok && payload.user ? payload.user : null;
     } catch {
       session.user = null; // Offline or unavailable: treat as signed out.

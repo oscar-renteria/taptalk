@@ -57,6 +57,8 @@ export default defineConfig({
         DATABASE_PATH: databasePath,
         // Every test registers its own learner from localhost, so the per-IP limit is raised.
         AUTH_RATE_LIMIT_MAX: '100000',
+        // WEB_ORIGIN is deliberately unset, as in `npm run dev`: the CSRF check must work
+        // through the Vite proxy without configuration.
       },
     },
     {

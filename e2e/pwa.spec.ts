@@ -78,4 +78,33 @@ test.describe('progressive web app', () => {
     );
     await context.setOffline(false);
   });
+
+  test('runs the production bundle under the Content-Security-Policy without violations', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await page.addInitScript(() => {
+      (window as unknown as { cspViolations: string[] }).cspViolations = [];
+      document.addEventListener('securitypolicyviolation', (event) => {
+        (window as unknown as { cspViolations: string[] }).cspViolations.push(
+          `${event.violatedDirective} ${event.blockedURI}`,
+        );
+      });
+    });
+    const response = await page.goto('/login');
+    expect(response?.headers()['content-security-policy']).toContain("script-src 'self'");
+    expect(response?.headers()['x-frame-options']).toBe('DENY');
+
+    await logIn(page, await registerLearner(request, testInfo, 'pwa-csp'));
+    await page.getByLabel('Practice direction').selectOption('english-to-german');
+    await page.getByRole('button', { name: 'Start practice' }).click();
+    await expect(page.getByRole('progressbar')).toBeVisible();
+    await page.getByRole('link', { name: 'Progress' }).click();
+    await expect(page.getByTestId('stat-points')).toBeVisible();
+
+    const violations = await page.evaluate(
+      () => (window as unknown as { cspViolations: string[] }).cspViolations,
+    );
+    expect(violations).toEqual([]);
+  });
 });

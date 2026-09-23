@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { createId, type SqliteDatabase } from './database.js';
 
 // Session strategy: see docs/decisions/ADR-005-authentication-session.md.
@@ -31,29 +31,69 @@ declare module 'fastify' {
   }
 }
 
-export function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('hex');
-  const hash = scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
+// Password hashing: scrypt with OWASP-recommended parameters (N=2^14, r=8, p=5: ~16 MB memory).
+// Parameters are stored with each hash so they can be raised later without breaking old hashes.
+// Hashing runs asynchronously in the libuv thread pool, so a login never blocks other requests.
+const scryptParameters = { N: 2 ** 14, r: 8, p: 5 } as const;
+const keyLength = 64;
+
+function scryptAsync(
+  password: string,
+  salt: string,
+  options: { N: number; r: number; p: number },
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, keyLength, { ...options, maxmem: 64 * 1024 * 1024 }, (error, key) =>
+      error ? reject(error) : resolve(key),
+    );
+  });
 }
 
-export function verifyPassword(password: string, storedHash: string): boolean {
-  const [salt, expectedHash] = storedHash.split(':');
-  if (!salt || !expectedHash) {
+export async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  const { N, r, p } = scryptParameters;
+  const hash = await scryptAsync(password, salt, scryptParameters);
+  return `scrypt$${N}$${r}$${p}$${salt}$${hash.toString('hex')}`;
+}
+
+// Accepts the current format and the legacy "salt:hash" format (N=2^14, r=8, p=1).
+function parseHash(stored: string) {
+  const current = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([0-9a-f]+)\$([0-9a-f]+)$/.exec(stored);
+  if (current) {
+    const [, N, r, p, salt, hash] = current;
+    return { N: Number(N), r: Number(r), p: Number(p), salt: salt!, hash: hash!, legacy: false };
+  }
+  const [salt, hash] = stored.split(':');
+  return salt && hash ? { N: 2 ** 14, r: 8, p: 1, salt, hash, legacy: true } : undefined;
+}
+
+export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  const parsed = parseHash(storedHash);
+  if (!parsed) {
     return false;
   }
-  const actualHash = scryptSync(password, salt, 64);
-  const expectedBuffer = Buffer.from(expectedHash, 'hex');
-  return actualHash.length === expectedBuffer.length && timingSafeEqual(actualHash, expectedBuffer);
+  const actual = await scryptAsync(password, parsed.salt, parsed);
+  const expected = Buffer.from(parsed.hash, 'hex');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+// True when a stored hash uses weaker parameters than the current ones and should be replaced.
+export function needsRehash(storedHash: string): boolean {
+  const parsed = parseHash(storedHash);
+  const { N, r, p } = scryptParameters;
+  return !parsed || parsed.legacy || parsed.N < N || parsed.r < r || parsed.p < p;
 }
 
 // Verifying against this hash when a username is unknown keeps login timing independent of
 // whether the account exists.
 const unknownUserHash = hashPassword(randomBytes(16).toString('hex'));
 
-export function verifyLogin(password: unknown, storedHash: string | undefined): boolean {
+export async function verifyLogin(
+  password: unknown,
+  storedHash: string | undefined,
+): Promise<boolean> {
   const candidate = typeof password === 'string' ? password : '';
-  const matches = verifyPassword(candidate, storedHash ?? unknownUserHash);
+  const matches = await verifyPassword(candidate, storedHash ?? (await unknownUserHash));
   return storedHash !== undefined && typeof password === 'string' && matches;
 }
 

@@ -16,7 +16,7 @@ TapTalk uses `vue-router` (history mode) in `apps/web/src/router.ts`. Views live
 
 ## Behaviour
 
-- **Session check:** the guard waits for `GET /api/v1/auth/me` once (`session.ts`) before the first route renders. Until then the shell shows "Checking your session...". Refreshing any page therefore keeps the user on it.
+- **Session check:** the guard waits for `GET /api/v1/auth/session` once (`session.ts`) before the first route renders. It answers `200 { user: null }` when nobody is signed in, so a signed-out visit logs no failed request. Until then the shell shows "Checking your session...". Refreshing any page therefore keeps the user on it.
 - **Unauthorized routes:** signed-out visitors are sent to `/login?redirect=<path>`, and after login they return to that path. `safeRedirect` accepts only same-origin paths (`/…` but not `//…`), so the parameter cannot be used as an open redirect.
 - **Expired sessions:** views call the API through `apiFetch`. A `401` signs the user out and redirects to login with the current path as the return path.
 - **Authorization:** route guards only decide what to *show*. The API authorizes every request on its own (ADR-005, administrator provisioning guide).

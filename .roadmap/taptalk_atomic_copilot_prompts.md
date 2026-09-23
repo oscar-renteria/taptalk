@@ -57,6 +57,7 @@ Global rules for every prompt:
 - Prompt 029: Backend integration test suite
 - Prompt 030: End-to-end browser tests (`npm run test:e2e`, all 9 journeys, mobile and tablet)
 - Prompt 031: Accessibility review (axe-core suite, keyboard journey, docs/engineering/accessibility-review.md; screen reader pass recommended before release)
+- Prompt 032: Security review (10 findings fixed, docs/security/security-review.md; deployment items D1/D2 owned by 034/035)
 
 ### IN PROGRESS
 
@@ -64,7 +65,7 @@ Global rules for every prompt:
 
 ### NOT STARTED
 
-- Prompts 032–038: Security and responsive reviews, deployment, operations, smoke testing, and handover
+- Prompts 033–038: Responsive review, deployment, operations, smoke testing, and handover
 
 ------------------------------------------------------------------------
 
@@ -1015,7 +1016,7 @@ Fix confirmed issues and document any known limitations.
 
 ------------------------------------------------------------------------
 
-## Prompt 032 --- Perform security review [NOT STARTED]
+## Prompt 032 --- Perform security review [DONE]
 
 **Goal:** Review the application for common web security risks.
 
