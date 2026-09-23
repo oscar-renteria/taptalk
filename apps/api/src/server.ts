@@ -13,10 +13,12 @@ import {
   ensurePreferences,
   findUserByUsername,
   getDashboardSummary,
+  getLastAttemptedEntryInSession,
   getVocabularyImportHistory,
   getPracticeSession,
   getPracticeSessionSummary,
   getPreferences,
+  getSelectionCandidates,
   getVocabulary,
   insertUser,
   recordAttempt,
@@ -27,6 +29,7 @@ import {
 } from './repositories.js';
 import { calculateScore } from './learning.js';
 import { matchAnswer } from './matching.js';
+import { resolveDirection, selectQuestion, type Random } from './selection.js';
 import { previewVocabularyImport } from './vocabulary.js';
 import { createRateLimiter, type RateLimitOptions } from './rate-limit.js';
 import {
@@ -61,6 +64,8 @@ export type ServerOptions = {
   authRateLimit?: RateLimitOptions;
   // Adds the Secure cookie attribute; defaults to true in production.
   secureCookies?: boolean;
+  // Source of randomness for question selection; injectable for deterministic tests.
+  random?: Random;
 };
 
 const defaultAuthRateLimit: RateLimitOptions = {
@@ -75,6 +80,7 @@ export function buildServer(
   const server = Fastify({ logger: true });
   const authLimiter = createRateLimiter(options.authRateLimit ?? defaultAuthRateLimit);
   const secureCookies = options.secureCookies ?? process.env.NODE_ENV === 'production';
+  const random = options.random ?? Math.random;
 
   server.decorateRequest('user', null);
   server.addHook('preHandler', createAccessGuard(database));
@@ -257,35 +263,60 @@ export function buildServer(
     },
   );
 
-  server.get<{ Querystring: { direction?: string } }>(
+  server.get<{ Querystring: { direction?: string; practiceSessionId?: string } }>(
     '/api/v1/practice/question',
     async (request, reply) => {
       const user = currentUser(request);
-      const direction = request.query.direction ?? getPreferences(database, user.id).direction;
-      if (!['english-to-german', 'german-to-english', 'random'].includes(direction)) {
+      const preferences = getPreferences(database, user.id);
+      const { practiceSessionId } = request.query;
+      const practiceSession = practiceSessionId
+        ? getPracticeSession(database, user.id, practiceSessionId)
+        : undefined;
+      if (practiceSessionId && !practiceSession) {
+        return reply.code(404).send({
+          error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
+        });
+      }
+      if (practiceSession && practiceSession.status !== 'active') {
+        return reply.code(409).send({
+          error: { code: 'SESSION_NOT_ACTIVE', message: 'Practice session is no longer active.' },
+        });
+      }
+      // A session fixes the direction; otherwise the query or the saved preference applies.
+      const direction = practiceDirectionSchema.safeParse(
+        practiceSession?.direction ?? request.query.direction ?? preferences.direction,
+      );
+      if (!direction.success) {
         return reply.code(400).send({
           error: { code: 'INVALID_DIRECTION', message: 'Practice direction is invalid.' },
         });
       }
-      const entries = getVocabulary(database);
-      if (entries.length === 0) {
+      const selection = selectQuestion(
+        getSelectionCandidates(database, user.id, practiceSession?.id ?? null),
+        {
+          repetitionPreference: preferences.repetitionPreference,
+          previousEntryId: practiceSession
+            ? getLastAttemptedEntryInSession(database, practiceSession.id)
+            : null,
+        },
+        random,
+      );
+      const entry = selection
+        ? getVocabulary(database).find((candidate) => candidate.id === selection.id)
+        : undefined;
+      if (!selection || !entry) {
         return reply
           .code(404)
           .send({ error: { code: 'NO_VOCABULARY', message: 'No vocabulary is available.' } });
       }
-      const entry = entries[0];
-      if (!entry) {
-        return reply
-          .code(404)
-          .send({ error: { code: 'NO_VOCABULARY', message: 'No vocabulary is available.' } });
-      }
-      const resolvedDirection = direction === 'random' ? 'english-to-german' : direction;
+      const resolvedDirection = resolveDirection(direction.data, random);
       return reply.send({
         question: {
           vocabularyEntryId: entry.id,
           direction: resolvedDirection,
           prompt: resolvedDirection === 'english-to-german' ? entry.english : entry.germanDisplay,
           phonetics: entry.phonetics,
+          selectionReason: selection.reason,
         },
       });
     },

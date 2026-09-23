@@ -260,3 +260,110 @@ describe('administrator provisioning', () => {
     );
   });
 });
+
+describe('question selection over HTTP', () => {
+  function seedWords(words: Array<[string, string]>) {
+    commitVocabularyImport(
+      database,
+      'admin-1',
+      words.map(([english, german]) => ({
+        english,
+        phonetics: undefined,
+        german,
+        alternatives: [german],
+      })),
+      'more.json',
+      '2026-09-23T00:00:00.000Z',
+    );
+  }
+
+  it('varies questions, never repeats the previous word, and explains the choice', async () => {
+    seedWords([
+      ['tree', 'Baum'],
+      ['house', 'Haus'],
+    ]);
+    const cookie = await register('learner');
+    await setSessionLength(cookie, 20);
+    const session = await startSession(cookie);
+    const asked: string[] = [];
+    for (let index = 0; index < 12; index += 1) {
+      const question = await server.inject({
+        method: 'GET',
+        url: `/api/v1/practice/question?practiceSessionId=${session.id}`,
+        headers: { cookie },
+      });
+      const body = question.json().question;
+      expect(['new-word', 'needs-practice', 'review']).toContain(body.selectionReason);
+      asked.push(body.prompt);
+      await server.inject({
+        method: 'POST',
+        url: '/api/v1/practice/answer',
+        headers: { cookie },
+        payload: { ...body, submittedAnswer: 'wrong', practiceSessionId: session.id },
+      });
+    }
+    expect(new Set(asked).size).toBeGreaterThan(1);
+    for (let index = 1; index < asked.length; index += 1) {
+      expect(asked[index], `question ${index}`).not.toBe(asked[index - 1]);
+    }
+  });
+
+  it('resolves a random direction per question and uses the session direction', async () => {
+    const cookie = await register('learner');
+    const directions = new Set<string>();
+    for (let index = 0; index < 20; index += 1) {
+      const question = await server.inject({
+        method: 'GET',
+        url: '/api/v1/practice/question?direction=random',
+        headers: { cookie },
+      });
+      directions.add(question.json().question.direction);
+    }
+    expect(directions).toEqual(new Set(['english-to-german', 'german-to-english']));
+
+    const session = (
+      await server.inject({
+        method: 'POST',
+        url: '/api/v1/practice/sessions',
+        headers: { cookie },
+        payload: { direction: 'german-to-english' },
+      })
+    ).json().session;
+    const inSession = await server.inject({
+      method: 'GET',
+      url: `/api/v1/practice/question?practiceSessionId=${session.id}&direction=english-to-german`,
+      headers: { cookie },
+    });
+    expect(inSession.json().question).toMatchObject({
+      direction: 'german-to-english',
+      prompt: 'hallo',
+    });
+  });
+
+  it('rejects unknown or ended sessions and skips entries without answers', async () => {
+    const cookie = await register('learner');
+    const unknown = await server.inject({
+      method: 'GET',
+      url: '/api/v1/practice/question?practiceSessionId=missing',
+      headers: { cookie },
+    });
+    expect(unknown.statusCode).toBe(404);
+    const session = await startSession(cookie);
+    await endSession(cookie, session.id);
+    const ended = await server.inject({
+      method: 'GET',
+      url: `/api/v1/practice/question?practiceSessionId=${session.id}`,
+      headers: { cookie },
+    });
+    expect(ended.statusCode).toBe(409);
+
+    database.exec('DELETE FROM vocabulary_answers');
+    const unanswerable = await server.inject({
+      method: 'GET',
+      url: '/api/v1/practice/question',
+      headers: { cookie },
+    });
+    expect(unanswerable.statusCode).toBe(404);
+    expect(unanswerable.json().error.code).toBe('NO_VOCABULARY');
+  });
+});

@@ -194,7 +194,10 @@ async function loadQuestion(): Promise<void> {
   practiceMessage.value = '';
   answered.value = false;
   try {
-    const response = await fetch(`/api/v1/practice/question?direction=${direction.value}`);
+    const query = practiceSession.value
+      ? `practiceSessionId=${encodeURIComponent(practiceSession.value.id)}`
+      : `direction=${direction.value}`;
+    const response = await fetch(`/api/v1/practice/question?${query}`);
     const payload = (await response.json()) as {
       question?: Question;
       error?: { message?: string };

@@ -1,6 +1,7 @@
 import type { DashboardSummary, PracticeDirection, UserPreferences } from '@taptalk/shared';
 import type { SqliteDatabase } from './database.js';
 import { normalizeAnswer } from './matching.js';
+import { recentAttemptWindow, type SelectionCandidate } from './selection.js';
 import type { ParsedVocabularyRecord } from './vocabulary.js';
 
 export type UserRecord = {
@@ -425,6 +426,54 @@ export function getPracticeSession(
     )
     .get(sessionId, userId) as PracticeSessionRecord | undefined;
   return row ? { ...row, answeredCount: Number(row.answeredCount) } : undefined;
+}
+
+// Per-entry learning history for question selection. Only entries with at least one accepted
+// answer are candidates, so unanswerable entries are never asked.
+export function getSelectionCandidates(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string | null,
+): SelectionCandidate[] {
+  const rows = database
+    .prepare(
+      `WITH ranked AS (
+         SELECT vocabulary_entry_id, correct, practice_session_id,
+                ROW_NUMBER() OVER (PARTITION BY vocabulary_entry_id ORDER BY attempted_at DESC) AS position
+         FROM learning_attempts WHERE user_id = ?
+       )
+       SELECT e.id AS id,
+              COUNT(r.vocabulary_entry_id) AS attempts,
+              COALESCE(SUM(CASE WHEN r.position <= ? AND r.correct = 0 THEN 1 ELSE 0 END), 0)
+                AS recentIncorrect,
+              COALESCE(SUM(CASE WHEN r.practice_session_id = ? AND r.correct = 1 THEN 1 ELSE 0 END), 0)
+                AS correctInSession
+       FROM vocabulary_entries e
+       LEFT JOIN ranked r ON r.vocabulary_entry_id = e.id
+       WHERE EXISTS (SELECT 1 FROM vocabulary_answers v WHERE v.vocabulary_entry_id = e.id)
+       GROUP BY e.id
+       ORDER BY e.id`,
+    )
+    .all(userId, recentAttemptWindow, sessionId) as SelectionCandidate[];
+  return rows.map((row) => ({
+    id: row.id,
+    attempts: Number(row.attempts),
+    recentIncorrect: Number(row.recentIncorrect),
+    correctInSession: Number(row.correctInSession),
+  }));
+}
+
+export function getLastAttemptedEntryInSession(
+  database: SqliteDatabase,
+  sessionId: string,
+): string | null {
+  const row = database
+    .prepare(
+      `SELECT vocabulary_entry_id AS id FROM learning_attempts
+       WHERE practice_session_id = ? ORDER BY attempted_at DESC, rowid DESC LIMIT 1`,
+    )
+    .get(sessionId) as { id: string } | undefined;
+  return row?.id ?? null;
 }
 
 export function countIncorrectAttemptsInSession(

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Weighted, explainable question selection (`docs/architecture/question-selection.md`): new and error-prone words are favoured, the previous word is not repeated, `random` direction is resolved per question, and questions carry a `selectionReason` (Prompt 019).
 - Answer matching policy v1 (`apps/api/src/matching.ts`, `docs/architecture/answer-matching.md`): whitespace, punctuation, quote, ellipsis and case normalization, optional parenthesized parts, and `exact-match` / `normalized-match` / `empty-answer` / `invalid-answer` / `incorrect` classification (Prompt 018).
 - Centralized role policy (`authorize`) with non-downgradable `administrator` access for `/api/v1/admin/*` (Prompt 011).
 - Central deny-by-default authentication guard for `/api` routes, `Secure` cookies in production, expired-session cleanup and timing-safe login for unknown usernames (Prompt 010).
@@ -24,6 +25,7 @@
 
 ### Fixed
 
+- Practice no longer asks the same first vocabulary entry every time, and `random` direction no longer always means English to German (Prompt 019).
 - Login survives a page reload.
 - The settings form is locked while loading, and saving no longer resets the session length and repetition preference.
 - The vocabulary import success message stays visible, and the preview cannot be committed twice.

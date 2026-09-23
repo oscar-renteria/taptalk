@@ -91,6 +91,11 @@ describe('practice session flow', () => {
     await wrapper.get('#answer').setValue('falsch');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
+    expect(
+      fetchMock.mock.calls.some(
+        ([url]) => url === '/api/v1/practice/question?practiceSessionId=session-1',
+      ),
+    ).toBe(true);
     expect(bodyOf(fetchMock, 'POST /api/v1/practice/answer')).toMatchObject({
       practiceSessionId: 'session-1',
       submittedAnswer: 'falsch',
