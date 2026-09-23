@@ -8,6 +8,7 @@ import {
 import { createId, openDatabase, type SqliteDatabase } from './database.js';
 import {
   commitVocabularyImport,
+  countIncorrectAttemptsInSession,
   endPracticeSession,
   ensurePreferences,
   findUserByUsername,
@@ -340,7 +341,10 @@ export function buildServer(
     }
     const acceptedAnswers = direction === 'english-to-german' ? entry.answers : [entry.english];
     const match = matchAnswer(submittedAnswer, acceptedAnswers);
-    const scoreDelta = calculateScore(match.correct, 0);
+    const priorErrors = practiceSession
+      ? countIncorrectAttemptsInSession(database, practiceSession.id, entry.id)
+      : 0;
+    const scoreDelta = calculateScore(match.correct, priorErrors);
     const attemptId = createId();
     recordAttempt(database, {
       id: attemptId,

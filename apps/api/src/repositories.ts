@@ -427,6 +427,20 @@ export function getPracticeSession(
   return row ? { ...row, answeredCount: Number(row.answeredCount) } : undefined;
 }
 
+export function countIncorrectAttemptsInSession(
+  database: SqliteDatabase,
+  sessionId: string,
+  vocabularyEntryId: string,
+): number {
+  const row = database
+    .prepare(
+      `SELECT COUNT(*) AS count FROM learning_attempts
+       WHERE practice_session_id = ? AND vocabulary_entry_id = ? AND correct = 0`,
+    )
+    .get(sessionId, vocabularyEntryId) as { count: number };
+  return Number(row.count);
+}
+
 // Policy: ending a session after every question was answered completes it; ending earlier abandons it.
 export function endPracticeSession(
   database: SqliteDatabase,

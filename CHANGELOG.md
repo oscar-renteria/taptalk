@@ -19,6 +19,7 @@
 
 ### Changed
 
+- Scoring applies the documented per-word penalty for earlier errors in the same session (`docs/architecture/scoring.md`); previously the penalty input was always 0 (Prompt 020).
 - Import merges alternatives that are equal after normalization and rejects German values with no answerable content (Prompt 018).
 
 ### Fixed

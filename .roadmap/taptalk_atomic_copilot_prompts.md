@@ -41,6 +41,7 @@ Global rules for every prompt:
 - Prompt 013: Vocabulary import preview
 - Prompt 014: Transactional vocabulary import
 - Prompt 018: Answer matching rules (policy v1 in docs/architecture/answer-matching.md)
+- Prompt 020: Scoring rules (policy v1 in docs/architecture/scoring.md)
 - Prompt 021: Attempt recording
 - Prompt 022: Practice session API (lifecycle endpoints, contract in `docs/architecture/practice-session-api.md`)
 - Prompt 024: Session completion summary
@@ -56,7 +57,6 @@ Global rules for every prompt:
 - Prompt 016: Refresh now restores the authenticated session. Real client routing, URL-based views and a not-found page remain.
 - Prompt 017: Dedicated registration/login component and integration tests remain.
 - Prompt 019: Adaptive weighted question selection remains.
-- Prompt 020: Documented scoring formula and boundary tests remain.
 - Prompt 023: Session progress, next-question action, deliberate focus and double-submit protection are done. A loading-state UI test remains, and question variety depends on Prompt 019.
 - Prompt 028: Browser-level PWA verification remains.
 
@@ -658,7 +658,7 @@ machine learning.
 
 ------------------------------------------------------------------------
 
-## Prompt 020 --- Implement scoring rules [IN PROGRESS]
+## Prompt 020 --- Implement scoring rules [DONE]
 
 **Goal:** Define and implement the points system.
 

@@ -200,6 +200,49 @@ describe('practice session lifecycle', () => {
   });
 });
 
+describe('session scoring', () => {
+  it('reduces points for a word after earlier errors in the same session only', async () => {
+    const cookie = await register('learner');
+    await setSessionLength(cookie, 4);
+    const session = await startSession(cookie);
+    const scores: number[] = [];
+    for (const submitted of ['wrong', 'wrong', 'hallo', 'hallo']) {
+      scores.push((await answer(cookie, session.id, submitted)).json().result.scoreDelta);
+    }
+    expect(scores).toEqual([0, 0, 6, 6]);
+    const summary = (await endSession(cookie, session.id)).json().session;
+    expect(summary.pointsEarned).toBe(12);
+
+    // A new session starts from a clean slate for the same word.
+    const next = await startSession(cookie);
+    expect((await answer(cookie, next.id, 'hallo')).json().result.scoreDelta).toBe(10);
+  });
+
+  it('ignores client-supplied scores and scores attempts outside a session without penalty', async () => {
+    const cookie = await register('learner');
+    const question = await server.inject({
+      method: 'GET',
+      url: '/api/v1/practice/question?direction=english-to-german',
+      headers: { cookie },
+    });
+    const submit = (submittedAnswer: string) =>
+      server.inject({
+        method: 'POST',
+        url: '/api/v1/practice/answer',
+        headers: { cookie },
+        payload: {
+          ...question.json().question,
+          direction: 'english-to-german',
+          submittedAnswer,
+          scoreDelta: 1000,
+          correct: true,
+        },
+      });
+    expect((await submit('wrong')).json().result).toMatchObject({ correct: false, scoreDelta: 0 });
+    expect((await submit('hallo')).json().result).toMatchObject({ correct: true, scoreDelta: 10 });
+  });
+});
+
 describe('administrator provisioning', () => {
   it('changes the role of an existing account case-insensitively', async () => {
     const cookie = await register('future-admin');
