@@ -14,8 +14,13 @@ export type AuthenticatedUser = {
 };
 
 // Route access level, declared per route as `config: { access }`. Routes under /api default to
-// 'user', so a new endpoint is protected unless it explicitly opts out.
-export type RouteAccess = 'public' | 'user';
+// 'user', so a new endpoint is protected unless it explicitly opts out. Routes under /api/v1/admin
+// always require 'administrator' and cannot be downgraded by configuration.
+export type RouteAccess = 'public' | 'user' | 'administrator';
+
+export type AccessDecision = 'allowed' | 'unauthenticated' | 'forbidden';
+
+const adminRoutePrefix = '/api/v1/admin/';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -115,10 +120,21 @@ export function findSessionUser(
     .get(hashSessionToken(token), now) as AuthenticatedUser | undefined;
 }
 
-export function routeAccess(request: FastifyRequest): RouteAccess {
-  const url = request.routeOptions.url;
+export function routeAccess(
+  url: string | undefined,
+  declared: RouteAccess | undefined,
+): RouteAccess {
   if (!url || !url.startsWith('/api/')) return 'public';
-  return request.routeOptions.config.access ?? 'user';
+  if (url.startsWith(adminRoutePrefix)) return 'administrator';
+  return declared ?? 'user';
+}
+
+// The single role check for the API. Pure, so the policy is unit-testable without HTTP.
+export function authorize(user: AuthenticatedUser | null, access: RouteAccess): AccessDecision {
+  if (access === 'public') return 'allowed';
+  if (!user) return 'unauthenticated';
+  if (access === 'administrator' && user.role !== 'administrator') return 'forbidden';
+  return 'allowed';
 }
 
 // preHandler hook: resolves the session user once per request and enforces the route's access.
@@ -126,10 +142,20 @@ export function createAccessGuard(database: SqliteDatabase) {
   return async function accessGuard(request: FastifyRequest, reply: FastifyReply) {
     request.user =
       findSessionUser(database, readSessionToken(request), new Date().toISOString()) ?? null;
-    if (routeAccess(request) === 'public' || request.user) return;
-    return reply
-      .code(401)
-      .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
+    const decision = authorize(
+      request.user,
+      routeAccess(request.routeOptions.url, request.routeOptions.config.access),
+    );
+    if (decision === 'unauthenticated') {
+      return reply
+        .code(401)
+        .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
+    }
+    if (decision === 'forbidden') {
+      return reply
+        .code(403)
+        .send({ error: { code: 'FORBIDDEN', message: 'Administrator access is required.' } });
+    }
   };
 }
 

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Centralized role policy (`authorize`) with non-downgradable `administrator` access for `/api/v1/admin/*` (Prompt 011).
 - Central deny-by-default authentication guard for `/api` routes, `Secure` cookies in production, expired-session cleanup and timing-safe login for unknown usernames (Prompt 010).
 - Shared credential policy (`registrationSchema`, ADR-006) with field-level registration errors; per-IP rate limiting of login and registration (`AUTH_RATE_LIMIT_MAX`); transactional registration with safe `500 INTERNAL_ERROR` mapping (Prompt 009).
 - Practice sessions: `POST /api/v1/practice/sessions`, `POST /api/v1/practice/sessions/:id/end` and `GET /api/v1/practice/sessions/:id`, with migration `002_practice_sessions.sql` (Prompts 022, 024).

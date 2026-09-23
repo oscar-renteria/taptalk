@@ -24,3 +24,11 @@ Use `user` instead of `administrator` to revoke the role. Usernames are matched 
 | 2    | Missing `DATABASE_PATH`, username or a valid role |
 
 The command applies pending migrations before it changes anything, just as the API does at startup.
+
+## How the role is enforced
+
+- The server authorizes every request in one place: the `preHandler` guard in `apps/api/src/auth.ts`, which uses the pure `authorize(user, access)` policy.
+- Every route under `/api/v1/admin/` requires `administrator`. That requirement comes from the path, so a route configuration cannot weaken it. Other `/api` routes require a signed-in user unless they are explicitly `public`.
+- The role is read from the database on every request, so promotion and demotion apply immediately.
+- The web app hides the "Import vocabulary" tab from regular users only for convenience. The API returns `403 FORBIDDEN` regardless of what the UI shows.
+- Registration ignores any `role` field and always creates a `user`.

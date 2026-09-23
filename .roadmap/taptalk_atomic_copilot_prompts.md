@@ -36,6 +36,7 @@ Global rules for every prompt:
 - Prompt 008: Database migrations and repositories
 - Prompt 009: Secure account creation (credential policy ADR-006, rate limiting, transactional registration)
 - Prompt 010: Login, logout and session protection (deny-by-default guard, expiry, ADR-005 session strategy)
+- Prompt 011: Authorization roles (central guard, set-role CLI, provisioning guide)
 - Prompt 012: Vocabulary parser and normalizer
 - Prompt 013: Vocabulary import preview
 - Prompt 014: Transactional vocabulary import
@@ -50,7 +51,6 @@ Global rules for every prompt:
 
 ### IN PROGRESS
 
-- Prompt 011: Provisioning is documented (`docs/operations/administrator-provisioning.md`, `set-role` CLI). Role checks are still repeated per endpoint instead of centralized.
 - Prompt 015: Reusable design-system components and component tests remain.
 - Prompt 016: Refresh now restores the authenticated session. Real client routing, URL-based views and a not-found page remain.
 - Prompt 017: Dedicated registration/login component and integration tests remain.
@@ -385,7 +385,7 @@ details.
 
 ------------------------------------------------------------------------
 
-## Prompt 011 --- Implement authorization roles [IN PROGRESS]
+## Prompt 011 --- Implement authorization roles [DONE]
 
 **Goal:** Separate regular users from vocabulary administrators.
 

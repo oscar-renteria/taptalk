@@ -181,13 +181,8 @@ export function buildServer(
 
   server.post<{ Body: { content?: unknown; sourceName?: unknown } }>(
     '/api/v1/admin/vocabulary/preview',
+    { config: { access: 'administrator' } },
     async (request, reply) => {
-      const user = currentUser(request);
-      if (user.role !== 'administrator') {
-        return reply
-          .code(403)
-          .send({ error: { code: 'FORBIDDEN', message: 'Administrator access is required.' } });
-      }
       const { content, sourceName } = request.body;
       if (typeof content !== 'string' || content.length > 1_000_000) {
         return reply.code(413).send({
@@ -207,13 +202,9 @@ export function buildServer(
 
   server.post<{ Body: { content?: unknown; sourceName?: unknown; confirm?: unknown } }>(
     '/api/v1/admin/vocabulary/import',
+    { config: { access: 'administrator' } },
     async (request, reply) => {
       const user = currentUser(request);
-      if (user.role !== 'administrator') {
-        return reply
-          .code(403)
-          .send({ error: { code: 'FORBIDDEN', message: 'Administrator access is required.' } });
-      }
       const { content, sourceName, confirm } = request.body;
       if (typeof content !== 'string' || content.length > 1_000_000) {
         return reply.code(413).send({
@@ -256,15 +247,13 @@ export function buildServer(
     },
   );
 
-  server.get('/api/v1/admin/vocabulary/imports', async (request, reply) => {
-    const user = currentUser(request);
-    if (user.role !== 'administrator') {
-      return reply
-        .code(403)
-        .send({ error: { code: 'FORBIDDEN', message: 'Administrator access is required.' } });
-    }
-    return reply.send({ imports: getVocabularyImportHistory(database) });
-  });
+  server.get(
+    '/api/v1/admin/vocabulary/imports',
+    { config: { access: 'administrator' } },
+    async (_request, reply) => {
+      return reply.send({ imports: getVocabularyImportHistory(database) });
+    },
+  );
 
   server.get<{ Querystring: { direction?: string } }>(
     '/api/v1/practice/question',
