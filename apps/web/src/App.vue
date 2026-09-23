@@ -1,5 +1,23 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
+import {
+  AppButton,
+  AppCard,
+  AppNav,
+  LoadingState,
+  ProgressIndicator,
+  SelectField,
+  StatTile,
+  StatusMessage,
+  TextField,
+} from './components';
+
+type Tone = 'info' | 'success' | 'warning' | 'error';
+const directionOptions = [
+  { value: 'random', label: 'Random direction' },
+  { value: 'english-to-german', label: 'English to German' },
+  { value: 'german-to-english', label: 'German to English' },
+] as const;
 
 type User = { username: string; role: string };
 type Question = {
@@ -60,15 +78,17 @@ const submittedAnswer = ref('');
 const practiceSession = ref<PracticeSession | null>(null);
 const answered = ref(false);
 const sessionSummary = ref<SessionSummary | null>(null);
-const answerInput = ref<HTMLInputElement | null>(null);
-const nextButton = ref<HTMLButtonElement | null>(null);
+const answerInput = ref<InstanceType<typeof TextField> | null>(null);
+const nextButton = ref<InstanceType<typeof AppButton> | null>(null);
 const summaryHeading = ref<HTMLHeadingElement | null>(null);
 const practiceMessage = ref('');
+const practiceTone = ref<Tone>('info');
 const practiceLoading = ref(false);
 const dashboard = ref<Dashboard | null>(null);
 const dashboardLoading = ref(false);
 const settingsLoading = ref(false);
 const settingsMessage = ref('');
+const settingsTone = ref<Tone>('info');
 const sessionLength = ref(10);
 const repetitionPreference = ref<'balanced' | 'errors-first'>('balanced');
 const adminContent = ref('');
@@ -76,6 +96,7 @@ const adminSourceName = ref('');
 const adminPreview = ref<ImportPreview | null>(null);
 const adminHistory = ref<ImportHistory[]>([]);
 const adminMessage = ref('');
+const adminTone = ref<Tone>('info');
 const adminLoading = ref(false);
 const networkUnavailable = ref(typeof navigator !== 'undefined' && !navigator.onLine);
 
@@ -176,11 +197,13 @@ async function startPractice(): Promise<void> {
       error?: { message?: string };
     };
     if (!response.ok || !payload.session) {
+      practiceTone.value = 'error';
       practiceMessage.value = payload.error?.message ?? 'Practice could not be started.';
       return;
     }
     practiceSession.value = payload.session;
   } catch {
+    practiceTone.value = 'error';
     practiceMessage.value = 'The practice service is unavailable.';
     return;
   } finally {
@@ -203,12 +226,14 @@ async function loadQuestion(): Promise<void> {
       error?: { message?: string };
     };
     if (!response.ok || !payload.question) {
+      practiceTone.value = 'error';
       practiceMessage.value = payload.error?.message ?? 'No question is available yet.';
       return;
     }
     question.value = payload.question;
     submittedAnswer.value = '';
   } catch {
+    practiceTone.value = 'error';
     practiceMessage.value = 'The practice service is unavailable.';
   } finally {
     practiceLoading.value = false;
@@ -238,6 +263,7 @@ async function submitAnswer(): Promise<void> {
       error?: { message?: string };
     };
     if (!response.ok || !payload.result) {
+      practiceTone.value = 'error';
       practiceMessage.value = payload.error?.message ?? 'The answer could not be submitted.';
       return;
     }
@@ -245,10 +271,12 @@ async function submitAnswer(): Promise<void> {
     if (practiceSession.value && payload.session) {
       practiceSession.value.answeredCount = payload.session.answeredCount;
     }
+    practiceTone.value = payload.result.correct ? 'success' : 'warning';
     practiceMessage.value = payload.result.correct
       ? `Correct. +${payload.result.scoreDelta} points.`
       : `Not quite. The answer is ${payload.result.correctAnswer}.`;
   } catch {
+    practiceTone.value = 'error';
     practiceMessage.value = 'The answer could not be submitted.';
   } finally {
     practiceLoading.value = false;
@@ -287,6 +315,7 @@ async function endSession(): Promise<void> {
       error?: { message?: string };
     };
     if (!response.ok || !payload.session) {
+      practiceTone.value = 'error';
       practiceMessage.value = payload.error?.message ?? 'The session could not be ended.';
       return;
     }
@@ -294,6 +323,7 @@ async function endSession(): Promise<void> {
     practiceSession.value = null;
     question.value = null;
   } catch {
+    practiceTone.value = 'error';
     practiceMessage.value = 'The session could not be ended.';
   } finally {
     practiceLoading.value = false;
@@ -343,6 +373,7 @@ async function selectView(
       }
     }
   } catch {
+    settingsTone.value = 'error';
     settingsMessage.value = 'Settings could not be loaded.';
   } finally {
     settingsLoading.value = false;
@@ -360,6 +391,7 @@ async function loadImportHistory(): Promise<void> {
     if (response.ok && payload.imports) adminHistory.value = payload.imports;
     else adminMessage.value = payload.error?.message ?? 'Import history could not be loaded.';
   } catch {
+    adminTone.value = 'error';
     adminMessage.value = 'Import history could not be loaded.';
   } finally {
     adminLoading.value = false;
@@ -389,11 +421,13 @@ async function previewImport(): Promise<void> {
       error?: { message?: string };
     };
     if (!response.ok || !payload.preview) {
+      adminTone.value = 'error';
       adminMessage.value = payload.error?.message ?? 'Preview could not be created.';
       return;
     }
     adminPreview.value = payload.preview;
   } catch {
+    adminTone.value = 'error';
     adminMessage.value = 'Preview could not be created.';
   } finally {
     adminLoading.value = false;
@@ -415,14 +449,17 @@ async function commitImport(): Promise<void> {
     });
     const payload = (await response.json()) as { error?: { message?: string } };
     if (!response.ok) {
+      adminTone.value = 'error';
       adminMessage.value = payload.error?.message ?? 'Import could not be committed.';
       return;
     }
     adminPreview.value = null;
     adminContent.value = '';
     await loadImportHistory();
+    adminTone.value = 'success';
     adminMessage.value = 'Import committed successfully.';
   } catch {
+    adminTone.value = 'error';
     adminMessage.value = 'Import could not be committed.';
   } finally {
     adminLoading.value = false;
@@ -442,8 +479,10 @@ async function saveSettings(): Promise<void> {
         repetitionPreference: repetitionPreference.value,
       }),
     });
+    settingsTone.value = response.ok ? 'success' : 'error';
     settingsMessage.value = response.ok ? 'Settings saved.' : 'Settings could not be saved.';
   } catch {
+    settingsTone.value = 'error';
     settingsMessage.value = 'Settings could not be saved.';
   } finally {
     settingsLoading.value = false;
@@ -453,74 +492,63 @@ async function saveSettings(): Promise<void> {
 
 <template>
   <main class="shell">
-    <p v-if="networkUnavailable" class="offline-banner" role="status">
+    <StatusMessage v-if="networkUnavailable" tone="warning" class="offline-banner">
       You are offline. Practice and account data need a connection.
-    </p>
-    <p v-if="!sessionChecked" class="panel muted" role="status">Checking your session...</p>
+    </StatusMessage>
+    <div v-if="!sessionChecked" class="panel">
+      <LoadingState label="Checking your session..." />
+    </div>
     <section v-else-if="!user" class="panel" aria-labelledby="page-title">
       <p class="eyebrow">TapTalk</p>
       <h1 id="page-title">Small steps. Stronger words.</h1>
       <p class="intro">A quiet place to build your German, one answer at a time.</p>
       <form @submit.prevent="submit">
-        <label for="username">Username</label>
-        <input id="username" v-model="username" autocomplete="username" required minlength="2" />
-        <label for="password">Password</label>
-        <input
+        <TextField
+          id="username"
+          v-model="username"
+          label="Username"
+          autocomplete="username"
+          required
+          minlength="2"
+        />
+        <TextField
           id="password"
           v-model="password"
+          label="Password"
           type="password"
           autocomplete="current-password"
           required
           minlength="8"
         />
-        <button type="submit" :disabled="loading">
-          {{ loading ? 'Working...' : mode === 'login' ? 'Log in' : 'Create account' }}
-        </button>
+        <AppButton type="submit" :loading="loading">
+          {{ mode === 'login' ? 'Log in' : 'Create account' }}
+        </AppButton>
       </form>
-      <p v-if="message" class="message" role="alert">{{ message }}</p>
-      <button
-        class="text-button"
-        type="button"
-        @click="mode = mode === 'login' ? 'register' : 'login'"
-      >
+      <StatusMessage v-if="message" tone="error">{{ message }}</StatusMessage>
+      <AppButton variant="text" @click="mode = mode === 'login' ? 'register' : 'login'">
         {{ mode === 'login' ? 'Need an account?' : 'Already have an account?' }}
-      </button>
+      </AppButton>
     </section>
-    <section v-else class="panel" aria-labelledby="welcome-title">
+    <section v-else class="panel panel--wide" aria-labelledby="welcome-title">
       <header class="app-header">
         <div>
           <p class="eyebrow">TapTalk practice desk</p>
           <p class="user-label">{{ user.username }}</p>
         </div>
-        <button class="text-button" type="button" @click="logout">Log out</button>
+        <AppButton variant="text" @click="logout">Log out</AppButton>
       </header>
-      <nav class="tabs" aria-label="Main navigation">
-        <button
-          v-for="item in [
-            { id: 'practice', label: 'Practice' },
-            { id: 'progress', label: 'Progress' },
-            { id: 'settings', label: 'Settings' },
-          ]"
-          :key="item.id"
-          class="tab"
-          :class="{ active: view === item.id }"
-          type="button"
-          :aria-current="view === item.id ? 'page' : undefined"
-          @click="selectView(item.id as 'practice' | 'progress' | 'settings')"
-        >
-          {{ item.label }}
-        </button>
-        <button
-          v-if="user.role === 'administrator'"
-          class="tab"
-          :class="{ active: view === 'admin-import' }"
-          type="button"
-          :aria-current="view === 'admin-import' ? 'page' : undefined"
-          @click="selectView('admin-import')"
-        >
-          Import vocabulary
-        </button>
-      </nav>
+      <AppNav
+        label="Main navigation"
+        :items="[
+          { id: 'practice', label: 'Practice', current: view === 'practice' },
+          { id: 'progress', label: 'Progress', current: view === 'progress' },
+          { id: 'settings', label: 'Settings', current: view === 'settings' },
+          ...(user.role === 'administrator'
+            ? [{ id: 'admin-import', label: 'Import vocabulary', current: view === 'admin-import' }]
+            : []),
+        ]"
+        @navigate="selectView($event as 'practice' | 'progress' | 'settings' | 'admin-import')"
+      />
       <section v-if="view === 'practice'" class="content-section" aria-labelledby="practice-title">
         <p class="eyebrow">Today’s session</p>
         <h1 id="practice-title">Ready when you are.</h1>
@@ -540,26 +568,31 @@ async function saveSettings(): Promise<void> {
               {{ sessionSummary.questionCount }} questions.
             </p>
             <div class="stat-grid">
-              <div class="stat" data-testid="summary-questions">
-                <strong>{{ sessionSummary.answeredCount }}</strong
-                ><span>questions</span>
-              </div>
-              <div class="stat" data-testid="summary-correct">
-                <strong>{{ sessionSummary.correctCount }}</strong
-                ><span>correct</span>
-              </div>
-              <div class="stat" data-testid="summary-incorrect">
-                <strong>{{ sessionSummary.incorrectCount }}</strong
-                ><span>incorrect</span>
-              </div>
-              <div class="stat" data-testid="summary-points">
-                <strong>{{ sessionSummary.pointsEarned }}</strong
-                ><span>points earned</span>
-              </div>
-              <div class="stat" data-testid="summary-accuracy">
-                <strong>{{ Math.round(sessionSummary.accuracy * 100) }}%</strong
-                ><span>accuracy</span>
-              </div>
+              <StatTile
+                data-testid="summary-questions"
+                :value="sessionSummary.answeredCount"
+                label="questions"
+              />
+              <StatTile
+                data-testid="summary-correct"
+                :value="sessionSummary.correctCount"
+                label="correct"
+              />
+              <StatTile
+                data-testid="summary-incorrect"
+                :value="sessionSummary.incorrectCount"
+                label="incorrect"
+              />
+              <StatTile
+                data-testid="summary-points"
+                :value="sessionSummary.pointsEarned"
+                label="points earned"
+              />
+              <StatTile
+                data-testid="summary-accuracy"
+                :value="`${Math.round(sessionSummary.accuracy * 100)}%`"
+                label="accuracy"
+              />
             </div>
             <template v-if="sessionSummary.wordsToPractice.length">
               <h3>Words to practice again</h3>
@@ -570,74 +603,73 @@ async function saveSettings(): Promise<void> {
             <p v-else class="muted">Every answer was correct. No words need extra practice.</p>
           </template>
           <div class="button-row">
-            <button type="button" :disabled="practiceLoading" @click="startPractice">
-              Practice again
-            </button>
-            <button class="text-button" type="button" @click="selectView('progress')">
-              Go to progress
-            </button>
+            <AppButton :disabled="practiceLoading" @click="startPractice">Practice again</AppButton>
+            <AppButton variant="text" @click="selectView('progress')">Go to progress</AppButton>
           </div>
         </div>
         <template v-else-if="!practiceSession">
-          <label for="direction">Practice direction</label>
-          <select id="direction" v-model="direction">
-            <option value="random">Random direction</option>
-            <option value="english-to-german">English to German</option>
-            <option value="german-to-english">German to English</option>
-          </select>
-          <button type="button" :disabled="practiceLoading" @click="startPractice">
-            {{ practiceLoading ? 'Loading...' : 'Start practice' }}
-          </button>
+          <SelectField
+            id="direction"
+            v-model="direction"
+            label="Practice direction"
+            :options="directionOptions"
+          />
+          <AppButton :loading="practiceLoading" loading-label="Loading..." @click="startPractice">
+            Start practice
+          </AppButton>
         </template>
         <template v-else>
-          <p class="muted" data-testid="session-progress">
-            Question
-            {{
-              Math.min(
-                practiceSession.answeredCount + (answered ? 0 : 1),
-                practiceSession.questionCount,
-              )
-            }}
-            of {{ practiceSession.questionCount }}
-          </p>
-          <form v-if="question" class="practice-card" @submit.prevent="submitAnswer">
+          <ProgressIndicator
+            :value="practiceSession.answeredCount"
+            :max="practiceSession.questionCount"
+            :label="`Question ${Math.min(
+              practiceSession.answeredCount + (answered ? 0 : 1),
+              practiceSession.questionCount,
+            )} of ${practiceSession.questionCount}`"
+          />
+          <AppCard v-if="question" as="form" @submit.prevent="submitAnswer">
             <p class="prompt" data-testid="practice-prompt">{{ question.prompt }}</p>
             <p v-if="question.phonetics" class="muted">{{ question.phonetics }}</p>
-            <label for="answer">Your answer</label>
-            <input
+            <TextField
               id="answer"
               ref="answerInput"
               v-model="submittedAnswer"
+              label="Your answer"
               autocomplete="off"
               autocapitalize="off"
               spellcheck="false"
+              enterkeyhint="done"
               :readonly="answered"
             />
-            <button v-if="!answered" type="submit" :disabled="practiceLoading">
-              {{ practiceLoading ? 'Checking...' : 'Submit answer' }}
-            </button>
-          </form>
+            <AppButton
+              v-if="!answered"
+              type="submit"
+              :loading="practiceLoading"
+              loading-label="Checking..."
+            >
+              Submit answer
+            </AppButton>
+          </AppCard>
+          <StatusMessage v-if="practiceMessage" :tone="practiceTone" :message="practiceMessage" />
           <div class="button-row">
-            <button
+            <AppButton
               v-if="answered"
               ref="nextButton"
-              type="button"
               :disabled="practiceLoading"
               @click="nextQuestion"
             >
               {{ sessionIsFull() ? 'See results' : 'Next question' }}
-            </button>
-            <button
-              class="text-button"
-              type="button"
-              :disabled="practiceLoading"
-              @click="endSession"
-            >
+            </AppButton>
+            <AppButton variant="text" :disabled="practiceLoading" @click="endSession">
               End session
-            </button>
+            </AppButton>
           </div>
         </template>
-        <p v-if="practiceMessage" class="message" role="status">{{ practiceMessage }}</p>
+        <StatusMessage
+          v-if="practiceMessage && !practiceSession"
+          :tone="practiceTone"
+          :message="practiceMessage"
+        />
       </section>
       <section
         v-else-if="view === 'progress'"
@@ -646,19 +678,15 @@ async function saveSettings(): Promise<void> {
       >
         <p class="eyebrow">Your progress</p>
         <h1 id="progress-title">A clear beginning.</h1>
-        <p v-if="dashboardLoading" class="muted">Loading your progress...</p>
+        <LoadingState v-if="dashboardLoading" label="Loading your progress..." />
         <div v-else-if="dashboard" class="stat-grid">
-          <div class="stat" data-testid="stat-points">
-            <strong>{{ dashboard.totalPoints }}</strong
-            ><span>points</span>
-          </div>
-          <div class="stat" data-testid="stat-attempts">
-            <strong>{{ dashboard.totalAttempts }}</strong
-            ><span>attempts</span>
-          </div>
-          <div class="stat" data-testid="stat-accuracy">
-            <strong>{{ Math.round(dashboard.accuracy * 100) }}%</strong><span>accuracy</span>
-          </div>
+          <StatTile data-testid="stat-points" :value="dashboard.totalPoints" label="points" />
+          <StatTile data-testid="stat-attempts" :value="dashboard.totalAttempts" label="attempts" />
+          <StatTile
+            data-testid="stat-accuracy"
+            :value="`${Math.round(dashboard.accuracy * 100)}%`"
+            label="accuracy"
+          />
         </div>
         <p v-if="dashboard && dashboard.repeatedErrorWords.length" class="muted">
           Keep an eye on: {{ dashboard.repeatedErrorWords.join(', ') }}.
@@ -676,56 +704,61 @@ async function saveSettings(): Promise<void> {
         <h1 id="settings-title">Set your rhythm.</h1>
         <fieldset class="plain-fieldset" :disabled="settingsLoading">
           <legend class="visually-hidden">Practice preferences</legend>
-          <label for="settings-direction">Default direction</label>
-          <select id="settings-direction" v-model="direction">
-            <option value="random">Random direction</option>
-            <option value="english-to-german">English to German</option>
-            <option value="german-to-english">German to English</option>
-          </select>
-          <label for="settings-session-length">Questions per session</label>
-          <input
+          <SelectField
+            id="settings-direction"
+            v-model="direction"
+            label="Default direction"
+            :options="directionOptions"
+          />
+          <TextField
             id="settings-session-length"
             v-model.number="sessionLength"
+            label="Questions per session"
             type="number"
             inputmode="numeric"
             min="1"
             max="100"
+            hint="Between 1 and 100."
             required
           />
-          <button type="button" @click="saveSettings">
-            {{ settingsLoading ? 'Working...' : 'Save settings' }}
-          </button>
+          <AppButton :loading="settingsLoading" @click="saveSettings">Save settings</AppButton>
         </fieldset>
-        <p v-if="settingsMessage" class="message" role="status">{{ settingsMessage }}</p>
+        <StatusMessage v-if="settingsMessage" :tone="settingsTone" :message="settingsMessage" />
       </section>
       <section v-else class="content-section" aria-labelledby="import-title">
         <p class="eyebrow">Administrator tools</p>
         <h1 id="import-title">Manage vocabulary.</h1>
-        <label for="vocabulary-file">Vocabulary JSON file</label>
-        <input
-          id="vocabulary-file"
-          type="file"
-          accept="application/json,.json"
-          @change="selectImportFile"
-        />
+        <div class="field">
+          <label for="vocabulary-file">Vocabulary JSON file</label>
+          <input
+            id="vocabulary-file"
+            type="file"
+            accept="application/json,.json"
+            @change="selectImportFile"
+          />
+        </div>
         <p v-if="adminSourceName" class="muted">Selected: {{ adminSourceName }}</p>
-        <button type="button" :disabled="adminLoading || !adminContent" @click="previewImport">
-          {{ adminLoading ? 'Working...' : 'Preview import' }}
-        </button>
-        <div v-if="adminPreview" class="preview-summary" aria-live="polite">
+        <AppButton
+          variant="secondary"
+          :disabled="!adminContent"
+          :loading="adminLoading"
+          @click="previewImport"
+        >
+          Preview import
+        </AppButton>
+        <AppCard v-if="adminPreview" aria-live="polite">
           <strong>{{ adminPreview.valid.length }} valid records</strong>
-          <span
+          <span class="muted"
             >{{ adminPreview.additions.length }} additions ·
             {{ adminPreview.updates.length }} updates</span
           >
-          <span v-if="adminPreview.invalid.length"
+          <span v-if="adminPreview.invalid.length" class="muted"
             >{{ adminPreview.invalid.length }} invalid records</span
           >
-          <span v-if="adminPreview.duplicates.length"
+          <span v-if="adminPreview.duplicates.length" class="muted"
             >{{ adminPreview.duplicates.length }} duplicates</span
           >
-          <button
-            type="button"
+          <AppButton
             :disabled="
               adminLoading ||
               !!adminPreview.invalid.length ||
@@ -735,11 +768,11 @@ async function saveSettings(): Promise<void> {
             @click="commitImport"
           >
             Confirm and import
-          </button>
-        </div>
-        <p v-if="adminMessage" class="message" role="status">{{ adminMessage }}</p>
+          </AppButton>
+        </AppCard>
+        <StatusMessage v-if="adminMessage" :tone="adminTone" :message="adminMessage" />
         <h2>Import history</h2>
-        <p v-if="adminLoading && !adminHistory.length" class="muted">Loading history...</p>
+        <LoadingState v-if="adminLoading && !adminHistory.length" label="Loading history..." />
         <ul v-else-if="adminHistory.length" class="history-list" aria-label="Import history">
           <li v-for="item in adminHistory" :key="item.id">
             <strong>{{ item.sourceName || 'Unnamed import' }}</strong>

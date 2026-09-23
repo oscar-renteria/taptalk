@@ -4,6 +4,7 @@
 
 ### Added
 
+- Design system: CSS tokens and reusable components (`AppButton`, `TextField`, `SelectField`, `AppCard`, `StatusMessage`, `ProgressIndicator`, `LoadingState`, `ErrorState`, `StatTile`, `AppNav`) with component tests and `docs/engineering/design-system.md` (Prompt 015).
 - Weighted, explainable question selection (`docs/architecture/question-selection.md`): new and error-prone words are favoured, the previous word is not repeated, `random` direction is resolved per question, and questions carry a `selectionReason` (Prompt 019).
 - Answer matching policy v1 (`apps/api/src/matching.ts`, `docs/architecture/answer-matching.md`): whitespace, punctuation, quote, ellipsis and case normalization, optional parenthesized parts, and `exact-match` / `normalized-match` / `empty-answer` / `invalid-answer` / `incorrect` classification (Prompt 018).
 - Centralized role policy (`authorize`) with non-downgradable `administrator` access for `/api/v1/admin/*` (Prompt 011).
@@ -25,6 +26,7 @@
 
 ### Fixed
 
+- Correct answers are no longer shown in error red; feedback tone is conveyed by icon and text. Focus ring contrast raised from 2.1:1 to 4.8:1. Text buttons meet the 44px touch target. Stat tiles read as "42 points" instead of "42points" (Prompt 015).
 - Practice no longer asks the same first vocabulary entry every time, and `random` direction no longer always means English to German (Prompt 019).
 - Login survives a page reload.
 - The settings form is locked while loading, and saving no longer resets the session length and repetition preference.
