@@ -80,7 +80,13 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': process.env.API_PROXY_TARGET ?? 'http://localhost:3000',
+      // changeOrigin must stay false: the API's CSRF check compares the browser's Origin with the
+      // Host header, so the proxy has to forward the Host the browser used (localhost or a LAN
+      // address). The string shorthand would set changeOrigin: true and break every POST.
+      '/api': {
+        target: process.env.API_PROXY_TARGET ?? 'http://localhost:3000',
+        changeOrigin: false,
+      },
     },
   },
 });

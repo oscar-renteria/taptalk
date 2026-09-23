@@ -33,6 +33,7 @@
 
 ### Fixed
 
+- Login and registration returned 403 in development after the CSRF origin check was added, because the Vite proxy rewrote the `Host` header; the proxy now keeps it (`changeOrigin: false`).
 - Security review (Prompt 032, `docs/security/security-review.md`): dependency advisories removed (vitest 5, CI audit gate); OWASP-strength async scrypt with automatic re-hash; `TRUST_PROXY` for correct per-client rate limiting; security headers and a strict CSP; JSON-only bodies plus an `Origin` check against CSRF; server-derived attempt prompts; body and field length limits; the API refuses to start in production without a persistent database; uniform 404; log redaction.
 - Accessibility review (Prompt 031, `docs/engineering/accessibility-review.md`): the progress bar got an accessible name; reflow at 200 % text on 320 px screens; persistent live regions for status messages; `lang="de"` on German prompts and answers; the answer field is described by its question; focus moves to the page heading after navigation.
 - The service worker's API rule never matched (the regex was tested against the full URL), and navigations to `/api/` could receive the offline fallback (Prompt 028).
