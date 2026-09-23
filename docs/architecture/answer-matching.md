@@ -1,6 +1,6 @@
 # Answer matching policy (v1)
 
-- **Status:** Proposed for OPEN DECISION 005. Implemented in `apps/api/src/matching.ts`; the product owner should confirm the German-specific choices below.
+- **Status:** Accepted (resolves OPEN DECISION 005; product decision 2026-09-23). Implemented in `apps/api/src/matching.ts`.
 - **Requirements:** PR-007, PR-015, PR-016, PR-018
 
 Matching is deterministic, runs only on the server, and has no framework or database dependencies. Approximate matching (typo tolerance, similarity scores, semantic matching) is **not** used.
@@ -29,8 +29,18 @@ Both the submission and each accepted answer are normalized the same way before 
 The following are deliberately **not** normalized, because they change the answer:
 
 - hyphens (`E-Mail`) and apostrophes (`geht's`)
-- `ß` and umlauts. `Strasse` does not match `Straße`, and `ae` does not match `ä`. If an alternative spelling should count, add it as an explicit alternative.
 - word boundaries. `gutenTag` does not match `guten Tag`.
+
+## German spelling variants
+
+Learners without a German keyboard may type the standard transliterations. They are accepted in both directions:
+
+| Letter | Transliteration | Example |
+| --- | --- | --- |
+| ä / ö / ü | ae / oe / ue | `Maedchen` matches `Mädchen`, `schoen` matches `schön` |
+| ß | ss | `Strasse` matches `Straße` |
+
+These matches are classified as `spelling-variant-match`, so they stay distinguishable from exact answers. Other spelling differences are still incorrect: `Strase` and `Madchen` do not match. Transliteration applies only when answers are compared. Stored answers and the import's duplicate check keep the original spelling.
 
 ## Results
 
@@ -38,13 +48,14 @@ The following are deliberately **not** normalized, because they change the answe
 | --- | --- | --- |
 | `exact-match` | yes | The trimmed submission equals an accepted form exactly (after NFC) |
 | `normalized-match` | yes | Equal only after normalization, for example a case or punctuation difference |
+| `spelling-variant-match` | yes | Equal only after ä/ö/ü/ß transliteration |
 | `empty-answer` | no | Nothing is left after normalization, for example `""`, `...` or `?!` |
 | `invalid-answer` | no | Longer than 200 characters, or contains control characters |
 | `incorrect` | no | Anything else |
 
 Every attempt stores the original submission unchanged, the normalized value and the reason (PR-018). Stored answers (`vocabulary_answers.normalized_answer`) use the same normalization function, so the stored values and the matcher cannot drift apart.
 
-## Open points for the product owner
+## Decisions
 
-- Should capitalization of German nouns (`haus` vs `Haus`) count as correct but show a hint? Currently it counts as correct without a hint.
-- Should common umlaut transliterations (`ae`, `oe`, `ue`, `ss`) be accepted for learners without a German keyboard? Currently they are not.
+- Capitalization of German nouns (`haus` vs `Haus`) counts as correct without a hint.
+- Umlaut and ß transliterations count as correct (`spelling-variant-match`). A later UI change could show the standard spelling as a hint.

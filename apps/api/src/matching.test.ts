@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { expandAcceptedAnswer, matchAnswer, maxAnswerLength, normalizeAnswer } from './matching.js';
+import {
+  expandAcceptedAnswer,
+  foldGermanSpelling,
+  matchAnswer,
+  maxAnswerLength,
+  normalizeAnswer,
+} from './matching.js';
 
 describe('answer normalization', () => {
   it.each([
@@ -62,7 +68,6 @@ describe('answer matching', () => {
   it.each([
     'Halo', // typo: no approximate matching
     'hallo tag', // partial overlap
-    'Strasse', // ß substitutes are not implicit
     'gutenTag', // missing space changes the answer
     'sich',
   ])('rejects %j as incorrect', (answer) => {
@@ -70,6 +75,26 @@ describe('answer matching', () => {
       correct: false,
       reason: 'incorrect',
     });
+  });
+
+  it.each([
+    ['Strasse', 'Straße'],
+    ['STRASSE', 'Straße'],
+    ['Maedchen', 'Mädchen'],
+    ['schoen', 'schön'],
+    ['Tuer', 'Tür'],
+    ['grüße', 'Grüsse'], // also accepted in the other direction
+  ])('accepts the transliteration %j for %j as a spelling variant', (answer, accepted) => {
+    expect(matchAnswer(answer, [accepted])).toMatchObject({
+      correct: true,
+      reason: 'spelling-variant-match',
+    });
+  });
+
+  it('keeps real spelling differences incorrect after transliteration', () => {
+    expect(matchAnswer('Strase', ['Straße']).reason).toBe('incorrect');
+    expect(matchAnswer('Madchen', ['Mädchen']).reason).toBe('incorrect');
+    expect(foldGermanSpelling('grüße')).toBe('gruesse');
   });
 
   it.each(['', '   ', '...', '?!', '„“'])('classifies %j as empty', (answer) => {

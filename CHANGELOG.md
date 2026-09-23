@@ -25,6 +25,7 @@
 
 ### Changed
 
+- Answers typed with umlaut or ß transliterations (`ae`, `oe`, `ue`, `ss`) now count as correct (`spelling-variant-match`). The credential, matching and scoring policies are accepted, and vocabulary filters are deferred to OPEN DECISION 004 (product decisions 2026-09-23).
 - `App.vue` is now a shell; each screen is a routed view in `apps/web/src/views/`. Navigation items are links (Prompt 016).
 - Scoring applies the documented per-word penalty for earlier errors in the same session (`docs/architecture/scoring.md`); previously the penalty input was always 0 (Prompt 020).
 - Import merges alternatives that are equal after normalization and rejects German values with no answerable content (Prompt 018).

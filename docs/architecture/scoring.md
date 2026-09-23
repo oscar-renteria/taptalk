@@ -1,6 +1,6 @@
 # Scoring policy (v1)
 
-- **Status:** Proposed for OPEN DECISION 006. Implemented in `apps/api/src/learning.ts` (`calculateScore`).
+- **Status:** Accepted (resolves OPEN DECISION 006; product decision 2026-09-23). Implemented in `apps/api/src/learning.ts` (`calculateScore`).
 - **Requirements:** PR-017, PR-018
 
 ## Formula

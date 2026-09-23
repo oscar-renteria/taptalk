@@ -2,7 +2,12 @@
 // no framework, database, or approximate matching.
 
 export type MatchReason =
-  'exact-match' | 'normalized-match' | 'empty-answer' | 'invalid-answer' | 'incorrect';
+  | 'exact-match'
+  | 'normalized-match'
+  | 'spelling-variant-match'
+  | 'empty-answer'
+  | 'invalid-answer'
+  | 'incorrect';
 
 export type MatchResult = {
   correct: boolean;
@@ -30,6 +35,14 @@ export function normalizeAnswer(answer: string): string {
     .replace(/\s+/gu, ' ')
     .trim()
     .toLocaleLowerCase('de-DE');
+}
+
+// Learners without a German keyboard may type the standard transliterations: ae = ä, oe = ö,
+// ue = ü, ss = ß (product decision, 2026-09-23). Applied to already normalized text.
+const germanTransliterations: Record<string, string> = { ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' };
+
+export function foldGermanSpelling(normalized: string): string {
+  return normalized.replace(/[äöüß]/gu, (letter) => germanTransliterations[letter] ?? letter);
 }
 
 // "(sich) freuen" accepts "sich freuen" and "freuen". Only the first few groups are expanded so a
@@ -66,6 +79,10 @@ export function matchAnswer(submittedAnswer: string, acceptedAnswers: string[]):
   }
   if (variants.some((variant) => normalizeAnswer(variant) === normalizedAnswer)) {
     return { correct: true, reason: 'normalized-match', normalizedAnswer };
+  }
+  const folded = foldGermanSpelling(normalizedAnswer);
+  if (variants.some((variant) => foldGermanSpelling(normalizeAnswer(variant)) === folded)) {
+    return { correct: true, reason: 'spelling-variant-match', normalizedAnswer };
   }
   return { correct: false, reason: 'incorrect', normalizedAnswer };
 }

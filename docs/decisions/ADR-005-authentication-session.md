@@ -1,6 +1,6 @@
 # ADR-005: Authentication and Session Strategy
 
-- **Status:** Accepted for first release. The session strategy resolves OPEN DECISION 002; credential details are in [ADR-006](ADR-006-credential-policy.md) (Proposed).
+- **Status:** Accepted for first release. The session strategy resolves OPEN DECISION 002; credential details are in [ADR-006](ADR-006-credential-policy.md).
 - **Date:** 2026-09-23
 
 ## Context

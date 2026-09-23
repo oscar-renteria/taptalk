@@ -36,4 +36,4 @@ For each candidate the server reads the user's own history (no other user's data
 
 ## Vocabulary filters
 
-`selectQuestion` accepts an optional `filter` predicate. No user-facing filter exists yet, because vocabulary entries have no grouping attribute (list, topic or tag) to filter by. **OPEN DECISION:** define vocabulary grouping as part of the import policy (OPEN DECISION 004), then expose it as a practice setting.
+`selectQuestion` accepts an optional `filter` predicate. No user-facing filter exists yet, because vocabulary entries have no grouping attribute (list, topic or tag) to filter by. Deferred (product decision 2026-09-23): define vocabulary grouping as part of the import policy (OPEN DECISION 004), then expose it as a practice setting.

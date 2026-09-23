@@ -1,6 +1,6 @@
 # ADR-006: Account Identifier and Credential Policy
 
-- **Status:** Proposed. Implemented as the working policy for OPEN DECISION 001; the product owner must confirm the age-appropriate constraints and the recovery approach.
+- **Status:** Accepted (resolves OPEN DECISION 001; product decision 2026-09-23).
 - **Date:** 2026-09-23
 - **Requirements:** PR-001, PR-002, NFR-002, NFR-003
 
