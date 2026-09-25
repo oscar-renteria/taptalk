@@ -1,5 +1,3 @@
-// Must stay the first import: loads .env before any module reads process.env.
-import './load-env.js';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import {
@@ -637,17 +635,4 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
   });
 
   return server;
-}
-
-if (process.env.NODE_ENV !== 'test') {
-  assertProductionConfiguration(process.env);
-}
-const server = buildServer();
-const port = Number(process.env.API_PORT ?? 3000);
-
-if (process.env.NODE_ENV !== 'test') {
-  server.listen({ host: '0.0.0.0', port }).catch((error: unknown) => {
-    server.log.error(error);
-    process.exit(1);
-  });
 }

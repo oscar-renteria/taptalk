@@ -15,4 +15,4 @@ for (const suffix of ['', '-wal', '-shm', '-journal']) {
 // The suite controls its own configuration; a developer's .env must not leak into it.
 process.env.ENV_FILE = 'none';
 
-await import('../../apps/api/src/server.ts');
+await import('../../apps/api/src/main.ts');
