@@ -13,10 +13,10 @@
 - [x] Explicit database migration command and readiness endpoint.
 - [x] Side-effect-free Fastify factory and production entry point.
 - [x] API build and focused/full API test validation.
+- [x] Child-process `SIGTERM`/`SIGINT` graceful-shutdown coverage.
 
 ### Remaining Prompt 034 work
 
-- [ ] Add a child-process signal test for `SIGTERM`/`SIGINT` and shutdown timeout behavior.
 - [ ] Add the production build configuration and artifact checks.
 - [ ] Update environment/operations documentation and run the final Prompt 034 quality gate.
 
