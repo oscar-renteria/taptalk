@@ -121,6 +121,15 @@ export function verifyDeploymentConfig() {
     apiHandlerIndex >= 0 && spaHandlerIndex > apiHandlerIndex,
     '`handle @api` must be declared before the SPA `handle` block.',
   );
+
+  // Caddyfile comments start with `#`. A `//` comment is silently accepted by
+  // the daemon-independent checks but makes Caddy refuse to load the config.
+  for (const [index, line] of caddyfile.split('\n').entries()) {
+    required(
+      !/^\s*\/\//.test(line),
+      `Caddyfile line ${index + 1} uses a \`//\` comment, which Caddy cannot parse. Use \`#\`.`,
+    );
+  }
   for (const header of [
     'Strict-Transport-Security',
     'Content-Security-Policy',

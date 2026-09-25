@@ -17,9 +17,9 @@
 		X-Frame-Options "DENY"
 	}
 
-	// Both branches are explicit, mutually exclusive handle blocks. Leaving the
-	// SPA fallback as loose top-level directives lets it run before handle @api,
-	// which serves index.html for /health and /ready instead of proxying the API.
+	# Both branches are explicit, mutually exclusive handle blocks. Leaving the
+	# SPA fallback as loose top-level directives lets it run before handle @api,
+	# which serves index.html for /health and /ready instead of proxying the API.
 	@api path /api /api/* /health /ready
 	handle @api {
 		reverse_proxy api:3000

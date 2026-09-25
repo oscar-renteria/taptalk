@@ -5,6 +5,7 @@
 ### Fixed
 
 - Caddy now wraps the API proxy and the SPA fallback in separate `handle` blocks. Previously the loose top-level `try_files`/`file_server` directives were ordered ahead of `handle @api`, so `/health` and `/ready` returned the SPA `index.html` instead of proxying to the API.
+- Caddyfile comments use `#`; `//` is not a valid Caddyfile comment and prevented the config from loading.
 - `package-lock.json` now resolves against the public npm registry so GitHub-hosted runners can run `npm ci` without access to the private corporate registry.
 - Production smoke test reports the failing status, content type, and body when a JSON endpoint returns HTML, instead of a bare JSON parse error.
 
