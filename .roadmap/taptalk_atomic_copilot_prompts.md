@@ -63,11 +63,11 @@ Global rules for every prompt:
 
 ### IN PROGRESS
 
-_None._
+- Prompt 035: Create the container and deployment configuration
 
 ### NOT STARTED
 
-- Prompts 035–038: Deployment, operations, smoke testing, and handover
+- Prompts 036–038: Release automation, production smoke testing, and handover
 
 ------------------------------------------------------------------------
 
