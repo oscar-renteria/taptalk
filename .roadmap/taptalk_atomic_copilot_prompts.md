@@ -59,14 +59,15 @@ Global rules for every prompt:
 - Prompt 031: Accessibility review (axe-core suite, keyboard journey, docs/engineering/accessibility-review.md; screen reader pass recommended before release)
 - Prompt 032: Security review (10 findings fixed, docs/security/security-review.md; deployment items D1/D2 owned by 034/035)
 - Prompt 033: Responsive design review (mobile/tablet reflow and orientation suite, docs/engineering/responsive-review.md)
+- Prompt 034: Create the production build configuration (validated runtime, production artifact, migrations, readiness, lifecycle, and operations documentation)
 
 ### IN PROGRESS
 
-- None.
+- Prompt 035: Create the container and deployment configuration
 
 ### NOT STARTED
 
-- Prompts 034–038: Deployment, operations, smoke testing, and handover
+- Prompts 036–038: Release automation, production smoke testing, and handover
 
 ------------------------------------------------------------------------
 
@@ -1084,7 +1085,7 @@ Fix defects without introducing screen-specific hacks unless justified.
 
 # Phase 9 --- Deployment and operations
 
-## Prompt 034 --- Create the production build configuration [NOT STARTED]
+## Prompt 034 --- Create the production build configuration [DONE]
 
 **Goal:** Produce reproducible production builds.
 
@@ -1115,7 +1116,7 @@ Separate development, test, and production settings.
 
 ------------------------------------------------------------------------
 
-## Prompt 035 --- Create the container and deployment configuration [NOT STARTED]
+## Prompt 035 --- Create the container and deployment configuration [IN PROGRESS]
 
 **Goal:** Prepare the app for the selected hosting target.
 

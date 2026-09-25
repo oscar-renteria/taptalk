@@ -1,0 +1,59 @@
+name: taptalk
+
+services:
+  api:
+    build:
+      context: .
+      target: api
+    image: ${API_IMAGE:-taptalk-api:local}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: 3000
+      DATABASE_PATH: /data/taptalk.db
+      WEB_ORIGIN: ${WEB_ORIGIN:?WEB_ORIGIN must be set}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-20}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SHUTDOWN_TIMEOUT_MS: ${SHUTDOWN_TIMEOUT_MS:-10000}
+    volumes:
+      - taptalk-data:/data
+    expose:
+      - '3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    stop_grace_period: 15s
+
+  caddy:
+    build:
+      context: .
+      target: web
+    image: ${CADDY_IMAGE:-taptalk-web:local}
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN must be set}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '${CADDY_HTTP_PORT:-80}:80'
+      - '${CADDY_HTTPS_PORT:-443}:443'
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  taptalk-data:
+  caddy-data:
+  caddy-config:

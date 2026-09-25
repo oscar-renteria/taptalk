@@ -2,8 +2,21 @@
 
 ## Unreleased
 
+### Fixed
+
+- Caddy now wraps the API proxy and the SPA fallback in separate `handle` blocks. Previously the loose top-level `try_files`/`file_server` directives were ordered ahead of `handle @api`, so `/health` and `/ready` returned the SPA `index.html` instead of proxying to the API.
+- Caddyfile comments use `#`; `//` is not a valid Caddyfile comment and prevented the config from loading.
+- Caddy sets response headers with the `>` replace operator. Caddy appends by default, so a proxied API response carried two `Content-Security-Policy` values. Browsers enforce the intersection of multiple CSP headers, which silently applied the stricter API policy to the whole site.
+- The immutable `Cache-Control` for hashed assets moved to the site level. A matcher-scoped `header @assets` inside the SPA `handle` block is ordered before the site-level header block, so assets shipped with `no-store`.
+- Requests for `/.env`, `/database/*`, and `/backups/*` now return 404 instead of being rewritten to the SPA shell with a 200.
+- `package-lock.json` now resolves against the public npm registry so GitHub-hosted runners can run `npm ci` without access to the private corporate registry.
+- Production smoke test reports the failing status, content type, and body when a JSON endpoint returns HTML, instead of a bare JSON parse error.
+
 ### Added
 
+- Automated deployment input checklist covering GitHub/GHCR, VM, DNS/TLS, runtime configuration, secret destinations, backups, monitoring, rollback, and final acceptance.
+- Production build and runtime controls (Prompt 034): typed configuration validation, explicit SQLite migration execution, `/health` and database-backed `/ready` endpoints, structured configurable logging, `SIGTERM`/`SIGINT` graceful shutdown, and a verifier-backed `npm run build:production` command that excludes test artifacts.
+- Container deployment configuration (Prompt 035): digest-pinned multi-stage API/Caddy images, private API Compose networking, named SQLite/Caddy volumes, HTTPS/SPA/security routing, verified SQLite backup/restore, process-restart persistence coverage, and a VM operations runbook.
 - `GET /api/v1/auth/session` answers `200 { user }` or `200 { user: null }`; the web app uses it for the startup session check, so signed-out visits no longer log a 401 in the browser console.
 - Development CORS: when `NODE_ENV=development`, the API registers `@fastify/cors` with `origin: true` and credentials enabled, and allows cross-origin state-changing requests for local tooling. Production ignores this override and continues to enforce `WEB_ORIGIN`/same-host checks; focused API tests cover both paths.
 - Responsive review (`e2e/responsive.spec.ts`, `docs/engineering/responsive-review.md`): API-backed mobile and tablet journeys check reflow, 44px touch targets, keyboard-sized and rotated viewports, focused-input visibility, long prompts/errors/file names, navigation, and tablet dashboard layout (Prompt 033).

@@ -4,13 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch src/main.ts",
     "build": "tsc -p tsconfig.json",
+    "build:production": "tsc -p tsconfig.build.json && node ../../scripts/copy-production-migrations.mjs",
     "lint": "prettier --check src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "set-role": "tsx src/cli/set-role.ts"
+    "set-role": "tsx src/cli/set-role.ts",
+    "migrate": "tsx src/cli/migrate.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

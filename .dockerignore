@@ -1,0 +1,16 @@
+node_modules
+.git
+.env
+.env.*
+!.env.example
+coverage
+playwright-report
+test-results
+**/dist
+**/coverage
+**/*.tsbuildinfo
+e2e/.data
+database/*.db
+database/*.db-*
+database/dataset.json
+*.log
