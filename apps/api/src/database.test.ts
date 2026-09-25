@@ -33,6 +33,16 @@ describe('database foundation', () => {
     });
   });
 
+  it('can open without applying migrations for an explicit migration phase', () => {
+    const database = openDatabase(':memory:', { migrate: false });
+    expect(() => database.prepare('SELECT id FROM schema_migrations').get()).toThrow();
+    migrateDatabase(database);
+    expect(database.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({
+      count: 2,
+    });
+    database.close();
+  });
+
   it('maps invalid repository operations to safe errors', () => {
     const database = openDatabase();
     const now = '2026-09-23T00:00:00.000Z';

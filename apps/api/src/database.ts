@@ -11,14 +11,19 @@ const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as {
 
 export type SqliteDatabase = DatabaseSyncType;
 
+export type OpenDatabaseOptions = {
+  migrate?: boolean;
+};
+
 export function openDatabase(
   databasePath = process.env.DATABASE_PATH ?? ':memory:',
+  options: OpenDatabaseOptions = {},
 ): SqliteDatabase {
   const location = databasePath === ':memory:' ? databasePath : resolveFromRoot(databasePath);
   if (location !== ':memory:') mkdirSync(dirname(location), { recursive: true });
   const database = new DatabaseSync(location);
   database.exec('PRAGMA foreign_keys = ON;');
-  migrateDatabase(database);
+  if (options.migrate !== false) migrateDatabase(database);
   return database;
 }
 

@@ -3,13 +3,37 @@ import { openDatabase } from './database.js';
 import { upsertVocabulary } from './repositories.js';
 import { buildServer } from './server.js';
 
-describe('health endpoint', () => {
+describe('health and readiness endpoints', () => {
   it('reports an operational API', async () => {
     const server = buildServer();
     const response = await server.inject({ method: 'GET', url: '/health' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: 'ok' });
+    await server.close();
+  });
+
+  it('reports not ready until the readiness state is enabled', async () => {
+    let ready = false;
+    const server = buildServer(undefined, { isReady: () => ready });
+    const notReady = await server.inject({ method: 'GET', url: '/ready' });
+    expect(notReady.statusCode).toBe(503);
+    expect(notReady.json()).toEqual({ status: 'not_ready' });
+
+    ready = true;
+    const readyResponse = await server.inject({ method: 'GET', url: '/ready' });
+    expect(readyResponse.statusCode).toBe(200);
+    expect(readyResponse.json()).toEqual({ status: 'ready' });
+    await server.close();
+  });
+
+  it('reports not ready when the database cannot be queried', async () => {
+    const database = openDatabase();
+    const server = buildServer(database);
+    database.close();
+    const response = await server.inject({ method: 'GET', url: '/ready' });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ status: 'not_ready' });
     await server.close();
   });
 

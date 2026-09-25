@@ -16,7 +16,8 @@
     "format:check": "prettier --check package.json tsconfig.base.json .prettierrc.json eslint.config.mjs vitest.config.ts playwright.config.ts e2e apps packages .github/workflows/ci.yml",
     "test:e2e": "npm run build:shared && playwright test",
     "test:e2e:install": "playwright install chromium",
-    "build:shared": "npm run build --workspace @taptalk/shared"
+    "build:shared": "npm run build --workspace @taptalk/shared",
+    "db:migrate": "npm run migrate --workspace @taptalk/api"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "set-role": "tsx src/cli/set-role.ts"
+    "set-role": "tsx src/cli/set-role.ts",
+    "migrate": "tsx src/cli/migrate.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

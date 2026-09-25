@@ -98,6 +98,8 @@ export type ServerOptions = {
   trustProxy?: boolean | string[];
   // Complete validated process configuration. Tests and embedded callers may provide one explicitly.
   config?: AppConfig;
+  // Readiness probe state; production startup controls this while the server is initializing/draining.
+  isReady?: () => boolean;
 };
 
 // TRUST_PROXY: "true" (trust any proxy, for a single reverse proxy in front of the API) or a
@@ -207,6 +209,18 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
   );
 
   server.get('/health', async () => ({ status: 'ok' }));
+
+  server.get('/ready', async (_request, reply) => {
+    if (options.isReady && !options.isReady()) {
+      return reply.code(503).send({ status: 'not_ready' });
+    }
+    try {
+      database.prepare('SELECT 1 AS ready').get();
+      return { status: 'ready' };
+    } catch {
+      return reply.code(503).send({ status: 'not_ready' });
+    }
+  });
 
   server.post<{ Body: { username?: unknown; password?: unknown } }>(
     '/api/v1/auth/register',
