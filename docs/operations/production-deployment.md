@@ -11,6 +11,7 @@ Caddy is the only public application ingress. The API port is exposed only insid
 
 ## Files
 
+- [Deployment input checklist](deployment-input-checklist.md): collect the non-secret values, access locations, approvals, and acceptance decisions needed before automation.
 - `Dockerfile`: pinned `build`, `api`, and `web` stages. The API runs as the unprivileged `node` user, listens on `0.0.0.0:3000`, uses `SIGTERM`, and has a Node-built-in `/ready` health check.
 - `.dockerignore`: excludes Git state, dependencies, coverage, reports, environment files, local databases, and `database/dataset.json`.
 - `compose.production.yml`: API/Caddy topology, named `taptalk-data`, `caddy-data`, and `caddy-config` volumes, API health dependency, and ports 80/443 for Caddy only.

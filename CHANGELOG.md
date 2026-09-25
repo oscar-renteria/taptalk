@@ -4,6 +4,7 @@
 
 ### Added
 
+- Automated deployment input checklist covering GitHub/GHCR, VM, DNS/TLS, runtime configuration, secret destinations, backups, monitoring, rollback, and final acceptance.
 - Production build and runtime controls (Prompt 034): typed configuration validation, explicit SQLite migration execution, `/health` and database-backed `/ready` endpoints, structured configurable logging, `SIGTERM`/`SIGINT` graceful shutdown, and a verifier-backed `npm run build:production` command that excludes test artifacts.
 - Container deployment configuration (Prompt 035): digest-pinned multi-stage API/Caddy images, private API Compose networking, named SQLite/Caddy volumes, HTTPS/SPA/security routing, verified SQLite backup/restore, process-restart persistence coverage, and a VM operations runbook.
 - `GET /api/v1/auth/session` answers `200 { user }` or `200 { user: null }`; the web app uses it for the startup session check, so signed-out visits no longer log a 401 in the browser console.
