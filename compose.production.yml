@@ -20,13 +20,13 @@ services:
     volumes:
       - taptalk-data:/data
     expose:
-      - "3000"
+      - '3000'
     healthcheck:
       test:
         [
-          "CMD",
-          "node",
-          "-e",
+          'CMD',
+          'node',
+          '-e',
           "fetch('http://127.0.0.1:3000/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
         ]
       interval: 30s
@@ -47,8 +47,8 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "80:80"
-      - "443:443"
+      - '${CADDY_HTTP_PORT:-80}:80'
+      - '${CADDY_HTTPS_PORT:-443}:443'
     volumes:
       - caddy-data:/data
       - caddy-config:/config

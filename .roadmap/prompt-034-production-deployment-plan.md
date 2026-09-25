@@ -47,6 +47,7 @@
 - [x] SQLite-aware backup, integrity-checked restore, and process-restart persistence tests.
 - [x] Deployment configuration verifier, CI checks, and VM operations runbook.
 - [x] Daemon-independent quality checks and Compose interpolation validation.
+- [x] Disposable Docker-enabled production smoke harness for image build, HTTPS routing, API persistence across restart, backup/restore, volume, and shutdown checks.
 
 ### Remaining Prompt 035 work
 

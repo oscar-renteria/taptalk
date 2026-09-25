@@ -95,6 +95,7 @@ The daemon-independent checks are:
 npm run build:production
 npm run test:deployment
 npm run verify:deployment
+npm run smoke:production
 DOMAIN=taptalk.example WEB_ORIGIN=https://taptalk.example \
   docker compose --env-file /path/to/disposable.env -f compose.production.yml config --quiet
 ```

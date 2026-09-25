@@ -42,6 +42,10 @@ export function verifyDeploymentConfig() {
     dockerfile.includes('scripts/sqlite-maintenance.mjs'),
     'API image must include the SQLite maintenance script.',
   );
+  required(
+    read('package.json').includes('"smoke:production"'),
+    'Root package must expose the production stack smoke command.',
+  );
 
   for (const entry of [
     'node_modules',
@@ -71,8 +75,9 @@ export function verifyDeploymentConfig() {
     'Caddy must wait for API readiness.',
   );
   required(
-    caddySection.includes('"80:80"') && caddySection.includes('"443:443"'),
-    'Caddy must publish ports 80 and 443.',
+    caddySection.includes('CADDY_HTTP_PORT:-80}:80') &&
+      caddySection.includes('CADDY_HTTPS_PORT:-443}:443'),
+    'Caddy must publish configurable ports 80 and 443.',
   );
   required(
     compose.includes('taptalk-data:') &&

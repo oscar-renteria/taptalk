@@ -17,6 +17,7 @@
     "test": "npm run build:shared && npm run test --workspaces --if-present",
     "test:coverage": "npm run build:shared && npm run test:coverage --workspaces --if-present",
     "test:deployment": "node --test scripts/*.test.mjs",
+    "smoke:production": "node scripts/production-stack-smoke.mjs",
     "verify:deployment": "node scripts/verify-deployment-config.mjs",
     "db:backup": "node scripts/sqlite-maintenance.mjs backup",
     "db:restore": "node scripts/sqlite-maintenance.mjs restore",
