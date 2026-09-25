@@ -86,6 +86,23 @@ function request(url, { method = 'GET', headers = {}, body } = {}) {
   });
 }
 
+function describe(response) {
+  const contentType = response.headers['content-type'] ?? 'none';
+  const preview = response.body.slice(0, 200).replace(/\s+/g, ' ').trim();
+  return `status=${response.status} content-type=${contentType} body=${JSON.stringify(preview)}`;
+}
+
+function parseJson(response, label) {
+  try {
+    return JSON.parse(response.body);
+  } catch {
+    assert.fail(
+      `${label} did not return JSON (${describe(response)}). ` +
+        'A common cause is the SPA fallback winning over the API proxy in Caddy.',
+    );
+  }
+}
+
 async function waitForReady(origin, timeoutMs = 120_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError = 'no response';
@@ -132,8 +149,13 @@ async function main() {
   await waitForReady(origin);
 
   const health = await request(`${origin}/health`);
-  assert.equal(health.status, 200);
-  assert.deepEqual(JSON.parse(health.body), { status: 'ok' });
+  assert.equal(health.status, 200, health.body);
+  assert.match(
+    String(health.headers['content-type']),
+    /application\/json/,
+    `/health must return JSON through Caddy, received: ${describe(health)}`,
+  );
+  assert.deepEqual(parseJson(health, '/health'), { status: 'ok' });
   assert.match(String(health.headers['strict-transport-security']), /max-age=31536000/);
   assert.match(String(health.headers['content-security-policy']), /default-src 'self'/);
   assert.equal(health.headers['x-content-type-options'], 'nosniff');
@@ -162,7 +184,7 @@ async function main() {
   await waitForReady(origin);
   const afterRestart = await request(`${origin}/api/v1/auth/me`, { headers: { cookie } });
   assert.equal(afterRestart.status, 200, afterRestart.body);
-  assert.equal(JSON.parse(afterRestart.body).user.username, username);
+  assert.equal(parseJson(afterRestart, '/api/v1/auth/me').user.username, username);
 
   dockerCompose([
     'exec',

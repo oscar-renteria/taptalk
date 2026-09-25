@@ -94,6 +94,33 @@ export function verifyDeploymentConfig() {
   ]) {
     required(caddyfile.includes(route), `Caddyfile is missing ${route}.`);
   }
+
+  // The API matcher and the SPA fallback must both live inside explicit
+  // `handle` blocks. Loose top-level `try_files`/`file_server` directives are
+  // ordered before `handle`, so they serve index.html for /health and /ready
+  // instead of proxying the API. Assert the block structure, not just presence.
+  const apiHandle = caddyfile.match(/handle @api \{([\s\S]*?)\n\t\}/);
+  required(apiHandle, 'Caddyfile must wrap the API proxy in a `handle @api` block.');
+  required(
+    apiHandle[1].includes('reverse_proxy api:3000'),
+    '`handle @api` must contain the API reverse proxy.',
+  );
+  const spaHandle = caddyfile.match(/\n\thandle \{([\s\S]*?)\n\t\}/);
+  required(spaHandle, 'Caddyfile must wrap the SPA fallback in a `handle` block.');
+  required(
+    spaHandle[1].includes('try_files {path} /index.html') && spaHandle[1].includes('file_server'),
+    'The SPA `handle` block must contain the fallback and file server.',
+  );
+  required(
+    !spaHandle[1].includes('reverse_proxy') && !spaHandle[1].includes('@api'),
+    'The SPA `handle` block must not proxy API traffic.',
+  );
+  const apiHandlerIndex = caddyfile.indexOf('handle @api {');
+  const spaHandlerIndex = caddyfile.indexOf('\n\thandle {');
+  required(
+    apiHandlerIndex >= 0 && spaHandlerIndex > apiHandlerIndex,
+    '`handle @api` must be declared before the SPA `handle` block.',
+  );
   for (const header of [
     'Strict-Transport-Security',
     'Content-Security-Policy',

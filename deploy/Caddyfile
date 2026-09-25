@@ -17,17 +17,22 @@
 		X-Frame-Options "DENY"
 	}
 
+	// Both branches are explicit, mutually exclusive handle blocks. Leaving the
+	// SPA fallback as loose top-level directives lets it run before handle @api,
+	// which serves index.html for /health and /ready instead of proxying the API.
 	@api path /api /api/* /health /ready
 	handle @api {
 		reverse_proxy api:3000
 	}
 
-	@private path /.env* /database/* /backups/*
-	respond @private 404
+	handle {
+		@private path /.env* /database/* /backups/*
+		respond @private 404
 
-	root * /srv
-	@assets path /assets/*
-	header @assets Cache-Control "public, max-age=31536000, immutable"
-	try_files {path} /index.html
-	file_server
+		root * /srv
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
 }
