@@ -34,12 +34,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve tags
-        id: meta
+      - name: Resolve API tags
+        id: api-meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.API_IMAGE }},${{ env.WEB_IMAGE }}
-          # Immutable commit-SHA tag plus a moving 'master' tag.
+          images: ${{ env.API_IMAGE }}
+          # Immutable commit-SHA tag plus a moving branch tag.
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Resolve web tags
+        id: web-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.WEB_IMAGE }}
           tags: |
             type=sha,format=long
             type=ref,event=branch
@@ -51,8 +61,9 @@ jobs:
           context: .
           target: api
           push: true
-          tags: ${{ env.API_IMAGE }}:${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          # metadata-action already emits fully qualified references.
+          tags: ${{ steps.api-meta.outputs.tags }}
+          labels: ${{ steps.api-meta.outputs.labels }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
 
@@ -62,12 +73,16 @@ jobs:
           context: .
           target: web
           push: true
-          tags: ${{ env.WEB_IMAGE }}:${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.web-meta.outputs.tags }}
+          labels: ${{ steps.web-meta.outputs.labels }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
 
       - name: Record published digests
         run: |
-          echo "API: ${{ env.API_IMAGE }}@${{ steps.meta.outputs.digest }}"
-          echo "WEB: ${{ env.WEB_IMAGE }}@${{ steps.meta.outputs.digest }}"
+          {
+            echo "### Published images"
+            echo ""
+            echo "- API: \`${{ env.API_IMAGE }}\`"
+            echo "- Web: \`${{ env.WEB_IMAGE }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
