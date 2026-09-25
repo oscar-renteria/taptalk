@@ -75,6 +75,7 @@ function request(url, { method = 'GET', headers = {}, body } = {}) {
           resolveRequest({
             status: response.statusCode ?? 0,
             headers: response.headers,
+            rawHeaders: response.rawHeaders,
             body: Buffer.concat(chunks).toString('utf8'),
           }),
         );
@@ -84,6 +85,15 @@ function request(url, { method = 'GET', headers = {}, body } = {}) {
     if (body !== undefined) outgoing.write(body);
     outgoing.end();
   });
+}
+
+// Node exposes `rawHeaders` as a flat [name, value, name, value, ...] array.
+function countRawHeader(response, field) {
+  let count = 0;
+  for (let index = 0; index < response.rawHeaders.length; index += 2) {
+    if (String(response.rawHeaders[index]).toLowerCase() === field) count++;
+  }
+  return count;
 }
 
 function describe(response) {
@@ -168,6 +178,33 @@ async function main() {
   const asset = await request(`${origin}${assetPath}`);
   assert.equal(asset.status, 200);
   assert.match(String(asset.headers['cache-control']), /immutable/);
+
+  // A proxied response must not repeat security headers. Browsers enforce the
+  // intersection of multiple CSP values, so duplicates silently change policy.
+  // Node joins repeated fields with ", " in `headers`, so a single-value header
+  // containing a comma means it was sent more than once. CSP is compared by
+  // counting raw occurrences because its own value legitimately contains ", ".
+  assert.equal(health.headers['x-content-type-options'], 'nosniff');
+  assert.equal(health.headers['x-frame-options'], 'DENY');
+  assert.equal(health.headers['referrer-policy'], 'strict-origin-when-cross-origin');
+  assert.equal(
+    countRawHeader(health, 'content-security-policy'),
+    1,
+    `content-security-policy must be sent exactly once, received: ${health.headers['content-security-policy']}`,
+  );
+
+  // The SPA fallback rewrites unknown paths to index.html, so secret paths must
+  // be rejected before the fallback can turn them into a 200 HTML response.
+  for (const privatePath of [
+    '/.env',
+    '/.env.production',
+    '/database/taptalk.db',
+    '/backups/db.bak',
+  ]) {
+    const blocked = await request(`${origin}${privatePath}`);
+    assert.equal(blocked.status, 404, `${privatePath} must not be served.`);
+    assert.doesNotMatch(blocked.body, /<!doctype html>/i, `${privatePath} returned the SPA shell.`);
+  }
 
   const registration = await request(`${origin}/api/v1/auth/register`, {
     method: 'POST',

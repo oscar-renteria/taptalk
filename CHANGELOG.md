@@ -6,6 +6,9 @@
 
 - Caddy now wraps the API proxy and the SPA fallback in separate `handle` blocks. Previously the loose top-level `try_files`/`file_server` directives were ordered ahead of `handle @api`, so `/health` and `/ready` returned the SPA `index.html` instead of proxying to the API.
 - Caddyfile comments use `#`; `//` is not a valid Caddyfile comment and prevented the config from loading.
+- Caddy sets response headers with the `>` replace operator. Caddy appends by default, so a proxied API response carried two `Content-Security-Policy` values. Browsers enforce the intersection of multiple CSP headers, which silently applied the stricter API policy to the whole site.
+- The immutable `Cache-Control` for hashed assets moved to the site level. A matcher-scoped `header @assets` inside the SPA `handle` block is ordered before the site-level header block, so assets shipped with `no-store`.
+- Requests for `/.env`, `/database/*`, and `/backups/*` now return 404 instead of being rewritten to the SPA shell with a 200.
 - `package-lock.json` now resolves against the public npm registry so GitHub-hosted runners can run `npm ci` without access to the private corporate registry.
 - Production smoke test reports the failing status, content type, and body when a JSON endpoint returns HTML, instead of a bare JSON parse error.
 

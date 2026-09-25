@@ -122,6 +122,36 @@ export function verifyDeploymentConfig() {
     '`handle @api` must be declared before the SPA `handle` block.',
   );
 
+  // A matcher-scoped `header @assets` placed inside the SPA `handle` block is
+  // ordered before the site-level header block, so the site-level `no-store`
+  // overwrites it and hashed assets lose immutable caching. It must be at the
+  // site level, ahead of the handles.
+  const assetsHeaderIndex = caddyfile.indexOf(
+    'header @assets >Cache-Control "public, max-age=31536000, immutable"',
+  );
+  required(
+    assetsHeaderIndex >= 0 && assetsHeaderIndex < apiHandlerIndex,
+    'The immutable asset cache header must be set at the site level, before `handle @api`.',
+  );
+  required(
+    !spaHandle[1].includes('@assets'),
+    'The immutable asset cache header must not live inside the SPA `handle` block.',
+  );
+
+  // The SPA fallback rewrites every unmatched path to index.html, so secret
+  // paths need a dedicated top-level handle that answers 404 before the
+  // fallback can turn them into a 200 HTML response.
+  const privateHandle = caddyfile.match(/handle @private \{([\s\S]*?)\n\t\}/);
+  required(
+    privateHandle && privateHandle[1].includes('respond 404'),
+    'Caddyfile must answer 404 for private paths via a `handle @private` block.',
+  );
+  required(caddyfile.includes('@private path /.env*'), 'Caddyfile must block .env paths.');
+  required(
+    caddyfile.includes('/database/*') && caddyfile.includes('/backups/*'),
+    'Caddyfile must block the database and backup directories.',
+  );
+
   // Caddyfile comments start with `#`. A `//` comment is silently accepted by
   // the daemon-independent checks but makes Caddy refuse to load the config.
   for (const [index, line] of caddyfile.split('\n').entries()) {
@@ -139,9 +169,30 @@ export function verifyDeploymentConfig() {
     required(caddyfile.includes(header), `Caddyfile is missing ${header}.`);
   }
   required(
-    caddyfile.includes('Cache-Control "public, max-age=31536000, immutable"'),
-    'Hashed assets are not immutable.',
+    caddyfile.includes('>Cache-Control "public, max-age=31536000, immutable"'),
+    'Hashed assets are not immutable, or the header is not set with the `>` replace operator.',
   );
+
+  // Caddy appends response headers by default, so a proxied API response that
+  // already sets these headers would carry two values. Browsers enforce the
+  // intersection of multiple CSP headers, so duplicates silently produce the
+  // stricter (API) policy. Every security header must use the `>` operator.
+  for (const field of [
+    'Cache-Control',
+    'Content-Security-Policy',
+    'Cross-Origin-Opener-Policy',
+    'Cross-Origin-Resource-Policy',
+    'Permissions-Policy',
+    'Referrer-Policy',
+    'Strict-Transport-Security',
+    'X-Content-Type-Options',
+    'X-Frame-Options',
+  ]) {
+    required(
+      caddyfile.includes(`\t\t>${field} `),
+      `Caddyfile must set ${field} with the \`>\` replace operator to avoid duplicate headers.`,
+    );
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
