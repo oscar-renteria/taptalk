@@ -4,6 +4,7 @@ coverage/
 *.db
 *.db-shm
 *.db-wal
+database/dataset.json
 .env
 .env.*
 !.env.example
