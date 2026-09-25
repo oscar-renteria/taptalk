@@ -33,7 +33,7 @@
 ## Roadmap status
 
 - **Prompt 034:** `DONE`
-- **Prompt 035:** `IN PROGRESS`
+- **Prompt 035:** `DONE`
 - **Prompt 036:** `NOT STARTED`
 
 ## Prompt 035 implementation progress
@@ -51,9 +51,30 @@
 
 ### Remaining Prompt 035 work
 
-- [ ] Run live Docker image builds and a Compose API restart on a Docker-enabled host; the current environment cannot access `/var/run/docker.sock`.
-- [ ] Verify Caddy HTTPS/SPA/API routing and certificate-volume behavior on a disposable deployment.
-- [ ] Complete the final Prompt 035 quality gate and mark the prompt `DONE`.
+None. The final gate was satisfied on a Docker-enabled GitHub Actions runner
+(run `36187895706`, 2026-09-25): `npm run smoke:production` reported
+`Production Compose smoke passed`, covering image builds, Caddy HTTPS routing,
+API persistence across a container restart, in-container backup and restore,
+named volumes, and graceful `SIGTERM` shutdown. The `e2e` job passed 75 tests.
+
+Live verification also exposed and fixed four defects that the daemon-independent
+checks had not caught:
+
+- The lockfile resolved against a private registry, so `npm ci` failed on hosted
+  runners. It now resolves against the public npm registry with identical
+  integrity hashes.
+- The SPA fallback ran before `handle @api`, so `/health` and `/ready` returned
+  `index.html` instead of API JSON.
+- Caddy appended response headers, producing two `Content-Security-Policy`
+  values on proxied responses. Browsers enforce the intersection of multiple CSP
+  headers, so the stricter API policy applied site-wide. Headers now use the `>`
+  replace operator.
+- Hashed assets lost immutable caching because a matcher-scoped `header` inside
+  the SPA `handle` block is ordered before the site-level header block.
+
+`verify-deployment-config` now asserts the Caddy block structure and the smoke
+test verifies single-valued security headers, immutable asset caching, and 404
+responses for `/.env`, `/database/*`, and `/backups/*` on a real stack.
 
 ## Decision
 

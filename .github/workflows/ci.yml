@@ -2,7 +2,9 @@ name: CI
 
 'on':
   push:
-    branches: [main]
+    # The default branch is `master`; the repository also supports `main`.
+    # Both are listed so a merge to either branch is validated.
+    branches: [master, main]
   pull_request:
 
 jobs:
