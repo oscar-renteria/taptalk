@@ -1085,7 +1085,7 @@ Fix defects without introducing screen-specific hacks unless justified.
 
 # Phase 9 --- Deployment and operations
 
-## Prompt 034 --- Create the production build configuration [IN PROGRESS]
+## Prompt 034 --- Create the production build configuration [DONE]
 
 **Goal:** Produce reproducible production builds.
 
