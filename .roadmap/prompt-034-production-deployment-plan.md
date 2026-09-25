@@ -1,6 +1,6 @@
 # Prompt 034 — Production Build and Deployment Plan
 
-- **Status:** `IN PROGRESS` — implementation is being delivered incrementally; acceptance validation is not yet complete.
+- **Status:** `DONE` — implementation and acceptance validation completed on 2026-09-25.
 - **Date:** 2026-09-25
 - **Approved hosting direction:** Google Cloud Free Tier VM + Docker Compose + Caddy + GitHub Actions/GHCR + persistent SQLite volume.
 
@@ -14,18 +14,27 @@
 - [x] Side-effect-free Fastify factory and production entry point.
 - [x] API build and focused/full API test validation.
 - [x] Child-process `SIGTERM`/`SIGINT` graceful-shutdown coverage.
+- [x] Clean production build with artifact verification and copied migrations.
+- [x] Environment and production operations documentation.
 
-### Remaining Prompt 034 work
+## Acceptance evidence
 
-- [ ] Add the production build configuration and artifact checks.
-- [ ] Update environment/operations documentation and run the final Prompt 034 quality gate.
+- `npm ci --include=dev` completed from the committed lockfile with 0 vulnerabilities.
+- `npm run lint` passed, including ESLint and Prettier checks.
+- `npm run typecheck` passed for shared, API, web, and E2E TypeScript projects.
+- `npm test` passed: API 205/205, web 67/67, shared 15/15.
+- `npm run test:coverage` passed for all three workspaces.
+- `npm run test:e2e` passed all 75 Playwright tests.
+- `npm run build:production` passed; required API/shared/web artifacts and both SQL migrations were verified, with no `*.test.js` or `*.test.d.ts` output.
+- The compiled production API reached database-backed `/ready`, served `/health`, handled `SIGTERM`, and exited with code 0. Incomplete production configuration failed with a named `WEB_ORIGIN` error.
+- Child-process lifecycle tests cover `SIGTERM`, `SIGINT`, idempotent shutdown, SQLite closure, and forced timeout exit.
+- The local `database/dataset.json` was preserved but removed from Git tracking and ignored; it is not part of the production artifact.
 
 ## Roadmap status
 
-- **Prompt 034:** `IN PROGRESS`
+- **Prompt 034:** `DONE`
 - **Prompt 035:** `NOT STARTED`
 - **Prompt 036:** `NOT STARTED`
-
 
 ## Decision
 

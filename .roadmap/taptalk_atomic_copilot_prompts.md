@@ -59,10 +59,11 @@ Global rules for every prompt:
 - Prompt 031: Accessibility review (axe-core suite, keyboard journey, docs/engineering/accessibility-review.md; screen reader pass recommended before release)
 - Prompt 032: Security review (10 findings fixed, docs/security/security-review.md; deployment items D1/D2 owned by 034/035)
 - Prompt 033: Responsive design review (mobile/tablet reflow and orientation suite, docs/engineering/responsive-review.md)
+- Prompt 034: Create the production build configuration (validated runtime, production artifact, migrations, readiness, lifecycle, and operations documentation)
 
 ### IN PROGRESS
 
-- Prompt 034: Create the production build configuration
+_None._
 
 ### NOT STARTED
 
