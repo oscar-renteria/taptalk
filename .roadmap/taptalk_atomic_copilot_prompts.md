@@ -62,11 +62,11 @@ Global rules for every prompt:
 
 ### IN PROGRESS
 
-- None.
+- Prompt 034: Create the production build configuration
 
 ### NOT STARTED
 
-- Prompts 034–038: Deployment, operations, smoke testing, and handover
+- Prompts 035–038: Deployment, operations, smoke testing, and handover
 
 ------------------------------------------------------------------------
 
@@ -1084,7 +1084,7 @@ Fix defects without introducing screen-specific hacks unless justified.
 
 # Phase 9 --- Deployment and operations
 
-## Prompt 034 --- Create the production build configuration [NOT STARTED]
+## Prompt 034 --- Create the production build configuration [IN PROGRESS]
 
 **Goal:** Produce reproducible production builds.
 
