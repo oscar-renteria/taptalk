@@ -80,9 +80,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // changeOrigin must stay false: the API's CSRF check compares the browser's Origin with the
-      // Host header, so the proxy has to forward the Host the browser used (localhost or a LAN
-      // address). The string shorthand would set changeOrigin: true and break every POST.
+      // changeOrigin stays false so the production-style origin check still sees the browser's
+      // Host. Development CORS is permissive by design, but preserving the Host keeps local and
+      // non-development proxy behavior consistent. The string shorthand sets changeOrigin: true.
       '/api': {
         target: process.env.API_PROXY_TARGET ?? 'http://localhost:3000',
         changeOrigin: false,

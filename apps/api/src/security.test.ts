@@ -1,10 +1,14 @@
 import { Writable } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { openDatabase } from './database.js';
 import { isOriginAllowed, parseAllowedOrigins } from './security.js';
 import { assertProductionConfiguration, buildServer, parseTrustProxy } from './server.js';
 
 const credentials = { username: 'learner', password: 'a-secure-password' };
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 async function registered(options: Parameters<typeof buildServer>[1] = {}) {
   const database = openDatabase();
@@ -68,6 +72,62 @@ describe('cross-site request forgery defences', () => {
       'https://b.example',
     ]);
     expect(parseAllowedOrigins(undefined)).toEqual([]);
+  });
+
+  it('allows credentialed cross-origin development requests, including preflight', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const { server, cookie } = await registered();
+    const origin = 'http://localhost:5174';
+
+    const preflight = await server.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/settings',
+      headers: {
+        origin,
+        'access-control-request-method': 'PUT',
+        'access-control-request-headers': 'content-type',
+      },
+    });
+    expect(preflight.statusCode).toBe(204);
+    expect(preflight.headers).toMatchObject({
+      'access-control-allow-origin': origin,
+      'access-control-allow-credentials': 'true',
+    });
+    expect(preflight.headers['access-control-allow-methods']).toContain('PUT');
+
+    const update = await server.inject({
+      method: 'PUT',
+      url: '/api/v1/settings',
+      headers: { cookie, origin },
+      payload: {
+        direction: 'german-to-english',
+        sessionLength: 5,
+        repetitionPreference: 'balanced',
+      },
+    });
+    expect(update.statusCode).toBe(200);
+    expect(update.headers['access-control-allow-origin']).toBe(origin);
+    await server.close();
+  });
+
+  it('keeps the all-origin override disabled in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const { server, cookie } = await registered({ allowAllOrigins: true });
+    const response = await server.inject({
+      method: 'PUT',
+      url: '/api/v1/settings',
+      headers: { cookie, origin: 'https://evil.example' },
+      payload: {
+        direction: 'german-to-english',
+        sessionLength: 5,
+        repetitionPreference: 'balanced',
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    expect(response.json().error.code).toBe('CROSS_ORIGIN_REJECTED');
+    await server.close();
   });
 
   it('rejects state-changing requests from a foreign origin but allows reads', async () => {

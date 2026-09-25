@@ -43,9 +43,10 @@ export function isOriginAllowed(
   }
 }
 
-export function createOriginGuard(allowedOrigins: string[]) {
+export function createOriginGuard(allowedOrigins: string[], allowAllOrigins = false) {
   return async function originGuard(request: FastifyRequest, reply: FastifyReply) {
     if (!stateChangingMethods.has(request.method)) return;
+    if (allowAllOrigins) return;
     const origin = request.headers.origin;
     if (isOriginAllowed(origin, request.headers.host, allowedOrigins)) return;
     request.log.warn({ origin }, 'rejected cross-origin request');

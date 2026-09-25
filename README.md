@@ -1,6 +1,6 @@
 # TapTalk
 
-TapTalk is a responsive Vue 3 PWA with a Node.js TypeScript API and SQLite persistence for language practice.
+TapTalk is a responsive Vue 3 PWA with a Node.js TypeScript API and SQLite persistence for language practice. The current responsive review covers phone, tablet, narrow, reduced-height, and landscape states; see [responsive review](docs/engineering/responsive-review.md).
 
 ## Current status
 
@@ -19,7 +19,7 @@ npm install
 npm run dev
 ```
 
-`.env` is loaded automatically in development (existing environment variables win), so accounts and vocabulary persist in `database/taptalk.db`. To import vocabulary, register an account in the app and promote it:
+`.env` is loaded automatically in development (existing environment variables win), so accounts and vocabulary persist in `database/taptalk.db`. Development mode also enables credentialed CORS from any origin for local tooling; production ignores that override and uses the configured `WEB_ORIGIN`. To import vocabulary, register an account in the app and promote it:
 
 ```sh
 npm run set-role --workspace @taptalk/api -- <username> administrator

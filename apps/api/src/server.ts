@@ -1,6 +1,7 @@
 // Must stay the first import: loads .env before any module reads process.env.
 import './load-env.js';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
+import cors from '@fastify/cors';
 import {
   practiceDirectionSchema,
   registrationErrors,
@@ -86,6 +87,9 @@ export type ServerOptions = {
   // Browser origins allowed to make state-changing requests (defaults to WEB_ORIGIN, comma
   // separated). Empty means "same host as the request".
   allowedOrigins?: string[];
+  // Development-only CORS override. It is enabled by default in development, can be disabled for
+  // focused tests, and is always ignored in production.
+  allowAllOrigins?: boolean;
   // Destination for logs (defaults to stdout); tests pass a stream to inspect what is logged.
   logStream?: NodeJS.WritableStream;
   // Which proxies to trust for the client address (defaults to TRUST_PROXY). Must be set behind a
@@ -146,6 +150,15 @@ export function buildServer(
     bodyLimit: defaultBodyLimit,
     trustProxy: options.trustProxy ?? parseTrustProxy(process.env.TRUST_PROXY),
   });
+  const allowAllOrigins =
+    process.env.NODE_ENV === 'development' && options.allowAllOrigins !== false;
+  if (allowAllOrigins) {
+    server.register(cors, {
+      origin: true,
+      credentials: true,
+      methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    });
+  }
   // Only JSON bodies are accepted. Removing the built-in text/plain parser means HTML forms, the
   // classic CSRF vector, cannot reach any handler (415 Unsupported Media Type).
   server.removeContentTypeParser('text/plain');
@@ -156,7 +169,10 @@ export function buildServer(
   server.decorateRequest('user', null);
   server.addHook(
     'onRequest',
-    createOriginGuard(options.allowedOrigins ?? parseAllowedOrigins(process.env.WEB_ORIGIN)),
+    createOriginGuard(
+      options.allowedOrigins ?? parseAllowedOrigins(process.env.WEB_ORIGIN),
+      allowAllOrigins,
+    ),
   );
   server.addHook('preHandler', createAccessGuard(database));
   // API responses contain personal data: never store them in browser, service worker, or proxy caches.

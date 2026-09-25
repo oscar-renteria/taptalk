@@ -5,6 +5,8 @@
 ### Added
 
 - `GET /api/v1/auth/session` answers `200 { user }` or `200 { user: null }`; the web app uses it for the startup session check, so signed-out visits no longer log a 401 in the browser console.
+- Development CORS: when `NODE_ENV=development`, the API registers `@fastify/cors` with `origin: true` and credentials enabled, and allows cross-origin state-changing requests for local tooling. Production ignores this override and continues to enforce `WEB_ORIGIN`/same-host checks; focused API tests cover both paths.
+- Responsive review (`e2e/responsive.spec.ts`, `docs/engineering/responsive-review.md`): API-backed mobile and tablet journeys check reflow, 44px touch targets, keyboard-sized and rotated viewports, focused-input visibility, long prompts/errors/file names, navigation, and tablet dashboard layout (Prompt 033).
 - Automated accessibility suite (`e2e/accessibility.spec.ts`): axe-core WCAG 2.2 AA scans of 12 screen states, a keyboard-only journey, touch-target, reflow, reduced-motion, non-colour feedback and language checks (Prompt 031).
 - PWA: PNG and maskable icons, a complete manifest, an update prompt instead of automatic reloads, `Cache-Control: no-store` on API responses, and a Playwright `pwa` project that checks installability, cache contents and offline start against the production build (Prompt 028).
 - Practice screen tests for success, wrong-answer, loading, failure and error states, single submission and retry; documented in `docs/engineering/practice-screen.md` (Prompt 023).
@@ -34,6 +36,7 @@
 
 ### Fixed
 
+- Responsive review (Prompt 033, `docs/engineering/responsive-review.md`): unbroken status messages and selected import file names wrap within the layout; the shell follows the dynamic viewport with a `100vh` fallback; focus scrolling leaves room around controls after keyboard-size and orientation changes.
 - `npm run dev` ignored `.env` and used an in-memory database, so data was lost on every restart and `set-role` could not reach the running database. The API and CLI now load the repository's `.env` in development, and relative `DATABASE_PATH` values resolve from the repository root.
 - Login and registration returned 403 in development after the CSRF origin check was added, because the Vite proxy rewrote the `Host` header; the proxy now keeps it (`changeOrigin: false`).
 - Security review (Prompt 032, `docs/security/security-review.md`): dependency advisories removed (vitest 5, CI audit gate); OWASP-strength async scrypt with automatic re-hash; `TRUST_PROXY` for correct per-client rate limiting; security headers and a strict CSP; JSON-only bodies plus an `Origin` check against CSRF; server-derived attempt prompts; body and field length limits; the API refuses to start in production without a persistent database; uniform 404; log redaction.

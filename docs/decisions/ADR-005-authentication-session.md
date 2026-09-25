@@ -19,7 +19,7 @@ Use server-managed opaque sessions stored in SQLite and identified by an HTTP-on
 - **Invalidation:** logout sets `revoked_at` on the current session only, so other devices stay signed in, and clears the cookie. Logout without a session still returns `204`.
 - **Enforcement:** a single `preHandler` guard (`apps/api/src/auth.ts`) resolves the session once per request. Every route under `/api` requires a user unless it declares `config: { access: 'public' }`, which only register, login and logout do. The default therefore denies access.
 - **Login responses:** unknown usernames, wrong passwords, oversized passwords and missing bodies all return the same `401 INVALID_LOGIN`. Unknown usernames are still checked against a dummy hash, so response timing does not reveal whether an account exists.
-- **CSRF:** `SameSite=Lax` keeps the cookie off cross-site `POST`, `PUT` and `DELETE` requests. The API accepts only JSON bodies and sends no CORS headers. An additional `Origin` check is evaluated in the security review (Prompt 032).
+- **CSRF:** `SameSite=Lax` keeps the cookie off cross-site `POST`, `PUT` and `DELETE` requests. The API accepts only JSON bodies and sends no CORS headers in production. During local development only, `@fastify/cors` is registered with `origin: true` and credentials enabled so local tooling can use the API from another origin; the security review documents this exception. Outside development, an additional `Origin` check enforces `WEB_ORIGIN` or the request host.
 
 ## Alternatives
 

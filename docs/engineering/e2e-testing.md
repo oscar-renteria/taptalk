@@ -38,6 +38,12 @@ The e2e database file is deleted and recreated on every run. The start script re
 
 Only Chromium is installed to keep CI fast. WebKit (iOS Safari) coverage is a known gap.
 
+## Responsive review
+
+`responsive.spec.ts` runs under both the `mobile` and `tablet` projects. It covers account errors, practice (including a long prompt and focused input), progress, settings, and administrator import. In addition to each project's normal viewport, it checks a 320px narrow screen, a 320×360 reduced-height viewport, phone/tablet landscape, 44×44px touch targets, horizontal containment, and tablet dashboard columns. The findings and fixes are recorded in [responsive review](responsive-review.md).
+
+The reduced-height check is a deterministic proxy for an on-screen keyboard. Playwright does not display a real software keyboard, so a short manual check on physical iOS and Android devices remains a pre-release task. Only Chromium is installed; WebKit is also outside the current automated scope.
+
 ## Selectors and timing
 
 Locators use accessible roles and labels (`getByRole`, `getByLabel`), so the tests also catch accessibility regressions. `data-testid` is used only where no accessible name exists: `practice-prompt`, `session-progress`, and the `stat-*` and `summary-*` tiles. There are no `waitForTimeout` calls; assertions rely on Playwright's automatic waiting.

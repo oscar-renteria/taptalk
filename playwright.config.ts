@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { defineConfig, devices } from '@playwright/test';
 import { apiPort, databasePath, previewPort, webPort } from './e2e/support/environment';
 
@@ -57,8 +59,8 @@ export default defineConfig({
         DATABASE_PATH: databasePath,
         // Every test registers its own learner from localhost, so the per-IP limit is raised.
         AUTH_RATE_LIMIT_MAX: '100000',
-        // WEB_ORIGIN is deliberately unset, as in `npm run dev`: the CSRF check must work
-        // through the Vite proxy without configuration.
+        // WEB_ORIGIN is deliberately unset, as in `npm run dev`; development CORS is permissive,
+        // while the API security tests separately exercise the strict origin fallback.
       },
     },
     {

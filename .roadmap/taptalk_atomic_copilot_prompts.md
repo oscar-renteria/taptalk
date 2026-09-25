@@ -58,6 +58,7 @@ Global rules for every prompt:
 - Prompt 030: End-to-end browser tests (`npm run test:e2e`, all 9 journeys, mobile and tablet)
 - Prompt 031: Accessibility review (axe-core suite, keyboard journey, docs/engineering/accessibility-review.md; screen reader pass recommended before release)
 - Prompt 032: Security review (10 findings fixed, docs/security/security-review.md; deployment items D1/D2 owned by 034/035)
+- Prompt 033: Responsive design review (mobile/tablet reflow and orientation suite, docs/engineering/responsive-review.md)
 
 ### IN PROGRESS
 
@@ -65,7 +66,7 @@ Global rules for every prompt:
 
 ### NOT STARTED
 
-- Prompts 033–038: Responsive review, deployment, operations, smoke testing, and handover
+- Prompts 034–038: Deployment, operations, smoke testing, and handover
 
 ------------------------------------------------------------------------
 
@@ -1050,7 +1051,7 @@ Document findings by severity and fix issues within scope.
 
 ------------------------------------------------------------------------
 
-## Prompt 033 --- Review responsive design [NOT STARTED]
+## Prompt 033 --- Review responsive design [DONE]
 
 **Goal:** Validate the UI on small screens and tablets.
 

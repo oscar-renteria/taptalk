@@ -56,6 +56,11 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Leave room around a control when focus or an in-page anchor scrolls it into view. */
+  scroll-padding-block: var(--space-4);
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -131,7 +136,10 @@ form {
   grid-template-columns: minmax(0, 1fr);
   align-content: center;
   justify-items: center;
+  /* The vh fallback supports older browsers; dvh follows mobile browser chrome and software
+     keyboards so the focused practice input is not centered inside a stale full-height shell. */
   min-height: 100vh;
+  min-height: 100dvh;
   gap: var(--space-4);
   padding: var(--space-4) clamp(0.5rem, 3vw, var(--space-4));
   background:
@@ -206,6 +214,7 @@ form {
 
 .muted {
   margin: 0;
+  overflow-wrap: anywhere;
   color: var(--color-muted);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
@@ -360,6 +369,11 @@ form {
   font-family: var(--font-ui);
   font-weight: 700;
   line-height: 1.4;
+}
+
+.status > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .status::before {
