@@ -1,0 +1,273 @@
+
+[
+  {
+    "english": "We're from",
+    "phonetics": "[wɪə frəm]",
+    "german": "Wir sind aus"
+  },
+  {
+    "english": "Here's your ball.",
+    "phonetics": "[hɪəz jə 'bɔ:l]",
+    "german": "Hier ist dein Ball."
+  },
+  {
+    "english": "Hello.",
+    "phonetics": "[hel'əʊ]",
+    "german": "Hallo."
+  },
+  {
+    "english": "I'm",
+    "phonetics": "[aɪm ...]",
+    "german": "Ich heiße; Ich bin"
+  },
+  {
+    "english": "You're a nice dog.",
+    "phonetics": "[jɔ:r ə 'naɪs 'dɒg]",
+    "german": "Du bist ein lieber Hund."
+  },
+  {
+    "english": "What's your name?",
+    "phonetics": "[wɒts jə 'neɪm]",
+    "german": "Wie heißt du?; Wie heißen Sie?"
+  },
+  {
+    "english": "Sorry, my dog is crazy.",
+    "phonetics": "['sɒri maɪ 'dɒg ɪz 'kreɪzi]",
+    "german": "Tut mir leid, mein Hund ist verrückt."
+  },
+  {
+    "english": "and",
+    "phonetics": "[ænd; ənd]",
+    "german": "und"
+  },
+  {
+    "english": "My name is",
+    "phonetics": "[maɪ 'neɪm ɪz]",
+    "german": "Ich heiße"
+  },
+  {
+    "english": "Where are you from?",
+    "phonetics": "[weər ə ju 'frəm]",
+    "german": "Woher kommst du?; Woher kommt ihr?; Woher kommen Sie?"
+  },
+  {
+    "english": "I'm from",
+    "phonetics": "[aɪm frəm]",
+    "german": "Ich bin aus"
+  },
+  {
+    "english": "in",
+    "phonetics": "[ɪn]",
+    "german": "in; im; rein; herein"
+  },
+  {
+    "english": "Are you on holiday in?",
+    "phonetics": "[ɑ: ju ɒn 'hɒlədeɪ ɪn]",
+    "german": "Bist du im Urlaub in?; Sind Sie im Urlaub in?; Seid ihr im Urlaub in?"
+  },
+  {
+    "english": "yes",
+    "phonetics": "[jes]",
+    "german": "ja"
+  },
+  {
+    "english": "I'm here with my parents.",
+    "phonetics": "[aɪm 'hɪə wɪð maɪ 'peərənts]",
+    "german": "Ich bin mit meinen Eltern hier."
+  },
+  {
+    "english": "How old are you?",
+    "phonetics": "[haʊ 'əʊld ə ju]",
+    "german": "Wie alt bist du?; Wie alt seid ihr?; Wie alt sind Sie?"
+  },
+  {
+    "english": "You too?",
+    "phonetics": "[ju: 'tu:]",
+    "german": "Du auch?; Sie auch?; Ihr auch?"
+  },
+  {
+    "english": "no",
+    "phonetics": "[nəʊ]",
+    "german": "nein"
+  },
+  {
+    "english": "the",
+    "phonetics": "[ðə; ði]",
+    "german": "der; die (auch Pl.); das"
+  },
+  {
+    "english": "boy",
+    "phonetics": "[bɔɪ]",
+    "german": "Junge"
+  },
+  {
+    "english": "girl",
+    "phonetics": "[ɡɜ:l]",
+    "german": "Mädchen"
+  },
+  {
+    "english": "me too",
+    "phonetics": "[mi: 'tu:]",
+    "german": "ich auch"
+  },
+  {
+    "english": "friend",
+    "phonetics": "[frend]",
+    "german": "Freund/-in"
+  },
+  {
+    "english": "he",
+    "phonetics": "[hi:]",
+    "german": "er"
+  },
+  {
+    "english": "cat",
+    "phonetics": "[kæt]",
+    "german": "Katze"
+  },
+  {
+    "english": "animal",
+    "phonetics": "['ænɪml]",
+    "german": "Tier"
+  },
+  {
+    "english": "to like",
+    "phonetics": "[laɪk]",
+    "german": "mögen; gern haben"
+  },
+  {
+    "english": "I'm not scared of dogs.",
+    "phonetics": "[aɪm 'nɒt 'skeəd əv 'dɒgz]",
+    "german": "Ich habe keine Angst vor Hunden."
+  },
+  {
+    "english": "not",
+    "phonetics": "[nɒt]",
+    "german": "nicht"
+  },
+  {
+    "english": "but",
+    "phonetics": "[bʌt]",
+    "german": "aber"
+  },
+  {
+    "english": "OK",
+    "phonetics": "[əʊ'keɪ]",
+    "german": "o.k.; in Ordnung"
+  },
+  {
+    "english": "They don't eat mice.",
+    "phonetics": "[ðeɪ 'dəʊnt 'i:t 'maɪs]",
+    "german": "Sie essen keine Mäuse."
+  },
+  {
+    "english": "mouse, mice (pl)",
+    "phonetics": "[maʊs; maɪs]",
+    "german": "Maus/Mäuse"
+  },
+  {
+    "english": "to hate",
+    "phonetics": "[heɪt]",
+    "german": "nicht mögen; hassen"
+  },
+  {
+    "english": "to love",
+    "phonetics": "[lʌv]",
+    "german": "lieben; gern mögen"
+  },
+  {
+    "english": "That was close!",
+    "phonetics": "[ðæt wəz 'kləʊs]",
+    "german": "Das war knapp!"
+  },
+  {
+    "english": "Thank you.",
+    "phonetics": "['θæŋk ju]",
+    "german": "Danke."
+  },
+  {
+    "english": "This is",
+    "phonetics": "['ðɪs ɪz]",
+    "german": "Das (hier) ist"
+  },
+  {
+    "english": "school",
+    "phonetics": "[sku:l]",
+    "german": "Schule"
+  },
+  {
+    "english": "big",
+    "phonetics": "[bɪɡ]",
+    "german": "groß"
+  },
+  {
+    "english": "great",
+    "phonetics": "[ɡreɪt]",
+    "german": "großartig; toll; super"
+  },
+  {
+    "english": "for",
+    "phonetics": "[fɔ:; fə]",
+    "german": "zum; für"
+  },
+  {
+    "english": "cycling",
+    "phonetics": "['saɪklɪŋ]",
+    "german": "Radfahren"
+  },
+  {
+    "english": "sport",
+    "phonetics": "[spɔ:t]",
+    "german": "Sport; Sportart"
+  },
+  {
+    "english": "football",
+    "phonetics": "['fʊtbɔ:l]",
+    "german": "Fußball"
+  },
+  {
+    "english": "boating lake",
+    "phonetics": "['bəʊtɪŋ 'leɪk]",
+    "german": "See zum Rudern"
+  },
+  {
+    "english": "Let's go!",
+    "phonetics": "[lets 'ɡəʊ]",
+    "german": "Lass/Lasst uns hingehen!; Los, gehen wir hin!"
+  },
+  {
+    "english": "It's fun.",
+    "phonetics": "[ɪts 'fʌn]",
+    "german": "Es macht Spaß."
+  },
+  {
+    "english": "hobby, hobbies (pl)",
+    "phonetics": "['hɒbi; 'hɒbiz]",
+    "german": "Hobby"
+  },
+  {
+    "english": "place",
+    "phonetics": "[pleɪs]",
+    "german": "Ort; Stelle; Platz"
+  },
+  {
+    "english": "skateboarding",
+    "phonetics": "['skeɪtbɔ:dɪŋ]",
+    "german": "Skateboardfahren"
+  },
+  {
+    "english": "volleyball",
+    "phonetics": "['vɒlibɔ:l]",
+    "german": "Volleyball"
+  },
+  {
+    "english": "(inline) skating",
+    "phonetics": "['ɪnlaɪn 'skeɪtɪŋ]",
+    "german": "Inlineskatefahren"
+  },
+  {
+    "english": "My favourite is",
+    "phonetics": "[maɪ 'feɪvrɪt ɪz]",
+    "german": "Mein Lieblings ist"
+  }
+]
