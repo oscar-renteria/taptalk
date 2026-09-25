@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -27,9 +27,13 @@ export function openDatabase(
   return database;
 }
 
-const defaultMigrationsDirectory = fileURLToPath(
+const sourceMigrationsDirectory = fileURLToPath(
   new URL('../../../database/migrations', import.meta.url),
 );
+const compiledMigrationsDirectory = fileURLToPath(new URL('./migrations', import.meta.url));
+const defaultMigrationsDirectory = existsSync(compiledMigrationsDirectory)
+  ? compiledMigrationsDirectory
+  : sourceMigrationsDirectory;
 
 export function migrateDatabase(
   database: SqliteDatabase,

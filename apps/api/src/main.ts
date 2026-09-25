@@ -44,9 +44,11 @@ export async function startServer(
   }
 }
 
-export async function runServer(): Promise<void> {
-  const config = loadConfig();
-  const running = await startServer(config);
+export function installSignalHandlers(
+  running: RunningServer,
+  shutdownTimeoutMs: number,
+  exit: (code: number) => void = (code) => process.exit(code),
+): void {
   let shuttingDown = false;
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
@@ -55,22 +57,28 @@ export async function runServer(): Promise<void> {
     running.server.log.info({ signal }, 'shutdown requested');
     const timeout = setTimeout(() => {
       running.server.log.error({ signal }, 'graceful shutdown timed out');
-      process.exit(1);
-    }, config.shutdownTimeoutMs);
-    timeout.unref();
+      exit(1);
+    }, shutdownTimeoutMs);
 
     try {
       await running.close();
       clearTimeout(timeout);
       running.server.log.info('shutdown complete');
     } catch (error) {
+      clearTimeout(timeout);
       running.server.log.error({ err: error }, 'shutdown failed');
-      process.exitCode = 1;
+      exit(1);
     }
   };
 
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
   process.once('SIGINT', () => void shutdown('SIGINT'));
+}
+
+export async function runServer(): Promise<void> {
+  const config = loadConfig();
+  const running = await startServer(config);
+  installSignalHandlers(running, config.shutdownTimeoutMs);
 }
 
 if (process.env.NODE_ENV !== 'test') {

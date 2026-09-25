@@ -10,9 +10,10 @@ npm run typecheck
 npm test
 npm run test:coverage
 npm run build
+npm run build:production
 ```
 
-`npm run lint` runs ESLint with zero allowed warnings and then checks project-owned files with Prettier. `npm run typecheck` checks shared contracts before the API and web workspaces. `npm test` runs all workspace Vitest suites. `npm run test:coverage` writes text output and HTML reports under each workspace's `coverage/` directory. `npm run build` builds shared contracts, the API, and the PWA in dependency order.
+`npm run lint` runs ESLint with zero allowed warnings and then checks project-owned files with Prettier. `npm run typecheck` checks shared contracts before the API and web workspaces. `npm test` runs all workspace Vitest suites. `npm run test:coverage` writes text output and HTML reports under each workspace's `coverage/` directory. `npm run build` builds shared contracts, the API, and the PWA in dependency order. `npm run build:production` cleans all output directories, excludes TypeScript test files from API/shared production output, copies SQL migrations into the API artifact, builds the same runtime artifact, and verifies required files with no `*.test.js` or `*.test.d.ts` artifacts.
 
 ## Test conventions
 
@@ -24,7 +25,7 @@ npm run build
 
 ## CI parity
 
-The workflow at `.github/workflows/ci.yml` runs `npm ci`, lint, strict typechecking, coverage-enabled tests, and the production build. It uses Node.js 22 and npm's lockfile so the essential CI checks match the documented local gate.
+The workflow at `.github/workflows/ci.yml` runs `npm ci`, lint, strict typechecking, coverage-enabled tests, and the verifier-backed `npm run build:production` command. It uses Node.js 22 and npm's lockfile so the essential CI checks match the documented local gate.
 
 ## Verification evidence
 

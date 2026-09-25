@@ -100,6 +100,56 @@ describe('API process lifecycle', () => {
     }
 
     await expect(running.close()).resolves.toBeUndefined();
+    expect(() => running.database.prepare('SELECT 1 AS value').get()).toThrow();
+  });
+
+  it('forces exit when graceful shutdown exceeds the deadline', async () => {
+    const child = spawn(
+      process.execPath,
+      [
+        join(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+        join(repositoryRoot, 'scripts/shutdown-timeout-harness.mjs'),
+      ],
+      {
+        cwd: repositoryRoot,
+        env: { ...process.env, NODE_ENV: 'test', ENV_FILE: 'none' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    childProcesses.add(child);
+    const output: string[] = [];
+    child.stdout?.on('data', (chunk) => output.push(String(chunk)));
+    child.stderr?.on('data', (chunk) => output.push(String(chunk)));
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const deadline = Date.now() + 10_000;
+        const check = () => {
+          if (output.join('').includes('ready')) {
+            resolve();
+            return;
+          }
+          if (child.exitCode !== null) {
+            reject(new Error(`Timeout harness exited before readiness: ${output.join('')}`));
+            return;
+          }
+          if (Date.now() >= deadline) {
+            reject(new Error('Timeout harness did not become ready within 10 seconds.'));
+            return;
+          }
+          setTimeout(check, 25);
+        };
+        check();
+      });
+      const exitPromise = waitForExit(child);
+      expect(child.kill('SIGTERM')).toBe(true);
+      const result = await exitPromise;
+      expect(result, output.join('')).toEqual({ code: 1, signal: null });
+      expect(output.join('')).toContain('graceful shutdown timed out');
+    } finally {
+      childProcesses.delete(child);
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    }
   });
 
   it.each(['SIGTERM', 'SIGINT'] as const)('shuts down cleanly on %s', async (signal) => {

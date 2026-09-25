@@ -4,6 +4,7 @@
 
 ### Added
 
+- Production build and runtime controls (Prompt 034): typed configuration validation, explicit SQLite migration execution, `/health` and database-backed `/ready` endpoints, structured configurable logging, `SIGTERM`/`SIGINT` graceful shutdown, and a verifier-backed `npm run build:production` command that excludes test artifacts.
 - `GET /api/v1/auth/session` answers `200 { user }` or `200 { user: null }`; the web app uses it for the startup session check, so signed-out visits no longer log a 401 in the browser console.
 - Development CORS: when `NODE_ENV=development`, the API registers `@fastify/cors` with `origin: true` and credentials enabled, and allows cross-origin state-changing requests for local tooling. Production ignores this override and continues to enforce `WEB_ORIGIN`/same-host checks; focused API tests cover both paths.
 - Responsive review (`e2e/responsive.spec.ts`, `docs/engineering/responsive-review.md`): API-backed mobile and tablet journeys check reflow, 44px touch targets, keyboard-sized and rotated viewports, focused-input visibility, long prompts/errors/file names, navigation, and tablet dashboard layout (Prompt 033).

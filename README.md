@@ -27,16 +27,29 @@ npm run set-role --workspace @taptalk/api -- <username> administrator
 
 Then reload the page and open **Import vocabulary**. The file format is described in [docs/operations/vocabulary-import.md](docs/operations/vocabulary-import.md).
 
-The web app runs at `http://localhost:5173`; the API health endpoint is `http://localhost:3000/health`.
+The web app runs at `http://localhost:5173`; the API liveness endpoint is `http://localhost:3000/health` and its readiness endpoint is `http://localhost:3000/ready`.
+
+## Production runtime
+
+The production API entry point is `apps/api/src/main.ts`. It loads the environment, validates configuration, applies pending SQLite migrations, starts Fastify, and handles `SIGTERM`/`SIGINT`. The production artifact command is:
+
+```sh
+npm ci
+npm run build:production
+```
+
+Run migrations independently with `npm run db:migrate` when an operator or deployment job needs a separate migration step. In production, `NODE_ENV=production`, `DATABASE_PATH` must be an absolute persistent path, `WEB_ORIGIN` must be an exact HTTPS origin, and `API_HOST=0.0.0.0` is required when the API runs in a container. The validated variables are documented in [`.env.example`](.env.example) and the runtime procedure is documented in [production runtime](docs/operations/production-runtime.md).
 
 ## Checks
 
 ```sh
 npm run build
+npm run build:production
 npm run lint
 npm run typecheck
 npm test
 npm run test:coverage
+npm run db:migrate
 ```
 
 ## End-to-end tests
