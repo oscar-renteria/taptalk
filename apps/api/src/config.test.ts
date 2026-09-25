@@ -35,6 +35,8 @@ describe('production configuration', () => {
     ['WEB_ORIGIN', { ...productionEnvironment, WEB_ORIGIN: undefined }],
     ['WEB_ORIGIN', { ...productionEnvironment, WEB_ORIGIN: 'http://taptalk.example' }],
     ['WEB_ORIGIN', { ...productionEnvironment, WEB_ORIGIN: 'https://taptalk.example/app' }],
+    ['WEB_ORIGIN', { ...productionEnvironment, WEB_ORIGIN: 'https://*.taptalk.example' }],
+    ['WEB_ORIGIN', { ...productionEnvironment, WEB_ORIGIN: 'ftp://taptalk.example' }],
     ['API_PORT', { ...productionEnvironment, API_PORT: '0' }],
     ['API_PORT', { ...productionEnvironment, API_PORT: 'not-a-port' }],
     ['AUTH_RATE_LIMIT_MAX', { ...productionEnvironment, AUTH_RATE_LIMIT_MAX: '0' }],

@@ -8,6 +8,7 @@ import {
   registrationSchema,
   userPreferencesSchema,
 } from '@taptalk/shared';
+import { loadConfig, type AppConfig } from './config.js';
 import { createId, openDatabase, type SqliteDatabase } from './database.js';
 import {
   commitVocabularyImport,
@@ -36,7 +37,7 @@ import { matchAnswer } from './matching.js';
 import { resolveDirection, selectQuestion, type Random } from './selection.js';
 import { previewVocabularyImport } from './vocabulary.js';
 import { createRateLimiter, type RateLimitOptions } from './rate-limit.js';
-import { apiSecurityHeaders, createOriginGuard, parseAllowedOrigins } from './security.js';
+import { apiSecurityHeaders, createOriginGuard } from './security.js';
 import {
   clearedSessionCookie,
   createAccessGuard,
@@ -95,25 +96,17 @@ export type ServerOptions = {
   // Which proxies to trust for the client address (defaults to TRUST_PROXY). Must be set behind a
   // reverse proxy, otherwise every user shares the proxy's address and its rate limit.
   trustProxy?: boolean | string[];
+  // Complete validated process configuration. Tests and embedded callers may provide one explicitly.
+  config?: AppConfig;
 };
 
 // TRUST_PROXY: "true" (trust any proxy, for a single reverse proxy in front of the API) or a
 // comma-separated list of trusted proxy addresses or CIDR ranges.
-export function parseTrustProxy(value: string | undefined): boolean | string[] {
-  if (!value || value === 'false') return false;
-  if (value === 'true') return true;
-  return value
-    .split(',')
-    .map((address) => address.trim())
-    .filter(Boolean);
-}
+export { parseTrustProxy } from './config.js';
 
-// Refuses to start in production with settings that would silently lose data.
+// Refuses to start with settings that would silently lose data or weaken the runtime contract.
 export function assertProductionConfiguration(environment: NodeJS.ProcessEnv): void {
-  if (environment.NODE_ENV !== 'production') return;
-  if (!environment.DATABASE_PATH || environment.DATABASE_PATH === ':memory:') {
-    throw new Error('DATABASE_PATH must point to a persistent SQLite file in production.');
-  }
+  loadConfig(environment);
 }
 
 // Request bodies are small JSON documents, except vocabulary imports.
@@ -133,25 +126,19 @@ const logRedaction = [
   'token',
 ];
 
-const defaultAuthRateLimit: RateLimitOptions = {
-  max: Number(process.env.AUTH_RATE_LIMIT_MAX ?? 20),
-  windowMs: 15 * 60 * 1000,
-};
-
-export function buildServer(
-  database: SqliteDatabase = openDatabase(),
-  options: ServerOptions = {},
-) {
+export function buildServer(database?: SqliteDatabase, options: ServerOptions = {}) {
+  const config = options.config ?? loadConfig();
+  database ??= openDatabase(config.databasePath);
   const server = Fastify({
     logger: {
+      level: config.logLevel,
       redact: { paths: logRedaction, censor: '[redacted]' },
       ...(options.logStream ? { stream: options.logStream } : {}),
     },
     bodyLimit: defaultBodyLimit,
-    trustProxy: options.trustProxy ?? parseTrustProxy(process.env.TRUST_PROXY),
+    trustProxy: options.trustProxy ?? config.trustProxy,
   });
-  const allowAllOrigins =
-    process.env.NODE_ENV === 'development' && options.allowAllOrigins !== false;
+  const allowAllOrigins = config.nodeEnv === 'development' && options.allowAllOrigins !== false;
   if (allowAllOrigins) {
     server.register(cors, {
       origin: true,
@@ -162,17 +149,16 @@ export function buildServer(
   // Only JSON bodies are accepted. Removing the built-in text/plain parser means HTML forms, the
   // classic CSRF vector, cannot reach any handler (415 Unsupported Media Type).
   server.removeContentTypeParser('text/plain');
-  const authLimiter = createRateLimiter(options.authRateLimit ?? defaultAuthRateLimit);
-  const secureCookies = options.secureCookies ?? process.env.NODE_ENV === 'production';
+  const authLimiter = createRateLimiter(
+    options.authRateLimit ?? { max: config.authRateLimitMax, windowMs: 15 * 60 * 1000 },
+  );
+  const secureCookies = options.secureCookies ?? config.nodeEnv === 'production';
   const random = options.random ?? Math.random;
 
   server.decorateRequest('user', null);
   server.addHook(
     'onRequest',
-    createOriginGuard(
-      options.allowedOrigins ?? parseAllowedOrigins(process.env.WEB_ORIGIN),
-      allowAllOrigins,
-    ),
+    createOriginGuard(options.allowedOrigins ?? config.webOrigins, allowAllOrigins),
   );
   server.addHook('preHandler', createAccessGuard(database));
   // API responses contain personal data: never store them in browser, service worker, or proxy caches.

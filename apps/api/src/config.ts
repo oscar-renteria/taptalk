@@ -91,14 +91,18 @@ function parseOrigin(value: string, name: string, requireHttps: boolean): string
     throw new ConfigurationError(`${name} must contain valid absolute origins.`);
   }
   if (
+    (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
+    (requireHttps && parsed.protocol !== 'https:') ||
+    parsed.hostname.includes('*') ||
     parsed.username ||
     parsed.password ||
     parsed.pathname !== '/' ||
     parsed.search ||
-    parsed.hash ||
-    (requireHttps && parsed.protocol !== 'https:')
+    parsed.hash
   ) {
-    throw new ConfigurationError(`${name} must contain origins without paths or credentials.`);
+    throw new ConfigurationError(
+      `${name} must contain HTTP(S) origins without paths, wildcards, or credentials.`,
+    );
   }
   return parsed.origin;
 }

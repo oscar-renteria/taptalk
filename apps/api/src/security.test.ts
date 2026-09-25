@@ -1,10 +1,22 @@
 import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { openDatabase } from './database.js';
+import { loadConfig } from './config.js';
 import { isOriginAllowed, parseAllowedOrigins } from './security.js';
 import { assertProductionConfiguration, buildServer, parseTrustProxy } from './server.js';
 
 const credentials = { username: 'learner', password: 'a-secure-password' };
+const productionConfig = loadConfig({
+  NODE_ENV: 'production',
+  API_HOST: '0.0.0.0',
+  API_PORT: '3000',
+  DATABASE_PATH: '/data/taptalk.db',
+  WEB_ORIGIN: 'https://taptalk.example',
+  TRUST_PROXY: 'false',
+  AUTH_RATE_LIMIT_MAX: '20',
+  LOG_LEVEL: 'silent',
+  SHUTDOWN_TIMEOUT_MS: '10000',
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -112,7 +124,10 @@ describe('cross-site request forgery defences', () => {
 
   it('keeps the all-origin override disabled in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
-    const { server, cookie } = await registered({ allowAllOrigins: true });
+    const { server, cookie } = await registered({
+      allowAllOrigins: true,
+      config: productionConfig,
+    });
     const response = await server.inject({
       method: 'PUT',
       url: '/api/v1/settings',
@@ -317,7 +332,11 @@ describe('deployment safety', () => {
       assertProductionConfiguration({ NODE_ENV: 'production', DATABASE_PATH: ':memory:' }),
     ).toThrow();
     expect(() =>
-      assertProductionConfiguration({ NODE_ENV: 'production', DATABASE_PATH: '/data/taptalk.db' }),
+      assertProductionConfiguration({
+        NODE_ENV: 'production',
+        DATABASE_PATH: '/data/taptalk.db',
+        WEB_ORIGIN: 'https://taptalk.example',
+      }),
     ).not.toThrow();
     expect(() => assertProductionConfiguration({ NODE_ENV: 'development' })).not.toThrow();
   });

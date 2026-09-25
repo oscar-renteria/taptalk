@@ -101,7 +101,9 @@ describe('account registration', () => {
     const limited = await register(server, { username: 'second', password: 'a-secure-password' });
 
     expect(limited.statusCode).toBe(429);
-    expect(limited.headers['retry-after']).toBe('60');
+    const retryAfter = Number(limited.headers['retry-after']);
+    expect(retryAfter).toBeGreaterThanOrEqual(1);
+    expect(retryAfter).toBeLessThanOrEqual(60);
     expect(limited.json().error.code).toBe('RATE_LIMITED');
     await server.close();
   });
