@@ -20,6 +20,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:coverage
+      - run: npm run test:deployment
+      - run: npm run verify:deployment
       - run: npm run build:production
 
   e2e:

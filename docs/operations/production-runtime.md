@@ -83,5 +83,5 @@ Send `SIGTERM` for an orchestrated container stop or `SIGINT` for a local proces
 - Run `npm run db:migrate` or the compiled migration command against a disposable/staging database first.
 - Verify `/ready` through the same origin users use, not only from inside the VM.
 - Confirm `TRUST_PROXY` matches the actual Caddy network path; never enable it for an untrusted direct network.
-- Keep SQLite and backups outside the web root. Prompt 035 adds the named volume, backup, restore exercise, and Compose restart test.
+- Keep SQLite and backups outside the web root. The named volume, backup/restore exercise, and Compose restart test are documented in [production container deployment](production-deployment.md).
 - Inspect production logs for structured startup, readiness, and shutdown messages without logging secrets.

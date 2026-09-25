@@ -1116,7 +1116,7 @@ Separate development, test, and production settings.
 
 ------------------------------------------------------------------------
 
-## Prompt 035 --- Create the container and deployment configuration [NOT STARTED]
+## Prompt 035 --- Create the container and deployment configuration [IN PROGRESS]
 
 **Goal:** Prepare the app for the selected hosting target.
 

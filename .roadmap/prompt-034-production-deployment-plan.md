@@ -36,6 +36,24 @@
 - **Prompt 035:** `IN PROGRESS`
 - **Prompt 036:** `NOT STARTED`
 
+## Prompt 035 implementation progress
+
+### Completed checkpoints
+
+- [x] Digest-pinned multi-stage `build`, `api`, and `web` images.
+- [x] Non-root API image with `SIGTERM`, `/ready` health check, runtime-only dependencies, and copied migrations.
+- [x] Production Compose topology with private API networking and named SQLite/Caddy volumes.
+- [x] Caddy HTTPS/API proxy/SPA fallback/security/cache configuration.
+- [x] SQLite-aware backup, integrity-checked restore, and process-restart persistence tests.
+- [x] Deployment configuration verifier, CI checks, and VM operations runbook.
+- [x] Daemon-independent quality checks and Compose interpolation validation.
+
+### Remaining Prompt 035 work
+
+- [ ] Run live Docker image builds and a Compose API restart on a Docker-enabled host; the current environment cannot access `/var/run/docker.sock`.
+- [ ] Verify Caddy HTTPS/SPA/API routing and certificate-volume behavior on a disposable deployment.
+- [ ] Complete the final Prompt 035 quality gate and mark the prompt `DONE`.
+
 ## Decision
 
 TapTalk will be deployed as a small same-origin application on a Google Cloud Compute Engine VM. Docker Compose will run the API and Caddy, Caddy will terminate HTTPS and serve the built Vue PWA, and the Fastify API will use a persistent SQLite volume. GitHub Actions will validate releases, build immutable API and web images, publish them to GitHub Container Registry (GHCR), and deploy an approved image to the VM.

@@ -38,7 +38,7 @@ npm ci
 npm run build:production
 ```
 
-Run migrations independently with `npm run db:migrate` when an operator or deployment job needs a separate migration step. In production, `NODE_ENV=production`, `DATABASE_PATH` must be an absolute persistent path, `WEB_ORIGIN` must be an exact HTTPS origin, and `API_HOST=0.0.0.0` is required when the API runs in a container. The validated variables are documented in [`.env.example`](.env.example) and the runtime procedure is documented in [production runtime](docs/operations/production-runtime.md).
+Run migrations independently with `npm run db:migrate` when an operator or deployment job needs a separate migration step. In production, `NODE_ENV=production`, `DATABASE_PATH` must be an absolute persistent path, `WEB_ORIGIN` must be an exact HTTPS origin, and `API_HOST=0.0.0.0` is required when the API runs in a container. The runtime procedure is documented in [production runtime](docs/operations/production-runtime.md); the container, Caddy, persistence, and backup procedure is documented in [production container deployment](docs/operations/production-deployment.md).
 
 ## Checks
 
@@ -63,6 +63,6 @@ The suite starts its own API (port 3100) and web server (port 5174) against a th
 
 Follow the atomic roadmap prompts in `.roadmap/taptalk_atomic_copilot_prompts.md` and do not move to a later phase before its gate passes.
 
-CI runs linting, formatting, strict typechecking, coverage-enabled tests, and production builds with the same workspace commands, followed by the Playwright suite. The Playwright report is uploaded when it fails.
+CI runs linting, formatting, strict typechecking, coverage-enabled tests, deployment contract tests, and production builds with the same workspace commands, followed by the Playwright suite. The Playwright report is uploaded when it fails.
 
 See [development tooling](docs/engineering/development-tooling.md) for the quality gate, coverage reports, test conventions, and CI parity.
