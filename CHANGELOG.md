@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 - 2026-09-26
+
+### Changed
+
+- The web UI was rebuilt to the redesign in `.roadmap/redesign.md`: a full-width
+  header with brand, underline tabs and an account chip; a two-column dashboard
+  with a segmented direction control; a centred practice card with an in-card
+  feedback band; a matching summary card; and a phone bottom navigation.
+- Newsreader and Instrument Sans are bundled from `@fontsource-variable` and
+  served from the app's own origin, so `font-src 'self'` is unchanged. The IPA
+  family is not bundled and uses the text font.
+- `POST /api/v1/practice/answer` accepts an optional `retry` flag for a second
+  attempt. It is checked with the normal matching policy but not recorded, so it
+  earns no points and does not affect the session, accuracy, or history.
+
 ## Unreleased
 
 ### Fixed
