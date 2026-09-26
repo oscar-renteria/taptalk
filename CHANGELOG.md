@@ -14,6 +14,10 @@
 
 ### Added
 
+- Interaction states for every control: pointer-only hover, press feedback for all pointers, and distinct disabled styling for inputs and selects.
+- Motion tokens (`--motion-fast`, `--motion-base`, `--ease-out`), elevation tokens, and safe-area insets on the shell.
+- Purposeful progress empty states that distinguish a new learner from one with no repeated mistakes, present tricky words as chips, and offer a next action.
+- An explanation on the login screen when a session ended, so the return is not silent.
 - Automated deployment input checklist covering GitHub/GHCR, VM, DNS/TLS, runtime configuration, secret destinations, backups, monitoring, rollback, and final acceptance.
 - Production build and runtime controls (Prompt 034): typed configuration validation, explicit SQLite migration execution, `/health` and database-backed `/ready` endpoints, structured configurable logging, `SIGTERM`/`SIGINT` graceful shutdown, and a verifier-backed `npm run build:production` command that excludes test artifacts.
 - Container deployment configuration (Prompt 035): digest-pinned multi-stage API/Caddy images, private API Compose networking, named SQLite/Caddy volumes, HTTPS/SPA/security routing, verified SQLite backup/restore, process-restart persistence coverage, and a VM operations runbook.
