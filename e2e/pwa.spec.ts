@@ -45,7 +45,7 @@ test.describe('progressive web app', () => {
   test('caches only the app shell, never API responses', async ({ page, request }, testInfo) => {
     await serviceWorkerReady(page);
     await logIn(page, await registerLearner(request, testInfo, 'pwa-cache'));
-    await page.getByRole('link', { name: 'Progress' }).click();
+    await page.getByRole('link', { name: 'Progress', exact: true }).click();
     await expect(page.getByTestId('stat-points')).toBeVisible();
 
     const cached = await page.evaluate(async () => {
@@ -96,10 +96,12 @@ test.describe('progressive web app', () => {
     expect(response?.headers()['x-frame-options']).toBe('DENY');
 
     await logIn(page, await registerLearner(request, testInfo, 'pwa-csp'));
-    await page.getByLabel('Practice direction').selectOption('english-to-german');
+    await page.getByRole('radio', { name: 'English → German' }).check();
     await page.getByRole('button', { name: 'Start practice' }).click();
     await expect(page.getByRole('progressbar')).toBeVisible();
-    await page.getByRole('link', { name: 'Progress' }).click();
+    // Tabs are hidden while a session runs, so it is ended before navigating.
+    await page.getByRole('button', { name: 'End session' }).click();
+    await page.getByRole('link', { name: 'Progress', exact: true }).click();
     await expect(page.getByTestId('stat-points')).toBeVisible();
 
     const violations = await page.evaluate(

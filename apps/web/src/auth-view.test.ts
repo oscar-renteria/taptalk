@@ -102,7 +102,8 @@ describe('registration screen', () => {
     resolve({ ok: true, status: 201, json: async () => ({ user: learner }) });
     await flushPromises();
     expect(router.currentRoute.value.path).toBe('/practice');
-    expect(wrapper.text()).toContain('TapTalk practice desk');
+    expect(wrapper.find('nav[aria-label="Main navigation"]').exists()).toBe(true);
+    expect(wrapper.get('.account__name').text()).toBe('learner');
   });
 });
 
@@ -110,6 +111,23 @@ describe('login screen', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     document.body.innerHTML = '';
+  });
+
+  it('explains the return to the login screen when a session ended elsewhere', async () => {
+    mockApi(signedOut);
+    const { wrapper } = await mountApp('/login?redirect=/practice&expired=1');
+
+    // The learner must not have to guess why they are back at the login screen.
+    expect(wrapper.text()).toContain('Your session ended');
+    // It is information, not an error: the form is still usable.
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  });
+
+  it('does not claim a session ended on a normal visit', async () => {
+    mockApi(signedOut);
+    const { wrapper } = await mountApp('/login?redirect=/practice');
+
+    expect(wrapper.text()).not.toContain('Your session ended');
   });
 
   it('requires both fields but does not apply the registration policy', async () => {

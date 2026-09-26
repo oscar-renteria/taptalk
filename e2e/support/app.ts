@@ -28,10 +28,7 @@ export async function logIn(page: Page, username: string, password = learnerPass
   await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
 }
 
-export function navigateTo(
-  page: Page,
-  tab: 'Practice' | 'Progress' | 'Settings' | 'Import vocabulary',
-) {
+export function navigateTo(page: Page, tab: 'Practice' | 'Progress' | 'Settings' | 'Vocabulary') {
   return page
     .getByRole('navigation', { name: 'Main navigation' })
     .getByRole('link', { name: tab })

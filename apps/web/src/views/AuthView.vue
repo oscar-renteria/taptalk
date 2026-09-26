@@ -23,6 +23,9 @@ const usernameField = ref<InstanceType<typeof TextField> | null>(null);
 const passwordField = ref<InstanceType<typeof TextField> | null>(null);
 
 const isRegister = computed(() => props.mode === 'register');
+// The router adds `expired` when a 401 ended the session, so the return is explained rather than
+// leaving the learner to wonder why they are back at the login screen.
+const sessionEnded = computed(() => route.query.expired === '1');
 
 // The same schema the API uses. It gives immediate feedback; the server remains the authority.
 // Login only checks for presence, so accounts created under older rules can still sign in.
@@ -117,6 +120,11 @@ async function submit(): Promise<void> {
     <h1 id="page-title">Small steps. Stronger words.</h1>
     <p class="intro">A quiet place to build your German, one answer at a time.</p>
     <h2 id="form-title">{{ isRegister ? 'Create your account' : 'Log in to practise' }}</h2>
+    <StatusMessage
+      v-if="sessionEnded"
+      tone="info"
+      message="Your session ended, so we brought you back here. Sign in to carry on where you left off."
+    />
     <form aria-labelledby="form-title" novalidate @submit.prevent="submit">
       <TextField
         id="username"

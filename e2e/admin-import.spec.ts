@@ -6,7 +6,7 @@ import { administrator } from './support/environment';
 test.describe('administrator vocabulary import', () => {
   test.beforeEach(async ({ page }) => {
     await logIn(page, administrator.username, administrator.password);
-    await navigateTo(page, 'Import vocabulary');
+    await navigateTo(page, 'Vocabulary');
     await expect(page.getByRole('heading', { name: 'Manage vocabulary.' })).toBeVisible();
   });
 

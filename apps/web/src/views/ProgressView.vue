@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { ErrorState, LoadingState, StatTile } from '../components';
+import { useRouter } from 'vue-router';
+import { AppButton, ErrorState, LoadingState, StatTile } from '../components';
 import { apiFetch } from '../api';
 
 type Dashboard = {
@@ -10,6 +11,7 @@ type Dashboard = {
   repeatedErrorWords: string[];
 };
 
+const router = useRouter();
 const dashboard = ref<Dashboard | null>(null);
 const loading = ref(false);
 const failed = ref(false);
@@ -48,10 +50,29 @@ onMounted(load);
           label="accuracy"
         />
       </div>
-      <p v-if="dashboard.repeatedErrorWords.length" class="muted">
-        Keep an eye on: {{ dashboard.repeatedErrorWords.join(', ') }}.
-      </p>
-      <p v-else class="muted">Complete a practice round to see your learning history here.</p>
+      <div v-if="dashboard.repeatedErrorWords.length" class="empty-state">
+        <h2 class="empty-state__title">Words worth another look</h2>
+        <p class="muted">
+          You have answered these incorrectly more than once. A short round in this direction is
+          usually enough to turn them around.
+        </p>
+        <ul class="chip-list">
+          <li v-for="word in dashboard.repeatedErrorWords" :key="word" class="chip">{{ word }}</li>
+        </ul>
+      </div>
+      <div v-else class="empty-state">
+        <h2 class="empty-state__title">No history yet</h2>
+        <p class="muted">
+          {{
+            dashboard.totalAttempts > 0
+              ? 'You have answered questions, but nothing has come up twice yet. That is a good sign.'
+              : 'Answer a few questions and your accuracy, points, and tricky words will appear here.'
+          }}
+        </p>
+        <AppButton variant="secondary" @click="router.push('/practice')">
+          Start practising
+        </AppButton>
+      </div>
     </template>
   </section>
 </template>

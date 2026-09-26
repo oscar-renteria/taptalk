@@ -4,13 +4,13 @@ All endpoints require the `taptalk_session` cookie and answer `401 UNAUTHENTICAT
 
 ## Lifecycle
 
-| Step                      | Request                                                                                                             | Success                                                         |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Start                     | `POST /api/v1/practice/sessions` with `{ "direction"?: "english-to-german" \| "german-to-english" \| "random" }`    | `201 { session }`                                               |
-| Request a question        | `GET /api/v1/practice/question?direction=...`                                                                       | `200 { question }` (no answer key)                              |
-| Answer                    | `POST /api/v1/practice/answer` with `{ vocabularyEntryId, direction, prompt, submittedAnswer, practiceSessionId? }` | `200 { result, session: { id, answeredCount, questionCount } }` |
-| End (complete or abandon) | `POST /api/v1/practice/sessions/:sessionId/end`                                                                     | `200 { session: summary }`                                      |
-| Results                   | `GET /api/v1/practice/sessions/:sessionId`                                                                          | `200 { session: summary }`                                      |
+| Step                      | Request                                                                                                                     | Success                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Start                     | `POST /api/v1/practice/sessions` with `{ "direction"?: "english-to-german" \| "german-to-english" \| "random" }`            | `201 { session }`                                               |
+| Request a question        | `GET /api/v1/practice/question?direction=...`                                                                               | `200 { question }` (no answer key)                              |
+| Answer                    | `POST /api/v1/practice/answer` with `{ vocabularyEntryId, direction, prompt, submittedAnswer, practiceSessionId?, retry? }` | `200 { result, session: { id, answeredCount, questionCount } }` |
+| End (complete or abandon) | `POST /api/v1/practice/sessions/:sessionId/end`                                                                             | `200 { session: summary }`                                      |
+| Results                   | `GET /api/v1/practice/sessions/:sessionId`                                                                                  | `200 { session: summary }`                                      |
 
 `session` fields: `id`, `direction`, `questionCount`, `status` (`active`, `completed` or `abandoned`), `startedAt`, `endedAt` and `answeredCount`. A summary adds `correctCount`, `incorrectCount`, `pointsEarned`, `accuracy` (0–1, and 0 when nothing was answered) and `wordsToPractice` (the English words answered incorrectly in this session).
 
@@ -20,15 +20,16 @@ All endpoints require the `taptalk_session` cookie and answer `401 UNAUTHENTICAT
 - A user has at most one active session. Starting a new one marks the previous active session as `abandoned`.
 - Ending a session after all questions were answered sets `completed`. Ending it earlier sets `abandoned`, and its summary still counts the answered questions. Ending an already ended session is idempotent and returns the stored summary.
 - `practiceSessionId` is optional, so single answers outside a session still work. With it, the attempt counts towards that session only while the session is `active` and not full.
+- `retry: true` checks a second try at the question just missed. It uses the same matching policy but records nothing: `scoreDelta` is 0, there is no `attemptId`, and `answeredCount` does not change. Because it takes no question slot, a retry is accepted in a full session as long as the session is still `active`.
 - Summary values are computed on the server from recorded attempts. The client never supplies scores.
 
 ## Errors
 
-| Status | Code                 | When                                                              |
-| ------ | -------------------- | ----------------------------------------------------------------- |
-| 400    | `INVALID_DIRECTION`  | Unknown direction when starting a session                         |
-| 400    | `INVALID_ANSWER`     | Malformed answer body, including a non-string `practiceSessionId` |
-| 404    | `NO_VOCABULARY`      | Starting a session or requesting a question with no vocabulary    |
-| 404    | `SESSION_NOT_FOUND`  | Unknown session, or a session owned by another user               |
-| 404    | `QUESTION_NOT_FOUND` | The answered vocabulary entry no longer exists                    |
-| 409    | `SESSION_NOT_ACTIVE` | Answering in an ended or full session                             |
+| Status | Code                 | When                                                                                       |
+| ------ | -------------------- | ------------------------------------------------------------------------------------------ |
+| 400    | `INVALID_DIRECTION`  | Unknown direction when starting a session                                                  |
+| 400    | `INVALID_ANSWER`     | Malformed answer body, including a non-string `practiceSessionId` or a non-boolean `retry` |
+| 404    | `NO_VOCABULARY`      | Starting a session or requesting a question with no vocabulary                             |
+| 404    | `SESSION_NOT_FOUND`  | Unknown session, or a session owned by another user                                        |
+| 404    | `QUESTION_NOT_FOUND` | The answered vocabulary entry no longer exists                                             |
+| 409    | `SESSION_NOT_ACTIVE` | Answering in an ended or full session (a retry only in an ended one)                       |

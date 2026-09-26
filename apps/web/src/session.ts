@@ -41,3 +41,8 @@ export function resetSession(): void {
   session.checked = false;
   restoring = null;
 }
+
+// Focused mode: the redesign hides the site navigation while a practice session
+// is running, so one exercise owns the screen. PracticeView owns this flag and
+// the shell reads it to drop the navigation and hero.
+export const focus = reactive({ practice: false });

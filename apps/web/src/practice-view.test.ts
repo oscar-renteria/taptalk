@@ -18,8 +18,17 @@ const baseRoutes = {
   'GET /api/v1/practice/question': { body: { question } },
 };
 
+// The redesign labels the primary action with a trailing arrow, so matching
+// ignores trailing decoration and whitespace rather than pinning exact copy.
 function button(wrapper: VueWrapper, label: string) {
-  const match = wrapper.findAll('button').find((candidate) => candidate.text() === label);
+  const wanted = label.replace(/[→\s]+$/u, '').trim();
+  const match = wrapper.findAll('button').find(
+    (candidate) =>
+      candidate
+        .text()
+        .replace(/[→\s]+$/u, '')
+        .trim() === wanted,
+  );
   if (!match) throw new Error(`No button "${label}" in: ${wrapper.text()}`);
   return match;
 }
@@ -45,7 +54,7 @@ describe('practice screen', () => {
   it('preselects the saved direction', async () => {
     mockApi(baseRoutes);
     const { wrapper } = await mountApp('/practice');
-    expect((wrapper.get('#direction').element as HTMLSelectElement).value).toBe(
+    expect((wrapper.get('input[name="direction"]:checked').element as HTMLInputElement).value).toBe(
       'english-to-german',
     );
   });
@@ -77,7 +86,7 @@ describe('practice screen', () => {
     expect(feedback.text()).toBe('Correct. +10 points.');
     expect(feedback.attributes('data-tone')).toBe('success');
     expect(wrapper.get('#answer').attributes('readonly')).toBeDefined();
-    expect(document.activeElement?.textContent?.trim()).toBe('Next question');
+    expect(document.activeElement?.textContent?.replace('→', '').trim()).toBe('Next question');
     expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('1');
   });
 
@@ -167,10 +176,11 @@ describe('practice screen', () => {
     });
     expect(wrapper.get('[role="alert"]').text()).toBe('No vocabulary is available.');
     expect(wrapper.find('form').exists()).toBe(false);
-    expect(button(wrapper, 'End session').attributes('disabled')).toBeUndefined();
+    // Without a question there is no card, so the header's Exit is the way out.
+    expect(button(wrapper, 'Exit').attributes('disabled')).toBeUndefined();
 
     vi.stubGlobal('fetch', () => Promise.reject(new Error('offline')));
-    await button(wrapper, 'End session').trigger('click');
+    await button(wrapper, 'Exit').trigger('click');
     await flushPromises();
     expect(wrapper.get('[role="alert"]').text()).toBe('The session could not be ended.');
   });

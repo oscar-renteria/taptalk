@@ -449,19 +449,22 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
       prompt?: unknown;
       submittedAnswer?: unknown;
       practiceSessionId?: unknown;
+      retry?: unknown;
     };
   }>('/api/v1/practice/answer', async (request, reply) => {
     const user = currentUser(request);
     // `prompt` is accepted for compatibility but ignored: the stored prompt is derived on the
     // server, so a client cannot write arbitrary text into the attempt history.
-    const { vocabularyEntryId, direction, submittedAnswer, practiceSessionId } = request.body ?? {};
+    const { vocabularyEntryId, direction, submittedAnswer, practiceSessionId, retry } =
+      request.body ?? {};
     if (
       typeof vocabularyEntryId !== 'string' ||
       vocabularyEntryId.length > 64 ||
       (direction !== 'english-to-german' && direction !== 'german-to-english') ||
       typeof submittedAnswer !== 'string' ||
       (practiceSessionId !== undefined &&
-        (typeof practiceSessionId !== 'string' || practiceSessionId.length > 64))
+        (typeof practiceSessionId !== 'string' || practiceSessionId.length > 64)) ||
+      (retry !== undefined && typeof retry !== 'boolean')
     ) {
       return reply
         .code(400)
@@ -482,9 +485,10 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
           error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
         });
       }
+      // A retry does not take a question slot, so it stays possible after the last question.
       if (
         practiceSession.status !== 'active' ||
-        practiceSession.answeredCount >= practiceSession.questionCount
+        (!retry && practiceSession.answeredCount >= practiceSession.questionCount)
       ) {
         return reply.code(409).send({
           error: { code: 'SESSION_NOT_ACTIVE', message: 'Practice session is no longer active.' },
@@ -499,6 +503,28 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
     }
     const acceptedAnswers = direction === 'english-to-german' ? entry.answers : [entry.english];
     const match = matchAnswer(submittedAnswer, acceptedAnswers);
+    const correctAnswer = direction === 'english-to-german' ? entry.germanDisplay : entry.english;
+    // A retry after a miss is a recall exercise: it is checked with the same matching policy but
+    // not recorded, so it earns no points and does not count towards the session or its accuracy.
+    if (retry) {
+      return reply.send({
+        result: {
+          correct: match.correct,
+          scoreDelta: 0,
+          matchingReason: match.reason,
+          correctAnswer,
+        },
+        ...(practiceSession
+          ? {
+              session: {
+                id: practiceSession.id,
+                answeredCount: practiceSession.answeredCount,
+                questionCount: practiceSession.questionCount,
+              },
+            }
+          : {}),
+      });
+    }
     const priorErrors = practiceSession
       ? countIncorrectAttemptsInSession(database, practiceSession.id, entry.id)
       : 0;
@@ -524,7 +550,7 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         correct: match.correct,
         scoreDelta,
         matchingReason: match.reason,
-        correctAnswer: direction === 'english-to-german' ? entry.germanDisplay : entry.english,
+        correctAnswer,
       },
       ...(practiceSession
         ? {

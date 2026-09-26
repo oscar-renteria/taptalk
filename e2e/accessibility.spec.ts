@@ -20,9 +20,9 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
 }
 
 async function startQuestion(page: Page): Promise<string> {
-  await page.getByLabel('Practice direction').selectOption('english-to-german');
+  await page.getByRole('radio', { name: 'English → German' }).check();
   await page.getByRole('button', { name: 'Start practice' }).click();
-  await expect(page.getByRole('button', { name: 'Submit answer' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Check answer' })).toBeVisible();
   return (await page.getByTestId('practice-prompt').innerText()).trim();
 }
 
@@ -59,15 +59,15 @@ test.describe('automated accessibility audit', () => {
     const prompt = await startQuestion(page);
     await expectNoViolations(page, 'question');
     await page.getByLabel('Your answer').fill(answerFor(prompt));
-    await page.getByRole('button', { name: 'Submit answer' }).click();
-    await expect(page.getByText('Correct.')).toBeVisible();
+    await page.getByRole('button', { name: 'Check answer' }).click();
+    await expect(page.getByText('Correct!')).toBeVisible();
     await expectNoViolations(page, 'correct feedback');
 
     await page.getByRole('button', { name: 'Next question' }).click();
-    await expect(page.getByRole('button', { name: 'Submit answer' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Check answer' })).toBeVisible();
     await page.getByLabel('Your answer').fill('definitely wrong');
-    await page.getByRole('button', { name: 'Submit answer' }).click();
-    await expect(page.getByText('Not quite.')).toBeVisible();
+    await page.getByRole('button', { name: 'Check answer' }).click();
+    await expect(page.getByText('Not quite', { exact: true })).toBeVisible();
     await expectNoViolations(page, 'wrong-answer feedback');
 
     await page.getByRole('button', { name: 'End session' }).click();
@@ -89,7 +89,7 @@ test.describe('automated accessibility audit', () => {
 
   test('administrator import', async ({ page }) => {
     await logIn(page, administrator.username, administrator.password);
-    await navigateTo(page, 'Import vocabulary');
+    await navigateTo(page, 'Vocabulary');
     await expect(page.getByRole('heading', { name: 'Import history' })).toBeVisible();
     await expectNoViolations(page, 'import');
     await page.getByLabel('Vocabulary JSON file').setInputFiles({
@@ -106,7 +106,7 @@ test.describe('automated accessibility audit', () => {
 async function reachSummary(page: Page): Promise<void> {
   const prompt = await startQuestion(page);
   await page.getByLabel('Your answer').fill(answerFor(prompt));
-  await page.getByRole('button', { name: 'Submit answer' }).click();
+  await page.getByRole('button', { name: 'Check answer' }).click();
   await page.getByRole('button', { name: 'End session' }).click();
   await expect(page.getByRole('heading', { name: 'Session ended early.' })).toBeVisible();
 }
@@ -213,9 +213,9 @@ test.describe('measurable accessibility requirements', () => {
     await page.getByRole('button', { name: 'End session' }).click();
     await navigateTo(page, 'Progress');
     await navigateTo(page, 'Practice');
-    await page.getByLabel('Practice direction').selectOption('german-to-english');
+    await page.getByRole('radio', { name: 'German → English' }).check();
     await page.getByRole('button', { name: 'Start practice' }).click();
-    await expect(page.getByRole('button', { name: 'Submit answer' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Check answer' })).toBeVisible();
     await expect(page.getByTestId('practice-prompt')).toHaveAttribute('lang', 'de');
     await expect(page.getByLabel('Your answer')).toHaveAttribute('lang', 'en');
   });
@@ -245,7 +245,7 @@ test.describe('measurable accessibility requirements', () => {
     await expect(region).toHaveCount(1);
     await expect(region).toHaveText('');
     await page.getByLabel('Your answer').fill(answerFor(prompt));
-    await page.getByRole('button', { name: 'Submit answer' }).click();
+    await page.getByRole('button', { name: 'Check answer' }).click();
     await expect(region).toHaveText('Correct. +10 points.');
   });
 });
@@ -266,15 +266,17 @@ test.describe('keyboard-only use', () => {
     await expect(page.getByLabel('Password')).toBeFocused();
     await page.keyboard.type('e2e-learner-password');
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('heading', { name: 'Ready when you are.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Welcome back/ })).toBeVisible();
 
-    // The focus ring is visible on keyboard focus.
-    await page.getByLabel('Practice direction').focus();
-    const outline = await page
-      .getByLabel('Practice direction')
-      .evaluate((element) => getComputedStyle(element).outlineStyle);
+    // The focus ring is drawn on the visible segment of the focused radio.
+    const direction = page.getByRole('radio', { name: 'English → German' });
+    await direction.focus();
+    const outline = await direction.evaluate(
+      (element) => getComputedStyle(element.nextElementSibling as Element).outlineStyle,
+    );
     expect(outline).toBe('solid');
-    await page.getByLabel('Practice direction').selectOption('english-to-german');
+    await page.keyboard.press('Space');
+    await expect(direction).toBeChecked();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: 'Start practice' })).toBeFocused();
     await page.keyboard.press('Enter');
@@ -287,12 +289,20 @@ test.describe('keyboard-only use', () => {
     await page.keyboard.press('Enter');
     await expect(page.getByLabel('Your answer')).toBeFocused();
 
+    // Tabs are hidden while a session runs, so the learner ends it first.
+    await page.getByRole('button', { name: 'End session' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Session ended early.' })).toBeFocused();
+
     // Navigating moves focus to the new page's heading so the change is announced.
     await page.getByRole('link', { name: 'Settings' }).focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'Set your rhythm.' })).toBeFocused();
 
-    await page.getByRole('button', { name: 'Log out' }).focus();
+    // Signing out lives in the account menu, which opens and focuses its item by keyboard.
+    await page.getByRole('button', { name: /^Account menu/ }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: 'Log out' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
   });

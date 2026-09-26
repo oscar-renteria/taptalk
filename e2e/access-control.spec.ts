@@ -41,7 +41,7 @@ test.describe('unauthorized access', () => {
     request,
   }, testInfo) => {
     await logIn(page, await registerLearner(request, testInfo, 'no-admin'));
-    await expect(page.getByRole('link', { name: 'Import vocabulary' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Vocabulary', exact: true })).toHaveCount(0);
     await page.goto('/admin/import');
     await expect(page).toHaveURL(/\/practice$/);
 
@@ -88,6 +88,7 @@ test.describe('unauthorized access', () => {
     await logIn(page, await registerLearner(request, testInfo, 'logout'));
     expect((await page.request.get('/api/v1/dashboard')).status()).toBe(200);
 
+    await page.getByRole('button', { name: /^Account menu/ }).click();
     await page.getByRole('button', { name: 'Log out' }).click();
     await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
     expect((await page.request.get('/api/v1/dashboard')).status()).toBe(401);
