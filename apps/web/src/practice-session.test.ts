@@ -26,8 +26,17 @@ function summary(overrides: Record<string, unknown>) {
   };
 }
 
+// The redesign labels the primary action with a trailing arrow, and button copy
+// can change again, so matching ignores trailing decoration and whitespace.
 function button(wrapper: VueWrapper, label: string) {
-  const match = wrapper.findAll('button').find((candidate) => candidate.text() === label);
+  const wanted = label.replace(/[→\s]+$/u, '').trim();
+  const match = wrapper.findAll('button').find(
+    (candidate) =>
+      candidate
+        .text()
+        .replace(/[→\s]+$/u, '')
+        .trim() === wanted,
+  );
   if (!match) throw new Error(`No button "${label}"`);
   return match;
 }

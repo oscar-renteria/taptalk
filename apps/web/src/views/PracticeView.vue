@@ -10,7 +10,7 @@ import {
   TextField,
 } from '../components';
 import { apiFetch, jsonRequest } from '../api';
-import { focus } from '../session';
+import { focus, session } from '../session';
 import { directionOptions, type Direction, type Tone } from '../types';
 
 type Question = {
@@ -76,16 +76,33 @@ const showPhonetics = computed(
 const lastSubmitted = ref('');
 const expectedAnswer = ref('');
 
-// Preselect the saved direction unless the learner already picked one.
+// The saved session length drives the question count on the dashboard. The API
+// already returns it alongside the direction, so one request is enough and the
+// count is real rather than invented. A failed lookup falls back to a safe 10.
+const practiceSessionSize = ref(10);
+
+// Preselect the saved direction and session length unless the learner already
+// picked a direction.
 onMounted(async () => {
   try {
     const response = await apiFetch('/api/v1/settings');
-    const payload = (await response.json()) as { settings?: { direction?: Direction } };
-    if (response.ok && payload.settings?.direction && !directionTouched.value) {
+    const payload = (await response.json()) as {
+      settings?: { direction?: Direction; sessionLength?: number };
+    };
+    if (!response.ok || !payload.settings) return;
+    if (payload.settings.direction && !directionTouched.value) {
       direction.value = payload.settings.direction;
     }
+    if (
+      typeof payload.settings.sessionLength === 'number' &&
+      Number.isInteger(payload.settings.sessionLength) &&
+      payload.settings.sessionLength >= 1 &&
+      payload.settings.sessionLength <= 100
+    ) {
+      practiceSessionSize.value = payload.settings.sessionLength;
+    }
   } catch {
-    // The default direction still works.
+    // The default direction and session length still work.
   }
 });
 
@@ -310,8 +327,7 @@ async function endSession(): Promise<void> {
   >
     <template v-if="practiceState === 'idle' && !practiceSession">
       <p class="eyebrow">Today's practice</p>
-      <h1 id="practice-title">Welcome back.</h1>
-      <p class="intro">Pick a direction, then start a short focused round.</p>
+      <h1 id="practice-title" tabindex="-1">Welcome back.</h1>
     </template>
     <template v-else-if="practiceSession">
       <!-- The hero is removed to free vertical space, but the section still needs
@@ -371,16 +387,52 @@ async function endSession(): Promise<void> {
       </div>
     </div>
     <template v-else-if="!practiceSession">
-      <SelectField
-        id="direction"
-        v-model="direction"
-        label="Practice direction"
-        :options="directionOptions"
-        @change="directionTouched = true"
-      />
-      <AppButton :loading="practiceLoading" loading-label="Loading..." @click="startPractice">
-        Start practice
-      </AppButton>
+      <div class="dashboard">
+        <div class="dashboard__lead">
+          <h2 class="dashboard__lead-title">Ready when you are</h2>
+          <p class="muted">
+            {{ practiceSessionSize }} phrases are ready when you are. Pick a direction, then start.
+          </p>
+          <SelectField
+            id="direction"
+            v-model="direction"
+            label="Direction"
+            :options="directionOptions"
+            @change="directionTouched = true"
+          />
+          <div class="button-row">
+            <AppButton
+              :loading="practiceLoading"
+              loading-label="Starting..."
+              :disabled="practiceSessionSize === 0"
+              @click="startPractice"
+            >
+              Start practice →
+            </AppButton>
+            <span class="muted">{{ practiceSessionSize }} questions</span>
+          </div>
+        </div>
+        <ul class="dashboard__cards">
+          <li>
+            <RouterLink class="dashboard-card" to="/progress">
+              <span class="dashboard-card__title">Progress</span>
+              <span class="muted">Accuracy, points, and tricky words.</span>
+            </RouterLink>
+          </li>
+          <li v-if="session.user?.role === 'administrator'">
+            <RouterLink class="dashboard-card" to="/admin/import">
+              <span class="dashboard-card__title">Vocabulary</span>
+              <span class="muted">Import a new word list.</span>
+            </RouterLink>
+          </li>
+          <li>
+            <RouterLink class="dashboard-card" to="/settings">
+              <span class="dashboard-card__title">Settings</span>
+              <span class="muted">Session length and direction.</span>
+            </RouterLink>
+          </li>
+        </ul>
+      </div>
     </template>
     <template v-else>
       <header class="practice-bar">

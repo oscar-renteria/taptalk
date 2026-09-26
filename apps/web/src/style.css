@@ -617,6 +617,67 @@ form {
   font-size: var(--text-sm);
 }
 
+/* Dashboard (practice pre-session). The design puts the direction choice and the
+   primary action on the left, with navigation destinations beside them. */
+
+.dashboard {
+  display: grid;
+  gap: var(--space-4);
+  width: min(100%, var(--content-width));
+}
+
+.dashboard__lead {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  max-width: 30rem;
+}
+
+.dashboard__lead-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.dashboard__cards {
+  display: grid;
+  gap: var(--space-3);
+  /* Fills the space beside the lead column once there is room for it. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-card {
+  display: grid;
+  gap: var(--space-1);
+  height: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  text-decoration: none;
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.dashboard-card__title {
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dashboard-card:hover {
+    border-color: var(--color-ink);
+    box-shadow: var(--shadow-raised);
+  }
+}
+
+.dashboard-card:active {
+  transform: translateY(var(--active-drop));
+}
+
 /* Practice mode (redesign): one exercise owns the screen. Navigation is hidden
    by the shell while a session is active, so the card is the only focus. */
 
