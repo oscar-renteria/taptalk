@@ -102,11 +102,16 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
 }
 
 // A 401 from the API means the session ended elsewhere: go to login and come back afterwards.
+// `expired` is carried in the query so the login screen can explain why the visitor is back,
+// instead of leaving them to guess whether they were logged out or their link failed.
 export function installSessionExpiry(router: ReturnType<typeof createAppRouter>): void {
   setSessionExpiredHandler(() => {
     const current = router.currentRoute.value;
     if (current.meta.access !== 'guest') {
-      void router.replace({ name: 'login', query: { redirect: current.fullPath } });
+      void router.replace({
+        name: 'login',
+        query: { redirect: current.fullPath, expired: '1' },
+      });
     }
   });
 }
