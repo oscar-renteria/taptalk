@@ -45,6 +45,20 @@
   --content-width: 44rem;
   --form-width: 24rem;
 
+  /* Motion. Every transition is disabled under prefers-reduced-motion below. */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Elevation. The panel uses a hard offset shadow; controls lift on hover. */
+  --shadow-panel: 0.75rem 0.75rem 0 var(--color-highlight);
+  --shadow-raised: 0 0.25rem 0.75rem rgb(35 48 44 / 18%);
+
+  /* Pointer-driven feedback only applies to devices that can hover, so touch
+     users never get a stuck hover state. Press feedback is defined separately. */
+  --hover-lift: -1px;
+  --active-drop: 1px;
+
   color: var(--color-ink);
   background: var(--color-paper);
   font-family: var(--font-display);
@@ -102,6 +116,23 @@ select {
   background: var(--color-surface);
   font: inherit;
   font-size: max(1rem, 16px); /* prevents iOS zoom on focus */
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  input:not(:disabled):hover,
+  select:not(:disabled):hover {
+    border-color: var(--color-ink);
+  }
+}
+
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background: var(--color-info-bg);
 }
 
 input[aria-invalid='true'] {
@@ -141,7 +172,12 @@ form {
   min-height: 100vh;
   min-height: 100dvh;
   gap: var(--space-4);
-  padding: var(--space-4) clamp(0.5rem, 3vw, var(--space-4));
+  /* Safe-area insets keep the header clear of notches and the home indicator,
+     and `max()` keeps the original padding when the insets are zero. */
+  padding: max(var(--space-4), env(safe-area-inset-top))
+    max(clamp(0.5rem, 3vw, var(--space-4)), env(safe-area-inset-right))
+    max(var(--space-4), env(safe-area-inset-bottom))
+    max(clamp(0.5rem, 3vw, var(--space-4)), env(safe-area-inset-left));
   background:
     radial-gradient(circle at 80% 10%, var(--color-highlight) 0 18%, transparent 19%),
     var(--color-paper);
@@ -154,7 +190,7 @@ form {
   padding: clamp(1rem, 5vw, 3.5rem);
   border: 1px solid var(--color-border);
   background: var(--color-panel);
-  box-shadow: 0.75rem 0.75rem 0 var(--color-highlight);
+  box-shadow: var(--shadow-panel);
 }
 
 .panel--wide {
@@ -263,6 +299,12 @@ form {
   font-size: var(--text-md);
   font-weight: 700;
   line-height: 1.2;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
 }
 
 .btn--primary {
@@ -291,6 +333,35 @@ form {
 
 .btn[aria-busy='true'] {
   cursor: progress;
+}
+
+/* Press feedback applies to every pointer type, including touch, and is the
+   only tactile cue a touch user receives. */
+.btn:not(:disabled):active {
+  transform: translateY(var(--active-drop));
+}
+
+/* Hover is pointer-only: touch devices would otherwise keep the hovered look
+   stuck after a tap. Colour changes are always paired with a shadow or border
+   change so the state is not signalled by one channel alone. */
+@media (hover: hover) and (pointer: fine) {
+  .btn--primary:not(:disabled):hover {
+    background: color-mix(in srgb, var(--color-accent) 88%, black);
+  }
+
+  .btn--secondary:not(:disabled):hover {
+    border-color: var(--color-ink);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .btn--text:not(:disabled):hover {
+    text-decoration-thickness: 2px;
+  }
+
+  .tab:not([aria-current='page']):hover {
+    border-color: var(--color-ink);
+    background: var(--color-surface);
+  }
 }
 
 /* Field (TextField, SelectField) */
@@ -440,7 +511,7 @@ form {
 .progress__bar {
   height: 100%;
   background: var(--color-accent);
-  transition: width 200ms ease-out;
+  transition: width var(--motion-base) var(--ease-out);
 }
 
 /* Loading and error states (LoadingState, ErrorState) */
@@ -531,6 +602,14 @@ form {
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.tab:not([aria-current='page']):active {
+  transform: translateY(var(--active-drop));
 }
 
 .tab[aria-current='page'] {
