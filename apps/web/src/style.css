@@ -2,30 +2,36 @@
    docs/engineering/design-system.md. Mobile first; the tablet layout starts at 48rem. */
 
 :root {
-  /* Colour */
-  --color-ink: #23302c;
-  --color-muted: #5e6f66;
-  --color-paper: #f5f1e8;
+  /* Colour. Palette follows the redesign canvas: a warm ground with a single
+     accent, and success/miss states that differ in lightness as well as hue so
+     they remain distinguishable without colour. */
+  --color-ink: #1f2a24;
+  --color-muted: #5e665f;
+  --color-paper: #fbf8f1;
   --color-surface: #fffdf7;
-  --color-panel: rgb(255 252 245 / 88%);
+  --color-panel: rgb(255 253 247 / 88%);
   --color-border: #c9d4c8;
-  --color-control-border: #829589;
-  --color-accent: #b9573d;
+  --color-control-border: #7c8a80;
+  --color-accent: #b4533a;
   --color-on-accent: #fffdf7;
-  --color-highlight: #d9e8dc;
+  --color-highlight: #e6ecdf;
   --color-focus: #9a5b12;
-  --color-success: #1f5e3b;
-  --color-success-bg: #e6f2ea;
-  --color-warning: #6f451d;
-  --color-warning-bg: #fff2d9;
-  --color-warning-border: #d49a4a;
+  --color-success: #2f6b4f;
+  --color-success-bg: #e7f1ea;
+  --color-warning: #6e330c;
+  --color-warning-bg: #fbeee2;
+  --color-warning-border: #c98a4b;
   --color-danger: #8a2e26;
   --color-danger-bg: #fbe9e6;
   --color-info-bg: #eef3ee;
 
-  /* Typography */
-  --font-display: Georgia, 'Times New Roman', serif;
-  --font-ui: ui-sans-serif, system-ui, sans-serif;
+  /* Typography. The redesign names Newsreader, Instrument Sans, and Noto Sans.
+     They are requested first but must be self-hosted: the production CSP is
+     `font-src 'self'; style-src 'self'`, so a third-party font CDN is blocked by
+     design. Until the families are vendored, the fallbacks below render. */
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-ipa: 'Noto Sans', var(--font-ui);
   --text-sm: 0.9rem;
   --text-md: 1rem;
   --text-lg: 1.25rem;
@@ -609,6 +615,161 @@ form {
   color: var(--color-muted);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
+}
+
+/* Practice mode (redesign): one exercise owns the screen. Navigation is hidden
+   by the shell while a session is active, so the card is the only focus. */
+
+.practice-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, var(--content-width));
+}
+
+.practice-bar__count {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.practice-bar__streak {
+  margin: 0;
+  color: var(--color-accent);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* `>Exit` must not inherit the text-button underline look as a control. */
+.practice-bar__exit {
+  text-decoration: none;
+}
+
+.practice-card {
+  display: grid;
+  gap: var(--space-3);
+  width: min(100%, 34rem);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* State is shown by border, background, and the verdict text together, never by
+   colour alone. Correct and miss differ in lightness as well as hue. */
+.practice-card[data-state='correct'] {
+  border-color: var(--color-success);
+  box-shadow: inset 0 0 0 2px var(--color-success);
+}
+
+.practice-card[data-state='miss'] {
+  border-color: var(--color-warning-border);
+  box-shadow: inset 0 0 0 2px var(--color-warning-border);
+}
+
+.practice-card__feedback {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-left: 4px solid currentcolor;
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+}
+
+.practice-card__feedback[data-tone='success'] {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.practice-card__feedback[data-tone='warning'] {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.practice-card__verdict {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+/* IPA needs broad glyph coverage, so it never falls back to a serif that
+   lacks the characters. */
+.ipa {
+  margin: 0;
+  color: var(--color-muted);
+  font-family: var(--font-ipa);
+  font-size: var(--text-md);
+}
+
+.speak {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  /* The design asks for a generous target, larger than the 44px minimum. */
+  min-width: 6rem;
+  min-height: 3rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-control-border);
+  border-radius: 999px;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+/* Active state tells the learner audio actually played. */
+.speak[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+/* The answer field is deliberately larger than the default control. */
+.practice-card__input input {
+  min-height: 3.25rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+}
+
+.practice-action {
+  display: grid;
+}
+
+.practice-action .btn {
+  width: 100%;
+  min-height: 3.5rem;
+}
+
+.practice-action__secondary {
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 47.99rem) {
+  /* The primary action stays near the thumb, with the content scrolling behind
+     it. Interactive-widget keeps it above the software keyboard. */
+  .practice-action {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding-block: var(--space-2);
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+    background: linear-gradient(var(--color-paper) 70%, transparent);
+  }
+
+  /* The hero and navigation step aside once a session starts. */
+  .shell[data-focus='true'] .panel {
+    padding: var(--space-4) var(--space-3);
+  }
 }
 
 /* Navigation (AppNav) */

@@ -9,7 +9,7 @@ import {
   StatusMessage,
   UpdateBanner,
 } from './components';
-import { session, signOut } from './session';
+import { session, signOut, focus } from './session';
 
 const route = useRoute();
 const router = useRouter();
@@ -81,7 +81,7 @@ function reload(): void {
 </script>
 
 <template>
-  <main class="shell">
+  <main class="shell" :data-focus="focus.practice ? 'true' : undefined">
     <UpdateBanner />
     <StatusMessage
       v-if="networkUnavailable"
@@ -93,6 +93,9 @@ function reload(): void {
       <LoadingState label="Checking your session..." />
     </div>
     <section v-else-if="signedInLayout && session.user" class="panel panel--wide">
+      <!-- The header stays available in focused mode: the redesign moves the tabs
+           out of a live session, but signing out must remain reachable (a shared
+           device, or a session that has gone wrong). -->
       <header class="app-header">
         <div>
           <p class="eyebrow">TapTalk practice desk</p>
@@ -100,7 +103,7 @@ function reload(): void {
         </div>
         <AppButton variant="text" @click="logout">Log out</AppButton>
       </header>
-      <AppNav label="Main navigation" :items="navItems" />
+      <AppNav v-if="!focus.practice" label="Main navigation" :items="navItems" />
       <ErrorState
         v-if="viewFailed"
         message="Something went wrong on this page."

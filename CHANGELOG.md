@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Phonetics are stored for the English side of a phrase, so rendering them under a German prompt showed English IPA as though it were German. They are now shown only when the prompt is the English one.
+- Signing out stays reachable during a live session, so focused mode never removes the only sign-out route.
 - Caddy now wraps the API proxy and the SPA fallback in separate `handle` blocks. Previously the loose top-level `try_files`/`file_server` directives were ordered ahead of `handle @api`, so `/health` and `/ready` returned the SPA `index.html` instead of proxying to the API.
 - Caddyfile comments use `#`; `//` is not a valid Caddyfile comment and prevented the config from loading.
 - Caddy sets response headers with the `>` replace operator. Caddy appends by default, so a proxied API response carried two `Content-Security-Policy` values. Browsers enforce the intersection of multiple CSP headers, which silently applied the stricter API policy to the whole site.
@@ -14,6 +16,11 @@
 
 ### Added
 
+- Redesigned practice screen following `.roadmap/redesign.md`: a focused mode where one exercise owns the screen, the site tabs step aside during a session, the hero is removed to free vertical space, and a single primary action drives the loop through Enter/Return or the sticky bottom button.
+- Stateful answer feedback. The card carries a `data-state` and moves between answering, correct, miss, and retry, presenting the outcome in place rather than appending another message.
+- "Try again" clears the input and hides the expected answer, so a second attempt tests recall instead of letting the learner copy the answer.
+- A pronunciation control backed by the browser's `speechSynthesis`, with an active state while audio plays and a 48px target.
+- A streak counter for the current session.
 - Interaction states for every control: pointer-only hover, press feedback for all pointers, and distinct disabled styling for inputs and selects.
 - Motion tokens (`--motion-fast`, `--motion-base`, `--ease-out`), elevation tokens, and safe-area insets on the shell.
 - Purposeful progress empty states that distinguish a new learner from one with no repeated mistakes, present tricky words as chips, and offer a next action.

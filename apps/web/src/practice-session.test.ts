@@ -32,6 +32,23 @@ function button(wrapper: VueWrapper, label: string) {
   return match;
 }
 
+// The redesign's primary action is a submit button whose label depends on the
+// card state, so these helpers read it the way a user reads the screen.
+function primaryButton(wrapper: VueWrapper) {
+  return wrapper.get('.practice-action button[type="submit"]');
+}
+
+async function startSession(wrapper: VueWrapper): Promise<void> {
+  await button(wrapper, 'Start practice').trigger('click');
+  await flushPromises();
+}
+
+async function typeAndSubmit(wrapper: VueWrapper, answer: string): Promise<void> {
+  await wrapper.get('#answer').setValue(answer);
+  await wrapper.get('form.practice-card').trigger('submit');
+  await flushPromises();
+}
+
 async function mountSignedIn(routes: Parameters<typeof mockApi>[0]) {
   const fetchMock = mockApi({
     ...signedIn,
@@ -201,5 +218,112 @@ describe('administrator import feedback', () => {
 
     expect(wrapper.text()).toContain('Import committed successfully.');
     expect(wrapper.findAll('button').some((b) => b.text() === 'Confirm and import')).toBe(false);
+  });
+});
+
+describe('redesigned practice interaction', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = '';
+  });
+
+  it('starts on "Check answer" and disables it until something is typed', async () => {
+    const { wrapper } = await mountSignedIn({});
+    await startSession(wrapper);
+
+    expect(primaryButton(wrapper).text()).toBe('Check answer');
+    expect(primaryButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(wrapper.get('.practice-card').attributes('data-state')).toBe('answering');
+  });
+
+  it('turns the card into a correct state and offers the next question', async () => {
+    const { wrapper } = await mountSignedIn({
+      'POST /api/v1/practice/answer': {
+        body: {
+          result: {
+            correct: true,
+            scoreDelta: 10,
+            correctAnswer: 'hallo',
+            matchingReason: 'exact',
+          },
+          session: { answeredCount: 1, questionCount: 1 },
+        },
+      },
+    });
+    await startSession(wrapper);
+    await typeAndSubmit(wrapper, 'hallo');
+
+    const card = wrapper.get('.practice-card');
+    // State is carried on the element, not only by colour, so it is assertable.
+    expect(card.attributes('data-state')).toBe('correct');
+    expect(card.text()).toContain('Correct!');
+    expect(card.text()).toContain('+10 points');
+    expect(primaryButton(wrapper).text()).toBe('Next question →');
+  });
+
+  it('offers "Try again" after a miss and hides the expected answer on the retry', async () => {
+    const { wrapper } = await mountSignedIn({
+      'POST /api/v1/practice/answer': {
+        body: {
+          result: {
+            correct: false,
+            scoreDelta: 0,
+            correctAnswer: 'Das war knapp!',
+            matchingReason: 'none',
+          },
+          session: { answeredCount: 0, questionCount: 1 },
+        },
+      },
+    });
+    await startSession(wrapper);
+    await typeAndSubmit(wrapper, 'I was close');
+
+    expect(wrapper.get('.practice-card').attributes('data-state')).toBe('miss');
+    expect(primaryButton(wrapper).text()).toBe('Try again');
+    // The miss shows both the learner's answer and the expected one.
+    expect(wrapper.text()).toContain('Your answer:');
+    expect(wrapper.text()).toContain('Expected:');
+
+    await primaryButton(wrapper).trigger('click');
+    await flushPromises();
+
+    // The retry clears the field and hides the answer so recall is tested.
+    expect(wrapper.get('.practice-card').attributes('data-state')).toBe('retry');
+    expect(wrapper.get('#answer').element).toHaveProperty('value', '');
+    expect(wrapper.text()).not.toContain('Expected:');
+    expect(wrapper.text()).toContain('Second try');
+    expect(primaryButton(wrapper).text()).toBe('Check answer');
+  });
+
+  it('shows phonetics only when the prompt is the English side', async () => {
+    const { wrapper } = await mountSignedIn({
+      'GET /api/v1/practice/question': {
+        body: { question: { ...question, phonetics: '[həˈləʊ]' } },
+      },
+    });
+    await startSession(wrapper);
+
+    // English prompt with English transcription: show it.
+    expect(wrapper.find('[data-testid="practice-phonetics"]').exists()).toBe(true);
+  });
+
+  it('hides phonetics under a German prompt, where they would be the wrong language', async () => {
+    const { wrapper } = await mountSignedIn({
+      'GET /api/v1/practice/question': {
+        body: {
+          question: {
+            vocabularyEntryId: 'entry-2',
+            direction: 'german-to-english',
+            prompt: 'Das war knapp!',
+            phonetics: '[həˈləʊ]',
+          },
+        },
+      },
+    });
+    await startSession(wrapper);
+
+    // Phonetics describe the English side, so showing them under a German phrase
+    // would display English IPA as though it were German.
+    expect(wrapper.find('[data-testid="practice-phonetics"]').exists()).toBe(false);
   });
 });
