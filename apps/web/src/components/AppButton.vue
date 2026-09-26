@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-// Primary for the main action of a view, secondary for alternatives, text for low-emphasis links.
+// Primary for the main action of a view, secondary for alternatives, text for low-emphasis links,
+// dark for a neutral action that is not the accent (the redesign's "Check answer").
 const props = withDefaults(
   defineProps<{
-    variant?: 'primary' | 'secondary' | 'text';
+    variant?: 'primary' | 'secondary' | 'text' | 'dark';
     type?: 'button' | 'submit';
     loading?: boolean;
     loadingLabel?: string;

@@ -127,7 +127,10 @@ describe('practice session flow', () => {
     // The answer is locked, so the same question cannot be submitted twice.
     expect(wrapper.findAll('button').some((b) => b.text() === 'Submit answer')).toBe(false);
 
-    await button(wrapper, 'See results').trigger('click');
+    // After a miss on the last question the primary action is "Try again", so the
+    // way to the results is the secondary skip.
+    expect(primaryButton(wrapper).text()).toBe('Try again');
+    await button(wrapper, 'Skip to results').trigger('click');
     await flushPromises();
     expect(wrapper.get('#summary-title').text()).toBe('Session complete.');
     expect(wrapper.get('[data-testid="summary-incorrect"]').text()).toContain('1');
@@ -247,6 +250,10 @@ describe('redesigned practice interaction', () => {
 
   it('turns the card into a correct state and offers the next question', async () => {
     const { wrapper } = await mountSignedIn({
+      'POST /api/v1/practice/sessions': {
+        status: 201,
+        body: { session: { id: 'session-1', questionCount: 2, answeredCount: 0 } },
+      },
       'POST /api/v1/practice/answer': {
         body: {
           result: {
@@ -255,7 +262,7 @@ describe('redesigned practice interaction', () => {
             correctAnswer: 'hallo',
             matchingReason: 'exact',
           },
-          session: { answeredCount: 1, questionCount: 1 },
+          session: { answeredCount: 1, questionCount: 2 },
         },
       },
     });
@@ -290,8 +297,11 @@ describe('redesigned practice interaction', () => {
     expect(wrapper.get('.practice-card').attributes('data-state')).toBe('miss');
     expect(primaryButton(wrapper).text()).toBe('Try again');
     // The miss shows both the learner's answer and the expected one.
-    expect(wrapper.text()).toContain('Your answer:');
-    expect(wrapper.text()).toContain('Expected:');
+    const feedback = wrapper.get('.practice-card__feedback');
+    expect(feedback.text()).toContain('Your answer');
+    expect(feedback.text()).toContain('I was close');
+    expect(feedback.text()).toContain('Expected');
+    expect(feedback.text()).toContain('Das war knapp!');
 
     await primaryButton(wrapper).trigger('click');
     await flushPromises();
@@ -299,7 +309,7 @@ describe('redesigned practice interaction', () => {
     // The retry clears the field and hides the answer so recall is tested.
     expect(wrapper.get('.practice-card').attributes('data-state')).toBe('retry');
     expect(wrapper.get('#answer').element).toHaveProperty('value', '');
-    expect(wrapper.text()).not.toContain('Expected:');
+    expect(wrapper.find('.practice-card__feedback').exists()).toBe(false);
     expect(wrapper.text()).toContain('Second try');
     expect(primaryButton(wrapper).text()).toBe('Check answer');
   });
@@ -334,5 +344,64 @@ describe('redesigned practice interaction', () => {
     // Phonetics describe the English side, so showing them under a German phrase
     // would display English IPA as though it were German.
     expect(wrapper.find('[data-testid="practice-phonetics"]').exists()).toBe(false);
+  });
+
+  it('submits the retry, marks it as a second try, and keeps the question number', async () => {
+    const answerBody = (correct: boolean) => ({
+      body: {
+        result: { correct, scoreDelta: 0, correctAnswer: 'hallo', matchingReason: 'none' },
+        session: { id: 'session-1', answeredCount: 1, questionCount: 3 },
+      },
+    });
+    const { wrapper, fetchMock } = await mountSignedIn({
+      'POST /api/v1/practice/sessions': {
+        status: 201,
+        body: { session: { id: 'session-1', questionCount: 3, answeredCount: 0 } },
+      },
+      'POST /api/v1/practice/answer': [answerBody(false), answerBody(true)],
+    });
+    await startSession(wrapper);
+    await typeAndSubmit(wrapper, 'falsch');
+
+    // The API has counted the answer, but the same question is still on screen.
+    expect(wrapper.get('[data-testid="session-progress"]').text()).toBe('Question 1 of 3');
+
+    await primaryButton(wrapper).trigger('click');
+    await flushPromises();
+    await typeAndSubmit(wrapper, 'hallo');
+
+    const answerBodies = fetchMock.mock.calls
+      .filter(([url, init]) => url === '/api/v1/practice/answer' && init?.method === 'POST')
+      .map(([, init]) => JSON.parse(String(init?.body)));
+    expect(answerBodies).toHaveLength(2);
+    expect(answerBodies[0].retry).toBeUndefined();
+    expect(answerBodies[1]).toMatchObject({ submittedAnswer: 'hallo', retry: true });
+
+    expect(wrapper.get('.practice-card').attributes('data-state')).toBe('correct');
+    expect(wrapper.get('.practice-card').text()).toContain('Second try, so no points this time.');
+    expect(wrapper.find('[data-testid="streak"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="session-progress"]').text()).toBe('Question 1 of 3');
+  });
+
+  it('offers exactly one primary action after an answer and focuses it', async () => {
+    const { wrapper } = await mountSignedIn({
+      'POST /api/v1/practice/sessions': {
+        status: 201,
+        body: { session: { id: 'session-1', questionCount: 3, answeredCount: 0 } },
+      },
+      'POST /api/v1/practice/answer': {
+        body: {
+          result: { correct: true, scoreDelta: 10, correctAnswer: 'hallo' },
+          session: { id: 'session-1', answeredCount: 1, questionCount: 3 },
+        },
+      },
+    });
+    await startSession(wrapper);
+    await typeAndSubmit(wrapper, 'hallo');
+
+    const next = wrapper.findAll('button').filter((b) => b.text().startsWith('Next question'));
+    expect(next).toHaveLength(1);
+    expect(document.activeElement).toBe(primaryButton(wrapper).element);
+    expect(wrapper.findAll('button').filter((b) => b.text() === 'End session')).toHaveLength(1);
   });
 });

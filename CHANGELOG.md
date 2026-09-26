@@ -4,6 +4,15 @@
 
 ### Fixed
 
+- "Try again" could not be submitted: the retry was blocked because the question was already marked as answered. A retry is now sent with `retry: true`, which the API checks with the normal matching policy but does not record, so it earns no points, keeps the question slot, and does not change accuracy. It also works after a miss on the last question.
+- The legacy button row under the practice card rendered a second "Next question" and a second "End session" after every answer, and took focus away from the card's primary action. It is removed; focus now lands on the single primary action, so Enter after a miss triggers "Try again" rather than skipping.
+- The practice header advanced to the next question number as soon as an answer was checked, while the card still showed the current question.
+- The session summary had no `h1`, because the hero only rendered before a session. It now keeps a visually hidden top-level heading.
+- The practice screens now look like the redesign canvas rather than the old framed panel: a full-width header with the brand, underline tabs and an account chip; a two-column dashboard with a segmented direction control and icon cards; a centred practice card with an in-card feedback band; and a summary card. The fonts from the design (Newsreader, Instrument Sans) are bundled and served from the app's origin, so the CSP stays `font-src 'self'`.
+- The question number and card state no longer switch to the next question before it has loaded; until then the previous card stays as it was, with its actions disabled.
+- The primary action no longer shows "Checking..." while the session ends or the next question loads.
+- At 320px with text enlarged to 200%, the dashboard, header, bottom navigation and practice bar reflow instead of scrolling horizontally.
+- The end-to-end suite still used the pre-redesign copy ("Practice direction", "Submit answer", "Ready when you are.") and navigated through tabs that focused mode hides, so 32 browser tests failed before reaching their assertions. They now follow the redesigned flow.
 - Phonetics are stored for the English side of a phrase, so rendering them under a German prompt showed English IPA as though it were German. They are now shown only when the prompt is the English one.
 - Signing out stays reachable during a live session, so focused mode never removes the only sign-out route.
 - Caddy now wraps the API proxy and the SPA fallback in separate `handle` blocks. Previously the loose top-level `try_files`/`file_server` directives were ordered ahead of `handle @api`, so `/health` and `/ready` returned the SPA `index.html` instead of proxying to the API.
@@ -20,7 +29,8 @@
 - Stateful answer feedback. The card carries a `data-state` and moves between answering, correct, miss, and retry, presenting the outcome in place rather than appending another message.
 - "Try again" clears the input and hides the expected answer, so a second attempt tests recall instead of letting the learner copy the answer.
 - A pronunciation control backed by the browser's `speechSynthesis`, with an active state while audio plays and a 48px target.
-- A streak counter for the current session.
+- A streak counter for the current session. A correct second try does not extend it.
+- After a miss, "Skip question" (or "Skip to results" on the last question) moves on without a retry. On the last correct answer the primary action reads "See results".
 - Interaction states for every control: pointer-only hover, press feedback for all pointers, and distinct disabled styling for inputs and selects.
 - Motion tokens (`--motion-fast`, `--motion-base`, `--ease-out`), elevation tokens, and safe-area insets on the shell.
 - Purposeful progress empty states that distinguish a new learner from one with no repeated mistakes, present tricky words as chips, and offer a next action.

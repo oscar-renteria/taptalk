@@ -37,7 +37,12 @@ async function startSession(cookie: string) {
   return response.json().session as { id: string; questionCount: number; status: string };
 }
 
-async function answer(cookie: string, practiceSessionId: string, submittedAnswer: string) {
+async function answer(
+  cookie: string,
+  practiceSessionId: string,
+  submittedAnswer: string,
+  extra: Record<string, unknown> = {},
+) {
   const question = await server.inject({
     method: 'GET',
     url: '/api/v1/practice/question?direction=english-to-german',
@@ -52,6 +57,7 @@ async function answer(cookie: string, practiceSessionId: string, submittedAnswer
       direction: 'english-to-german',
       submittedAnswer,
       practiceSessionId,
+      ...extra,
     },
   });
 }
@@ -240,6 +246,28 @@ describe('session scoring', () => {
       });
     expect((await submit('wrong')).json().result).toMatchObject({ correct: false, scoreDelta: 0 });
     expect((await submit('hallo')).json().result).toMatchObject({ correct: true, scoreDelta: 10 });
+  });
+
+  it('checks a retry without recording it, even after the last question', async () => {
+    const cookie = await register('learner');
+    await setSessionLength(cookie, 1);
+    const session = await startSession(cookie);
+    const miss = await answer(cookie, session.id, 'wrong');
+    expect(miss.json().session.answeredCount).toBe(1);
+
+    // The session is now full, but a retry of the missed question is still checked.
+    const retry = await answer(cookie, session.id, 'hallo', { retry: true });
+    expect(retry.statusCode).toBe(200);
+    expect(retry.json().result).toMatchObject({ correct: true, scoreDelta: 0 });
+    expect(retry.json().result.attemptId).toBeUndefined();
+    expect(retry.json().session).toEqual({ id: session.id, answeredCount: 1, questionCount: 1 });
+
+    // Without the flag the full session still refuses another answer.
+    expect((await answer(cookie, session.id, 'hallo')).statusCode).toBe(409);
+    expect((await answer(cookie, session.id, 'hallo', { retry: 'yes' })).statusCode).toBe(400);
+
+    const summary = (await endSession(cookie, session.id)).json().session;
+    expect(summary).toMatchObject({ answeredCount: 1, correctCount: 0, pointsEarned: 0 });
   });
 });
 

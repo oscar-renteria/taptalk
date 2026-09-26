@@ -1,3 +1,4 @@
+export { default as AccountMenu } from './AccountMenu.vue';
 export { default as AppButton } from './AppButton.vue';
 export { default as AppCard } from './AppCard.vue';
 export { default as AppNav } from './AppNav.vue';

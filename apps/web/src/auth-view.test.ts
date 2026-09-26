@@ -102,7 +102,8 @@ describe('registration screen', () => {
     resolve({ ok: true, status: 201, json: async () => ({ user: learner }) });
     await flushPromises();
     expect(router.currentRoute.value.path).toBe('/practice');
-    expect(wrapper.text()).toContain('TapTalk practice desk');
+    expect(wrapper.find('nav[aria-label="Main navigation"]').exists()).toBe(true);
+    expect(wrapper.get('.account__name').text()).toBe('learner');
   });
 });
 

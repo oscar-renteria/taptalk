@@ -48,7 +48,7 @@ describe('route guards', () => {
     mockApi(signedIn);
     const { wrapper, router } = await mountApp('/admin/import');
     expect(router.currentRoute.value.path).toBe('/practice');
-    expect(wrapper.text()).not.toContain('Import vocabulary');
+    expect(wrapper.find('a.tab[href="/admin/import"]').exists()).toBe(false);
   });
 
   it('lets an administrator open the import area and shows its navigation item', async () => {
@@ -58,7 +58,24 @@ describe('route guards', () => {
     });
     const { wrapper, router } = await mountApp('/admin/import');
     expect(router.currentRoute.value.path).toBe('/admin/import');
-    expect(wrapper.get('a[aria-current="page"]').text()).toBe('Import vocabulary');
+    expect(wrapper.get('a[aria-current="page"]').text()).toBe('Vocabulary');
+  });
+
+  it('opens the account menu, closes it with Escape, and returns focus to the toggle', async () => {
+    mockApi(signedIn);
+    const { wrapper } = await mountApp('/practice');
+    const toggle = wrapper.get('.account__toggle');
+    expect(toggle.attributes('aria-expanded')).toBe('false');
+    expect(toggle.attributes('aria-label')).toBe('Account menu for learner');
+
+    await toggle.trigger('click');
+    expect(toggle.attributes('aria-expanded')).toBe('true');
+    expect(wrapper.get('#account-menu').isVisible()).toBe(true);
+    expect(document.activeElement?.textContent?.trim()).toBe('Log out');
+
+    await wrapper.get('.account').trigger('keydown', { key: 'Escape' });
+    expect(toggle.attributes('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(toggle.element);
   });
 
   it('shows a not-found page for unknown paths', async () => {

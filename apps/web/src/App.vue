@@ -2,7 +2,7 @@
 import { computed, nextTick, onErrorCaptured, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  AppButton,
+  AccountMenu,
   AppNav,
   ErrorState,
   LoadingState,
@@ -18,10 +18,8 @@ const viewFailed = ref(false);
 const navItems = computed(() => [
   { to: '/practice', label: 'Practice' },
   { to: '/progress', label: 'Progress' },
+  ...(session.user?.role === 'administrator' ? [{ to: '/admin/import', label: 'Vocabulary' }] : []),
   { to: '/settings', label: 'Settings' },
-  ...(session.user?.role === 'administrator'
-    ? [{ to: '/admin/import', label: 'Import vocabulary' }]
-    : []),
 ]);
 const signedInLayout = computed(
   () => !!session.user && route.meta.access !== 'guest' && route.name !== 'not-found',
@@ -81,44 +79,48 @@ function reload(): void {
 </script>
 
 <template>
-  <main class="shell" :data-focus="focus.practice ? 'true' : undefined">
-    <UpdateBanner />
-    <StatusMessage
-      v-if="networkUnavailable"
-      tone="warning"
-      class="offline-banner"
-      message="You are offline. Practice and account data need a connection."
-    />
-    <div v-if="!session.checked" class="panel">
-      <LoadingState label="Checking your session..." />
-    </div>
-    <section v-else-if="signedInLayout && session.user" class="panel panel--wide">
-      <!-- The header stays available in focused mode: the redesign moves the tabs
-           out of a live session, but signing out must remain reachable (a shared
-           device, or a session that has gone wrong). -->
-      <header class="app-header">
-        <div>
-          <p class="eyebrow">TapTalk practice desk</p>
-          <p class="user-label">{{ session.user.username }}</p>
-        </div>
-        <AppButton variant="text" @click="logout">Log out</AppButton>
-      </header>
+  <div
+    class="shell"
+    :data-layout="signedInLayout && session.user ? 'app' : 'guest'"
+    :data-focus="focus.practice ? 'true' : undefined"
+  >
+    <!-- The header stays available in focused mode: the redesign moves the tabs
+         out of a live session, but signing out must remain reachable (a shared
+         device, or a session that has gone wrong). -->
+    <header v-if="session.checked && signedInLayout && session.user" class="app-header">
+      <RouterLink class="brand" to="/practice">
+        <svg class="brand__mark" aria-hidden="true" width="32" height="32" viewBox="0 0 24 24">
+          <path
+            d="M4 4h16a1.5 1.5 0 011.5 1.5v10A1.5 1.5 0 0120 17h-8l-5 4v-4H4a1.5 1.5 0 01-1.5-1.5v-10A1.5 1.5 0 014 4z"
+            fill="currentColor"
+          />
+          <circle cx="9" cy="10.5" r="1.3" fill="var(--color-paper)" />
+          <circle cx="15" cy="10.5" r="1.3" fill="var(--color-paper)" />
+        </svg>
+        <span class="brand__name">TapTalk</span>
+      </RouterLink>
       <AppNav v-if="!focus.practice" label="Main navigation" :items="navItems" />
+      <AccountMenu :username="session.user.username" @logout="logout" />
+    </header>
+    <main class="page">
+      <UpdateBanner />
+      <StatusMessage
+        v-if="networkUnavailable"
+        tone="warning"
+        class="offline-banner"
+        message="You are offline. Practice and account data need a connection."
+      />
+      <div v-if="!session.checked" class="panel">
+        <LoadingState label="Checking your session..." />
+      </div>
       <ErrorState
-        v-if="viewFailed"
+        v-else-if="viewFailed"
+        :class="{ panel: !signedInLayout }"
         message="Something went wrong on this page."
         retry-label="Reload"
         @retry="reload"
       />
       <RouterView v-else />
-    </section>
-    <ErrorState
-      v-else-if="viewFailed"
-      class="panel"
-      message="Something went wrong on this page."
-      retry-label="Reload"
-      @retry="reload"
-    />
-    <RouterView v-else />
-  </main>
+    </main>
+  </div>
 </template>

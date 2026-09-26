@@ -100,7 +100,7 @@ test.describe('responsive layout', () => {
         }),
       });
     });
-    await page.getByLabel('Practice direction').selectOption('english-to-german');
+    await page.getByRole('radio', { name: 'English → German' }).check();
     await page.getByRole('button', { name: 'Start practice' }).click();
     const answer = page.getByLabel('Your answer');
     await expect(answer).toBeFocused();
@@ -127,6 +127,8 @@ test.describe('responsive layout', () => {
     await expectPageFits(page, 'rotated practice question');
 
     await page.setViewportSize(originalViewport!);
+    // Tabs are hidden while a session runs, so it is ended before navigating.
+    await page.getByRole('button', { name: 'End session' }).click();
     await navigateTo(page, 'Progress');
     await expect(page.getByTestId('stat-attempts')).toBeVisible();
     await expectPageFits(page, 'progress');
@@ -135,7 +137,8 @@ test.describe('responsive layout', () => {
       .evaluateAll(
         (tiles) => new Set(tiles.map((tile) => Math.round(tile.getBoundingClientRect().top))).size,
       );
-    expect(statRows, 'dashboard columns').toBe(testInfo.project.name === 'tablet' ? 1 : 2);
+    // Without the old framed panel, the three tiles fit side by side on a phone as well.
+    expect(statRows, 'dashboard columns').toBe(1);
 
     await navigateTo(page, 'Settings');
     await page.getByRole('button', { name: 'Save settings' }).click();
@@ -145,7 +148,7 @@ test.describe('responsive layout', () => {
 
   test('administrator content wraps at a narrow width', async ({ page }) => {
     await logIn(page, administrator.username, administrator.password);
-    await navigateTo(page, 'Import vocabulary');
+    await navigateTo(page, 'Vocabulary');
     await page.setViewportSize({ width: 320, height: 640 });
     const sourceName = `${'vocabulary'.repeat(19)}.json`;
     await page.getByLabel('Vocabulary JSON file').setInputFiles({

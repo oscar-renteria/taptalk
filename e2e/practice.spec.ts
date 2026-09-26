@@ -12,19 +12,19 @@ async function setSessionLength(page: Page, questions: number): Promise<void> {
 }
 
 async function startSession(page: Page): Promise<void> {
-  await page.getByLabel('Practice direction').selectOption('english-to-german');
+  await page.getByRole('radio', { name: 'English → German' }).check();
   await page.getByRole('button', { name: 'Start practice' }).click();
 }
 
 async function currentPrompt(page: Page, questionNumber: number): Promise<string> {
   await expect(page.getByTestId('session-progress')).toContainText(`Question ${questionNumber} of`);
-  await expect(page.getByRole('button', { name: 'Submit answer' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Check answer' })).toBeVisible();
   return (await page.getByTestId('practice-prompt').innerText()).trim();
 }
 
 async function answer(page: Page, submittedAnswer: string): Promise<void> {
   await page.getByLabel('Your answer').fill(submittedAnswer);
-  await page.getByRole('button', { name: 'Submit answer' }).click();
+  await page.getByRole('button', { name: 'Check answer' }).click();
 }
 
 test.describe('practice journeys', () => {
@@ -50,7 +50,7 @@ test.describe('practice journeys', () => {
 
     // Leaving and re-entering the view reloads the values from the server.
     await navigateTo(page, 'Practice');
-    await page.getByLabel('Practice direction').selectOption('random');
+    await page.getByRole('radio', { name: 'Mixed' }).check();
     await navigateTo(page, 'Settings');
     await expect(page.getByLabel('Default direction')).toHaveValue('german-to-english');
     await expect(page.getByLabel('Questions per session')).toHaveValue('4');
@@ -83,7 +83,9 @@ test.describe('practice journeys', () => {
     await page.getByRole('button', { name: 'Next question' }).click();
     const second = await currentPrompt(page, 2);
     await answer(page, 'definitely wrong');
-    await page.getByRole('button', { name: 'See results' }).click();
+    // After a miss the primary action is "Try again", so the results are one skip away.
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeFocused();
+    await page.getByRole('button', { name: 'Skip to results' }).click();
 
     await expect(page.getByRole('heading', { name: 'Session complete.' })).toBeFocused();
     await expect(page.getByTestId('summary-questions')).toContainText('2');
@@ -130,6 +132,8 @@ test.describe('practice journeys', () => {
     await answer(page, 'definitely wrong');
     await expect(page.getByRole('status')).toContainText('Not quite.');
 
+    // Tabs are hidden while a session runs, so it is ended before navigating.
+    await page.getByRole('button', { name: 'End session' }).click();
     await navigateTo(page, 'Progress');
     await expect(page.getByTestId('stat-points')).toContainText('10');
     await expect(page.getByTestId('stat-attempts')).toContainText('2');

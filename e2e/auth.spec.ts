@@ -12,8 +12,8 @@ test.describe('registration and login', () => {
     await page.getByRole('button', { name: 'Create account' }).click();
 
     await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
-    await expect(page.getByText(username, { exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Ready when you are.' })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Account menu for ${username}` })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Welcome back/ })).toBeVisible();
   });
 
   test('registering an existing username is rejected', async ({ page, request }, testInfo) => {
@@ -46,7 +46,7 @@ test.describe('registration and login', () => {
   test('an existing learner logs in', async ({ page, request }, testInfo) => {
     const username = await registerLearner(request, testInfo, 'login');
     await logIn(page, username);
-    await expect(page.getByText(username, { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Account menu for ${username}` })).toBeVisible();
   });
 
   test('reloading the page keeps the learner signed in', async ({ page, request }, testInfo) => {
@@ -54,7 +54,7 @@ test.describe('registration and login', () => {
     await logIn(page, username);
     await page.reload();
     await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
-    await expect(page.getByText(username, { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Account menu for ${username}` })).toBeVisible();
   });
 
   test('a wrong password shows an error and keeps the user logged out', async ({

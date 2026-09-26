@@ -9,6 +9,13 @@
   --color-muted: #5e665f;
   --color-paper: #fbf8f1;
   --color-surface: #fffdf7;
+  --color-card: #ffffff;
+  --color-line: #e7e0d2;
+  --color-line-soft: #f0ebe0;
+  --color-segment: #efe9dc;
+  --color-body: #454c45;
+  --color-accent-soft: #f6e6df;
+  --color-accent-strong: #7e3322;
   --color-panel: rgb(255 253 247 / 88%);
   --color-border: #c9d4c8;
   --color-control-border: #7c8a80;
@@ -25,12 +32,12 @@
   --color-danger-bg: #fbe9e6;
   --color-info-bg: #eef3ee;
 
-  /* Typography. The redesign names Newsreader, Instrument Sans, and Noto Sans.
-     They are requested first but must be self-hosted: the production CSP is
-     `font-src 'self'; style-src 'self'`, so a third-party font CDN is blocked by
-     design. Until the families are vendored, the fallbacks below render. */
-  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
-  --font-ui: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+  /* Typography. Newsreader and Instrument Sans are bundled from @fontsource-variable
+     (imported in main.ts), so they are served from the app's own origin and satisfy
+     the production CSP `font-src 'self'`. Noto Sans for IPA is not bundled; it falls
+     back to the UI face, which covers the IPA glyphs the dataset uses. */
+  --font-display: 'Newsreader Variable', 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Instrument Sans Variable', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
   --font-ipa: 'Noto Sans', var(--font-ui);
   --text-sm: 0.9rem;
   --text-md: 1rem;
@@ -45,7 +52,8 @@
   --space-4: 1rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
-  --radius: 0.25rem;
+  --radius: 0.75rem;
+  --radius-lg: 1.25rem;
   --touch-target: 2.75rem; /* 44px minimum for touch controls */
   --focus-ring: 3px solid var(--color-focus);
   --content-width: 44rem;
@@ -59,6 +67,7 @@
   /* Elevation. The panel uses a hard offset shadow; controls lift on hover. */
   --shadow-panel: 0.75rem 0.75rem 0 var(--color-highlight);
   --shadow-raised: 0 0.25rem 0.75rem rgb(35 48 44 / 18%);
+  --shadow-card: 0 1px 2px rgb(31 42 36 / 4%), 0 1.1rem 2.75rem -1.4rem rgb(31 42 36 / 20%);
 
   /* Pointer-driven feedback only applies to devices that can hover, so touch
      users never get a stuck hover state. Press feedback is defined separately. */
@@ -89,7 +98,9 @@ body {
 h1 {
   margin: 0;
   font-size: var(--text-title);
-  line-height: 0.95;
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: -0.015em;
 }
 
 h1,
@@ -167,26 +178,41 @@ form {
 /* Layout */
 
 .shell {
-  display: grid;
-  /* A bounded column (not place-content: center) lets content shrink and wrap instead of
-     widening the page when text is enlarged (WCAG 1.4.10 reflow). */
-  grid-template-columns: minmax(0, 1fr);
-  align-content: center;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
   /* The vh fallback supports older browsers; dvh follows mobile browser chrome and software
      keyboards so the focused practice input is not centered inside a stale full-height shell. */
   min-height: 100vh;
   min-height: 100dvh;
+  background: var(--color-paper);
+}
+
+/* A bounded column lets content shrink and wrap instead of widening the page when text is
+   enlarged (WCAG 1.4.10 reflow). Safe-area insets keep content clear of notches and the home
+   indicator, and `max()` keeps the regular padding when the insets are zero. */
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: var(--space-4);
-  /* Safe-area insets keep the header clear of notches and the home indicator,
-     and `max()` keeps the original padding when the insets are zero. */
-  padding: max(var(--space-4), env(safe-area-inset-top))
-    max(clamp(0.5rem, 3vw, var(--space-4)), env(safe-area-inset-right))
-    max(var(--space-4), env(safe-area-inset-bottom))
-    max(clamp(0.5rem, 3vw, var(--space-4)), env(safe-area-inset-left));
+  width: min(100%, 80rem);
+  margin-inline: auto;
+  padding: clamp(1.25rem, 5vw, 4rem) max(clamp(1rem, 4vw, 3rem), env(safe-area-inset-right))
+    max(clamp(1.25rem, 5vw, 3rem), env(safe-area-inset-bottom))
+    max(clamp(1rem, 4vw, 3rem), env(safe-area-inset-left));
+}
+
+/* Signed-out screens keep the framed panel, centred on the page. */
+.shell[data-layout='guest'] {
   background:
     radial-gradient(circle at 80% 10%, var(--color-highlight) 0 18%, transparent 19%),
     var(--color-paper);
+}
+
+.shell[data-layout='guest'] .page {
+  flex: 1;
+  align-content: center;
+  justify-items: center;
 }
 
 .panel {
@@ -199,12 +225,11 @@ form {
   box-shadow: var(--shadow-panel);
 }
 
-.panel--wide {
-  width: min(100%, calc(var(--content-width) + 7rem));
-}
-
 .content-section {
   display: grid;
+  /* A zero minimum lets the column shrink to the screen instead of growing to the
+     widest unbreakable content (WCAG 1.4.10 reflow). */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   width: min(100%, var(--content-width));
 }
@@ -213,28 +238,137 @@ form {
   max-width: 28rem;
 }
 
-.app-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: start;
-  justify-content: space-between;
-  gap: var(--space-4);
+/* Content pages share the page width; the practice view uses all of it. */
+.content-section--wide {
+  width: 100%;
 }
 
-.app-header > div {
+/* App header (signed in): brand, tabs, and the account menu on one bar. */
+
+.app-header {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  /* Wraps rather than overflowing when text is enlarged (WCAG 1.4.10 reflow). */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 clamp(1rem, 3vw, 2.5rem);
+  min-height: 4.5rem;
+  padding: env(safe-area-inset-top) max(clamp(1rem, 4vw, 3rem), env(safe-area-inset-right)) 0
+    max(clamp(1rem, 4vw, 3rem), env(safe-area-inset-left));
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-paper);
+}
+
+.app-header nav {
+  flex: 1;
+  align-self: stretch;
   min-width: 0;
 }
 
-.user-label,
-.eyebrow {
-  overflow-wrap: anywhere;
+.brand {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 600;
+  text-decoration: none;
 }
 
-.user-label {
-  margin: 0.35rem 0 0;
+.brand__mark {
+  color: var(--color-accent);
+}
+
+/* Account menu (AccountMenu) */
+
+.account {
+  position: relative;
+  flex: none;
+  margin-left: auto;
+}
+
+.account__toggle {
+  display: inline-flex;
+  gap: 0.6rem;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 0.75rem 0 0.25rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  color: var(--color-ink);
+  background: var(--color-card);
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.account__avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  color: var(--color-paper);
+  background: #1f3a2e;
+}
+
+.account__name {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account__menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 5;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 15rem;
+  padding: var(--space-2);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: var(--color-card);
+  box-shadow: var(--shadow-raised);
+}
+
+.account__signed-in {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+  color: var(--color-muted);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
-  font-weight: 700;
+}
+
+.account__item {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 0.6rem;
+  color: var(--color-ink);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.eyebrow {
+  overflow-wrap: anywhere;
 }
 
 .eyebrow {
@@ -291,6 +425,8 @@ form {
 
 .btn {
   display: inline-flex;
+  /* An icon moves under the label rather than widening the button with enlarged text. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
@@ -324,6 +460,19 @@ form {
   background: var(--color-surface);
 }
 
+.btn--dark {
+  color: var(--color-on-accent);
+  background: var(--color-ink);
+}
+
+.btn--large {
+  gap: var(--space-3);
+  min-height: 3.75rem;
+  padding: 0 2rem;
+  border-radius: 0.9rem;
+  font-size: 1.1rem;
+}
+
 .btn--text {
   padding-inline: var(--space-1);
   color: var(--color-ink);
@@ -355,6 +504,10 @@ form {
     background: color-mix(in srgb, var(--color-accent) 88%, black);
   }
 
+  .btn--dark:not(:disabled):hover {
+    background: color-mix(in srgb, var(--color-ink) 80%, black);
+  }
+
   .btn--secondary:not(:disabled):hover {
     border-color: var(--color-ink);
     box-shadow: var(--shadow-raised);
@@ -365,8 +518,16 @@ form {
   }
 
   .tab:not([aria-current='page']):hover {
-    border-color: var(--color-ink);
-    background: var(--color-surface);
+    color: var(--color-ink);
+  }
+
+  .account__toggle:hover {
+    border-color: var(--color-control-border);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .account__item:hover {
+    background: var(--color-paper);
   }
 }
 
@@ -507,11 +668,10 @@ form {
 }
 
 .progress__track {
-  height: 0.5rem;
+  height: 0.4rem;
   overflow: hidden;
-  border: 1px solid var(--color-control-border);
   border-radius: 999px;
-  background: var(--color-surface);
+  background: #eae3d4;
 }
 
 .progress__bar {
@@ -601,7 +761,8 @@ form {
   display: grid;
   gap: var(--space-1);
   padding: var(--space-4) var(--space-3);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-line);
+  border-radius: 0.9rem;
   background: var(--color-surface);
 }
 
@@ -617,59 +778,117 @@ form {
   font-size: var(--text-sm);
 }
 
-/* Dashboard (practice pre-session). The design puts the direction choice and the
-   primary action on the left, with navigation destinations beside them. */
+/* Dashboard (practice pre-session). The design puts the welcome, the direction
+   choice, and the primary action on the left, with destination cards beside them. */
 
 .dashboard {
   display: grid;
-  gap: var(--space-4);
-  width: min(100%, var(--content-width));
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 3rem);
+  align-items: start;
 }
 
 .dashboard__lead {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-6);
   justify-items: start;
-  max-width: 30rem;
+  min-width: 0;
 }
 
-.dashboard__lead-title {
+.dashboard__hero {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dashboard__hero h1 {
+  font-size: clamp(2.75rem, 7vw, 4.75rem);
+}
+
+.dashboard__intro {
+  max-width: 32rem;
   margin: 0;
-  font-size: var(--text-lg);
+  color: var(--color-body);
+  font-family: var(--font-ui);
+  font-size: 1.15rem;
+  line-height: 1.5;
+}
+
+.dashboard__start {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  align-items: center;
 }
 
 .dashboard__cards {
   display: grid;
   gap: var(--space-3);
-  /* Fills the space beside the lead column once there is room for it. */
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .dashboard-card {
-  display: grid;
-  gap: var(--space-1);
-  height: 100%;
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  display: flex;
+  gap: 1.1rem;
+  align-items: center;
+  width: 100%;
+  padding: 1.35rem 1.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1.1rem;
+  color: var(--color-ink);
+  background: var(--color-card);
+  font-weight: 400;
   text-decoration: none;
   transition:
     border-color var(--motion-fast) var(--ease-out),
-    box-shadow var(--motion-fast) var(--ease-out);
+    box-shadow var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+}
+
+.dashboard-card__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.9rem;
+  color: var(--color-ink);
+  background: var(--color-segment);
+}
+
+.dashboard-card__icon[data-tone='success'] {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.dashboard-card__icon[data-tone='accent'] {
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+}
+
+.dashboard-card__text {
+  display: grid;
+  flex: 1;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .dashboard-card__title {
   font-family: var(--font-ui);
-  font-size: var(--text-md);
-  font-weight: 700;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.dashboard-card__chevron {
+  flex: none;
+  color: var(--color-muted);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .dashboard-card:hover {
-    border-color: var(--color-ink);
+    border-color: var(--color-control-border);
     box-shadow: var(--shadow-raised);
   }
 }
@@ -678,82 +897,207 @@ form {
   transform: translateY(var(--active-drop));
 }
 
+@media (min-width: 60rem) {
+  .dashboard {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    column-gap: 4rem;
+  }
+
+  .dashboard__cards {
+    padding-top: 1.75rem;
+  }
+}
+
+/* Segmented control (dashboard direction). Real radio inputs keep the group's
+   semantics and arrow-key behaviour; each input covers its segment invisibly so
+   pointer, touch, and automation all hit the input itself. */
+
+.segmented {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.segmented legend {
+  margin-bottom: 0.6rem;
+  padding: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.segmented__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  max-width: 100%;
+  padding: var(--space-1);
+  border-radius: var(--radius);
+  background: var(--color-segment);
+}
+
+.segmented__option {
+  position: relative;
+  margin: 0;
+}
+
+.segmented__option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segmented__option span {
+  display: flex;
+  overflow-wrap: anywhere;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  min-height: var(--touch-target);
+  padding: 0 1.1rem;
+  border-radius: 0.6rem;
+  color: var(--color-muted);
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.segmented__option input:checked + span {
+  color: var(--color-ink);
+  background: var(--color-card);
+  box-shadow: 0 1px 3px rgb(31 42 36 / 14%);
+}
+
+.segmented__option input:focus-visible + span {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .segmented__option input:not(:checked):hover + span {
+    color: var(--color-ink);
+  }
+}
+
 /* Practice mode (redesign): one exercise owns the screen. Navigation is hidden
    by the shell while a session is active, so the card is the only focus. */
 
+.practice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  justify-items: center;
+  width: 100%;
+}
+
 .practice-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 30rem) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: center;
+  width: 100%;
+}
+
+.practice-bar__exit {
+  justify-self: start;
+  padding-inline: 0.6rem 1rem;
+}
+
+.practice-bar__progress {
+  max-width: none;
+}
+
+.practice-bar__progress .muted {
+  color: var(--color-ink);
+  font-weight: 600;
+  text-align: center;
+}
+
+.practice-bar__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+  justify-content: flex-end;
+  justify-self: end;
+}
+
+.pill {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  width: min(100%, var(--content-width));
-}
-
-.practice-bar__count {
+  min-height: 2rem;
   margin: 0;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  color: var(--color-paper);
+  background: var(--color-ink);
   font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  font-weight: 700;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.practice-bar__streak {
-  margin: 0;
-  color: var(--color-accent);
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-
-/* `>Exit` must not inherit the text-button underline look as a control. */
-.practice-bar__exit {
-  text-decoration: none;
+.pill--streak {
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
 }
 
 .practice-card {
   display: grid;
-  gap: var(--space-3);
-  width: min(100%, 34rem);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  gap: 0;
+  width: min(100%, 45rem);
+  max-width: none;
+  /* `clip` rather than `hidden`, so the sticky phone action is not trapped in a
+     scroll container. */
+  overflow: hidden;
+  overflow: clip;
+  border: 1px solid #e4ddcf;
+  border-radius: var(--radius-lg);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--motion-base) var(--ease-out);
 }
 
 /* State is shown by border, background, and the verdict text together, never by
    colour alone. Correct and miss differ in lightness as well as hue. */
 .practice-card[data-state='correct'] {
-  border-color: var(--color-success);
-  box-shadow: inset 0 0 0 2px var(--color-success);
+  border-color: #9cc3ac;
 }
 
 .practice-card[data-state='miss'] {
-  border-color: var(--color-warning-border);
-  box-shadow: inset 0 0 0 2px var(--color-warning-border);
+  border-color: #e7b98f;
 }
 
-.practice-card__feedback {
+.practice-card__prompt {
   display: grid;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  border-left: 4px solid currentcolor;
-  border-radius: var(--radius);
-  font-family: var(--font-ui);
+  gap: var(--space-3);
+  justify-items: start;
+  padding: 2.25rem 3rem 1.75rem;
 }
 
-.practice-card__feedback[data-tone='success'] {
-  color: var(--color-success);
-  background: var(--color-success-bg);
-}
-
-.practice-card__feedback[data-tone='warning'] {
-  color: var(--color-warning);
-  background: var(--color-warning-bg);
-}
-
-.practice-card__verdict {
+.prompt {
   margin: 0;
-  font-size: var(--text-lg);
-  font-weight: 700;
+  font-size: var(--text-prompt);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.practice-card .prompt {
+  font-size: clamp(2.25rem, 6vw, 3.75rem);
 }
 
 /* IPA needs broad glyph coverage, so it never falls back to a serif that
@@ -765,22 +1109,31 @@ form {
   font-size: var(--text-md);
 }
 
-.speak {
-  display: inline-flex;
-  gap: var(--space-2);
+.speak-row {
+  display: flex;
+  gap: var(--space-3);
   align-items: center;
-  justify-content: center;
-  /* The design asks for a generous target, larger than the 44px minimum. */
-  min-width: 6rem;
-  min-height: 3rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--color-control-border);
-  border-radius: 999px;
-  color: var(--color-ink);
-  background: var(--color-surface);
+}
+
+.speak-row__label {
+  color: var(--color-muted);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 600;
+}
+
+/* The design asks for a generous target, larger than the 44px minimum. */
+.speak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  padding: 0;
+  border: 1px solid #e0d8c8;
+  border-radius: 999px;
+  color: var(--color-ink);
+  background: var(--color-paper);
   cursor: pointer;
   transition:
     background-color var(--motion-fast) var(--ease-out),
@@ -794,112 +1147,364 @@ form {
   background: var(--color-accent);
 }
 
+.practice-card__answer {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-6) 3rem;
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.practice-card__question {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 500;
+}
+
+.practice-card .field {
+  max-width: none;
+}
+
+.practice-card__input label {
+  color: var(--color-body);
+  font-weight: 600;
+}
+
 /* The answer field is deliberately larger than the default control. */
 .practice-card__input input {
   min-height: 3.25rem;
+  padding-inline: 1.1rem;
+  border: 2px solid #cfc6b4;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+
+.practice-card[data-state='correct'] .practice-card__input input {
+  border-color: var(--color-success);
+  background: #f4faf6;
+}
+
+.practice-card[data-state='miss'] .practice-card__input input {
+  border-color: #c27a45;
+  background: #fff8f2;
+}
+
+.practice-card__hint kbd {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid #d9d1c0;
+  border-bottom-width: 2px;
+  border-radius: 0.4rem;
+  color: var(--color-ink);
+  background: var(--color-card);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+}
+
+.practice-card__feedback {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: 1.1rem 3rem;
+  border-top: 1px solid;
+  font-family: var(--font-ui);
+}
+
+.practice-card__feedback[data-tone='success'] {
+  border-top-color: #c5dece;
+  color: #1f5139;
+  background: var(--color-success-bg);
+}
+
+.practice-card__feedback[data-tone='warning'] {
+  border-top-color: #f0d3b8;
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.practice-card__badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  color: #ffffff;
+  background: var(--color-success);
+}
+
+.practice-card__feedback[data-tone='warning'] .practice-card__badge {
+  background: #9a4a15;
+}
+
+.practice-card__verdict-block {
+  display: grid;
+  flex: 1;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.practice-card__verdict {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.practice-card__detail {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.practice-card__compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--space-2) var(--space-6);
+  margin: var(--space-2) 0 0;
+}
+
+.practice-card__compare dt {
+  font-size: 0.8rem;
+}
+
+.practice-card__compare dd {
+  margin: 0;
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-size: 1.25rem;
 }
 
+.practice-card__expected {
+  color: #4d2408;
+  font-weight: 600;
+}
+
 .practice-action {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: 1.25rem 3rem 1.6rem;
+  border-top: 1px solid var(--color-line-soft);
+  background: var(--color-card);
 }
 
 .practice-action .btn {
-  width: 100%;
   min-height: 3.5rem;
+  border-radius: 0.9rem;
+  font-size: 1.05rem;
+}
+
+.practice-action .btn[type='submit'] {
+  flex: 1 1 12rem;
 }
 
 .practice-action__secondary {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   justify-content: center;
 }
 
-@media (max-width: 47.99rem) {
-  /* The design's phone navigation. Tabs stay in the document as a semantic
-     list and become a bottom bar within thumb reach. The practice screen hides
-     them entirely, so this never competes with an active exercise. */
-  .tabs {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
-    gap: var(--space-1);
-    width: 100%;
-    margin: 0;
-    padding: var(--space-2) var(--space-2) max(var(--space-2), env(safe-area-inset-bottom));
-    border-block: 0;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-surface);
-  }
-
-  .tab {
-    flex: 1;
-    justify-content: center;
-    min-width: 0;
-    padding-inline: var(--space-1);
-    /* Labels must not wrap or clip at 320px with four destinations. */
-    font-size: var(--text-sm);
-    text-align: center;
-  }
-
-  /* The primary action stays near the thumb, with the content scrolling behind
-     it. Interactive-widget keeps it above the software keyboard. */
-  .practice-action {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
-    padding-block: var(--space-2);
-    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
-    background: linear-gradient(var(--color-paper) 70%, transparent);
-  }
-
-  /* The hero and navigation step aside once a session starts. */
-  .shell[data-focus='true'] .panel {
-    padding: var(--space-4) var(--space-3);
-  }
+/* The card already shows the outcome, so the announcement stays for assistive
+   technology only. Errors render outside this region and remain visible. */
+.content-section[data-focus='true'] .live-message {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
-/* Navigation (AppNav) */
+/* Navigation (AppNav): underline tabs in the header. */
 
 .tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  width: min(100%, var(--content-width));
+  gap: var(--space-1);
+  height: 100%;
   margin: 0;
-  padding: var(--space-3) 0;
-  border-block: 1px solid var(--color-border);
+  padding: 0;
   list-style: none;
+}
+
+.tabs li {
+  display: flex;
 }
 
 .tab {
   display: inline-flex;
   align-items: center;
   min-height: var(--touch-target);
-  padding: 0.5rem 0.9rem;
-  border: 1px solid var(--color-control-border);
-  border-radius: var(--radius);
-  color: var(--color-ink);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--color-muted);
   background: transparent;
   font-family: var(--font-ui);
-  font-size: var(--text-md);
-  font-weight: 700;
+  font-size: 0.95rem;
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
   transition:
-    background-color var(--motion-fast) var(--ease-out),
     border-color var(--motion-fast) var(--ease-out),
     color var(--motion-fast) var(--ease-out);
 }
 
-.tab:not([aria-current='page']):active {
-  transform: translateY(var(--active-drop));
+.tab[aria-current='page'] {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-ink);
+  font-weight: 600;
 }
 
-.tab[aria-current='page'] {
-  border-color: var(--color-ink);
-  color: var(--color-on-accent);
-  background: var(--color-ink);
+/* On larger screens the header stays in view. On a phone it scrolls away, because
+   with enlarged text it wraps and would cover the exercise. */
+@media (min-width: 48rem) {
+  .app-header {
+    position: sticky;
+    top: 0;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  /* The design's phone navigation. Tabs stay in the document as a semantic
+     list and become a bottom bar within thumb reach. The practice screen hides
+     them entirely, so this never competes with an active exercise. */
+  .app-header nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 4;
+    padding: 0 max(var(--space-2), env(safe-area-inset-right)) env(safe-area-inset-bottom)
+      max(var(--space-2), env(safe-area-inset-left));
+    border-top: 1px solid var(--color-line);
+    background: var(--color-paper);
+  }
+
+  .tabs li {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tab {
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+    min-height: 3.5rem;
+    padding-inline: var(--space-1);
+    border-top: 3px solid transparent;
+    border-bottom: 0;
+    /* Labels fit on one line at 320px with four destinations; with enlarged
+       text they break instead of widening the page. */
+    overflow-wrap: anywhere;
+    font-size: var(--text-sm);
+    text-align: center;
+  }
+
+  .tab[aria-current='page'] {
+    border-top-color: var(--color-accent);
+  }
+
+  /* Room for the fixed bottom bar, which the practice screen does not show. */
+  .shell[data-layout='app']:not([data-focus='true']) .page {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  .app-header {
+    min-height: 3.75rem;
+  }
+
+  .account__name {
+    display: none;
+  }
+
+  /* Compact cards on a phone, so the text keeps room beside the icon at 320px
+     with text enlarged to 200%. */
+  .dashboard-card {
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+
+  .dashboard-card__icon {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .dashboard-card__text {
+    overflow-wrap: anywhere;
+  }
+
+  /* The large start button keeps its minimum width inside a 320px column with
+     text enlarged to 200%. */
+  .btn--large {
+    gap: var(--space-2);
+    padding-inline: var(--space-4);
+    font-size: var(--text-md);
+  }
+
+  /* Equal segments on a phone, three per row where they fit. The minimum is in
+     rem, so enlarged text drops to fewer columns instead of overflowing
+     (WCAG 1.4.10 reflow). */
+  .segmented__options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
+    width: 100%;
+  }
+
+  .segmented__option span {
+    padding-block: var(--space-1);
+    padding-inline: var(--space-2);
+  }
+
+  .account__toggle {
+    padding-right: 0.5rem;
+  }
+
+  /* Exit and points share the first row; progress takes the full second row, so
+     the bar never forces the column wider than the screen. */
+  .practice-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .practice-bar__progress {
+    flex: 1 1 100%;
+    order: 3;
+  }
+
+  .practice-bar__meta .pill--streak {
+    display: none;
+  }
+
+  .practice-card__prompt,
+  .practice-card__answer,
+  .practice-card__feedback {
+    padding-inline: var(--space-4);
+  }
+
+  .practice-card__prompt {
+    padding-block: 1.5rem 1.25rem;
+  }
+
+  .practice-action .btn {
+    flex: 1 1 100%;
+    padding-inline: var(--space-2);
+  }
+
+  .practice-action {
+    padding: var(--space-3) var(--space-4) max(var(--space-3), env(safe-area-inset-bottom));
+  }
+
+  /* While typing, the primary action stays near the thumb, with the content
+     scrolling behind it; interactive-widget keeps it above the software keyboard.
+     After an answer the keyboard is gone, so the actions sit in the card and never
+     cover "End session" below it. */
+  .practice-card:is([data-state='answering'], [data-state='retry']) .practice-action {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+  }
 }
 
 /* Lists */
@@ -924,17 +1529,28 @@ form {
 
 .session-summary {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-4);
+  justify-self: center;
+  width: min(100%, 45rem);
+  padding: clamp(1.5rem, 5vw, 2.75rem) clamp(1.25rem, 5vw, 3rem);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
+}
+
+.session-summary h2 {
+  font-size: clamp(2.25rem, 5vw, 3.25rem);
+  font-weight: 500;
+  line-height: 1.05;
+}
+
+.eyebrow--success {
+  color: var(--color-success);
 }
 
 .session-summary h2:focus {
   outline: none;
-}
-
-@media (min-width: 48rem) {
-  .shell {
-    padding: var(--space-8);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
