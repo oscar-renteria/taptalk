@@ -544,6 +544,42 @@ form {
   justify-items: start;
 }
 
+/* Empty state (ProgressView) */
+
+.empty-state {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border);
+  background: var(--color-surface);
+}
+
+.empty-state__title {
+  font-size: var(--text-lg);
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  max-width: 100%;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--color-control-border);
+  border-radius: 999px;
+  background: var(--color-info-bg);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 /* Stat tile (StatTile) */
 
 .stat-grid {

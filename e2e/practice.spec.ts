@@ -114,9 +114,11 @@ test.describe('practice journeys', () => {
 
   test('the dashboard reflects completed practice', async ({ page }) => {
     await navigateTo(page, 'Progress');
+    await expect(page.getByRole('heading', { name: 'No history yet' })).toBeVisible();
     await expect(
-      page.getByText('Complete a practice round to see your learning history here.'),
+      page.getByText('Answer a few questions and your accuracy, points, and tricky words'),
     ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start practising' })).toBeVisible();
     await expect(page.getByTestId('stat-attempts')).toContainText('0');
 
     await navigateTo(page, 'Practice');

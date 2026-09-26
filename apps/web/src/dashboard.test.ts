@@ -39,4 +39,29 @@ describe('progress view', () => {
     await flushPromises();
     expect(wrapper.text()).toContain('42');
   });
+
+  it('explains an empty history and offers a way to start practising', async () => {
+    mockApi({
+      ...signedIn,
+      'GET /api/v1/dashboard': {
+        body: { dashboard: { ...dashboard, totalAttempts: 0, repeatedErrorWords: [] } },
+      },
+    });
+    const { wrapper } = await mountApp('/progress');
+
+    // Empty states must answer what is empty, why, and what to do next.
+    expect(wrapper.text()).toContain('No history yet');
+    expect(wrapper.text()).toContain('Answer a few questions');
+    expect(wrapper.text()).toContain('Start practising');
+  });
+
+  it('distinguishes a brand new learner from one with attempts but no repeats', async () => {
+    mockApi({
+      ...signedIn,
+      'GET /api/v1/dashboard': { body: { dashboard: { ...dashboard, repeatedErrorWords: [] } } },
+    });
+    const { wrapper } = await mountApp('/progress');
+
+    expect(wrapper.text()).toContain('nothing has come up twice yet');
+  });
 });
