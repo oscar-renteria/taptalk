@@ -752,9 +752,7 @@ async function endSession(): Promise<void> {
             :describedby="
               showPhonetics ? 'practice-prompt-text practice-phonetics' : 'practice-prompt-text'
             "
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
+            exercise
             enterkeyhint="done"
             :readonly="practiceState === 'correct' || practiceState === 'miss'"
           />
