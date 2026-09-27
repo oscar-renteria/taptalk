@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
 import { isAbsolute } from 'node:path';
 
@@ -14,6 +15,12 @@ export type AppConfig = Readonly<{
   authRateLimitMax: number;
   logLevel: LogLevel;
   shutdownTimeoutMs: number;
+  /**
+   * Signs guest session cookies. When absent, a random secret is generated at
+   * boot, which still prevents forgery but ends guest sessions when the API
+   * restarts. Set GUEST_SESSION_SECRET in production to keep them across restarts.
+   */
+  guestSessionSecret: string;
 }>;
 
 const defaultApiHost = '0.0.0.0';
@@ -161,6 +168,8 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
   );
   return {
     nodeEnv,
+    guestSessionSecret:
+      (environment.GUEST_SESSION_SECRET ?? '').trim() || randomBytes(32).toString('hex'),
     apiHost: parseApiHost(environment.API_HOST),
     apiPort,
     databasePath: parseDatabasePath(environment.DATABASE_PATH, nodeEnv),

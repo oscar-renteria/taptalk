@@ -14,7 +14,9 @@
     "signedInAs": "Sesión iniciada como {username}",
     "logOut": "Cerrar sesión",
     "more": "Más",
-    "pageNotFound": "Página no encontrada"
+    "pageNotFound": "Página no encontrada",
+    "guestBadge": "Invitado",
+    "guestMenu": "Menú de sesión de invitado"
   },
   "common": {
     "checking": "Comprobando...",
@@ -200,5 +202,15 @@
     "goToLogin": "Ir a iniciar sesión",
     "updateAvailable": "Hay una nueva versión de TapTalk lista.",
     "updateNow": "Recargar para actualizar"
+  },
+  "guest": {
+    "continue": "Continuar como invitado",
+    "starting": "Comenzando...",
+    "notice": "Estás usando la aplicación como invitado. Tu progreso es temporal y no se guarda en ninguna cuenta.",
+    "failed": "No se pudo iniciar el modo invitado. Inténtalo de nuevo.",
+    "end": "Finalizar la sesión de invitado",
+    "menuNotice": "Sesión de invitado. Tu progreso es temporal y no se guarda en ninguna cuenta.",
+    "banner": "Estás usando TapTalk como invitado. No se guarda nada en ninguna cuenta.",
+    "temporaryNotice": "El progreso de invitado es temporal y no se guarda en ninguna cuenta."
   }
 }

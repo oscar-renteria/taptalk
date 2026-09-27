@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { createId, type SqliteDatabase } from './database.js';
+import { readGuestToken, verifyGuestToken, type RequestActor } from './guest.js';
 
 // Session strategy: see docs/decisions/ADR-005-authentication-session.md.
 export const sessionCookieName = 'taptalk_session';
@@ -16,7 +17,13 @@ export type AuthenticatedUser = {
 // Route access level, declared per route as `config: { access }`. Routes under /api default to
 // 'user', so a new endpoint is protected unless it explicitly opts out. Routes under /api/v1/admin
 // always require 'administrator' and cannot be downgraded by configuration.
-export type RouteAccess = 'public' | 'user' | 'administrator';
+/**
+ * 'user' requires a database-backed user. 'guest' allows either a real user or a
+ * guest session, and is for the practice, dashboard, and settings routes a guest
+ * can use without an account. 'administrator' is always a real user and can
+ * never be downgraded, so a guest can never reach admin functionality.
+ */
+export type RouteAccess = 'public' | 'user' | 'guest' | 'administrator';
 
 export type AccessDecision = 'allowed' | 'unauthenticated' | 'forbidden';
 
@@ -25,6 +32,11 @@ const adminRoutePrefix = '/api/v1/admin/';
 declare module 'fastify' {
   interface FastifyRequest {
     user: AuthenticatedUser | null;
+    /**
+     * Who is acting: a database user, a guest, or nobody. Resolved server-side by
+     * the guard. Unset before the guard runs, so read it through currentActor().
+     */
+    actor?: RequestActor;
   }
   interface FastifyContextConfig {
     access?: RouteAccess;
@@ -177,13 +189,32 @@ export function authorize(user: AuthenticatedUser | null, access: RouteAccess): 
   return 'allowed';
 }
 
-// preHandler hook: resolves the session user once per request and enforces the route's access.
-export function createAccessGuard(database: SqliteDatabase) {
+/**
+ * The same policy over the full actor. A guest is a first-class identity here:
+ * it satisfies 'guest' routes and is refused 'user' and 'administrator' routes, so
+ * account-only work (settings on the server, admin) can never run for a guest.
+ */
+export function authorizeActor(actor: RequestActor, access: RouteAccess): AccessDecision {
+  if (access === 'public') return 'allowed';
+  if (access === 'guest') {
+    return actor.type === 'anonymous' ? 'unauthenticated' : 'allowed';
+  }
+  return authorize(actor.type === 'authenticated' ? actor.user : null, access);
+}
+
+// preHandler hook: resolves the identity once per request and enforces the route's access.
+// A real session always wins; a signed guest cookie is only consulted when there
+// is no real session, so signing in always takes precedence over guest mode.
+export function createAccessGuard(database: SqliteDatabase, guestSecret?: string) {
   return async function accessGuard(request: FastifyRequest, reply: FastifyReply) {
-    request.user =
-      findSessionUser(database, readSessionToken(request), new Date().toISOString()) ?? null;
-    const decision = authorize(
-      request.user,
+    const now = new Date();
+    const user = findSessionUser(database, readSessionToken(request), now.toISOString()) ?? null;
+    request.user = user;
+    request.actor = user
+      ? { type: 'authenticated', user }
+      : resolveGuestActor(request, guestSecret, now.getTime());
+    const decision = authorizeActor(
+      request.actor,
       routeAccess(request.routeOptions.url, request.routeOptions.config.access),
     );
     if (decision === 'unauthenticated') {
@@ -199,7 +230,25 @@ export function createAccessGuard(database: SqliteDatabase) {
   };
 }
 
-// Handlers behind the guard use this instead of re-checking the session.
+function resolveGuestActor(
+  request: FastifyRequest,
+  guestSecret: string | undefined,
+  nowMs: number,
+): RequestActor {
+  if (!guestSecret) return { type: 'anonymous' };
+  const guestId = verifyGuestToken(guestSecret, readGuestToken(request), nowMs);
+  return guestId ? { type: 'guest', guestId } : { type: 'anonymous' };
+}
+
+/** The acting identity. The guard has already authorized it. */
+export function currentActor(request: FastifyRequest): RequestActor {
+  return request.actor ?? { type: 'anonymous' };
+}
+
+/**
+ * The acting identity, narrowed to a real database user. Use on routes that
+ * declare access 'user' or 'administrator', where a guest is never admitted.
+ */
 export function currentUser(request: FastifyRequest): AuthenticatedUser {
   if (!request.user) {
     throw new Error('currentUser() used on a route without authentication.');

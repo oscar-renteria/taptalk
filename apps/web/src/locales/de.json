@@ -14,7 +14,9 @@
     "signedInAs": "Angemeldet als {username}",
     "logOut": "Abmelden",
     "more": "Mehr",
-    "pageNotFound": "Seite nicht gefunden"
+    "pageNotFound": "Seite nicht gefunden",
+    "guestBadge": "Gast",
+    "guestMenu": "Menü der Gastsitzung"
   },
   "common": {
     "checking": "Wird geprüft...",
@@ -200,5 +202,15 @@
     "goToLogin": "Zur Anmeldung",
     "updateAvailable": "Eine neue Version von TapTalk ist bereit.",
     "updateNow": "Zum Aktualisieren neu laden"
+  },
+  "guest": {
+    "continue": "Als Gast fortfahren",
+    "starting": "Wird gestartet...",
+    "notice": "Du nutzt die App als Gast. Dein Fortschritt ist temporär und wird nicht in einem Konto gespeichert.",
+    "failed": "Der Gastmodus konnte nicht gestartet werden. Versuche es noch einmal.",
+    "end": "Gastsitzung beenden",
+    "menuNotice": "Gastsitzung. Dein Fortschritt ist temporär und wird nicht in einem Konto gespeichert.",
+    "banner": "Du nutzt TapTalk als Gast. Nichts wird in einem Konto gespeichert.",
+    "temporaryNotice": "Der Gastfortschritt ist temporär und wird nicht in einem Konto gespeichert."
   }
 }

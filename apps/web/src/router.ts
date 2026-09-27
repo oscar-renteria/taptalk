@@ -7,7 +7,7 @@ import {
 } from 'vue-router';
 import { setSessionExpiredHandler } from './api';
 import { i18n } from './i18n';
-import { restoreSession, session } from './session';
+import { actorKind, restoreSession, session } from './session';
 import AdminImportView from './views/AdminImportView.vue';
 import AuthView from './views/AuthView.vue';
 import NotFoundView from './views/NotFoundView.vue';
@@ -87,12 +87,20 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
   router.beforeEach(async (to): Promise<true | RouteLocationRaw> => {
     await restoreSession();
     const { access } = to.meta;
-    if (access === 'guest' && session.user) return safeRedirect(to.query.redirect);
-    if ((access === 'user' || access === 'administrator') && !session.user) {
+    // Anyone with an identity (a real user or a guest) is kept out of the account screens.
+    if (access === 'guest' && actorKind() !== 'anonymous') return safeRedirect(to.query.redirect);
+    // A guest reaches the practice, progress, and settings screens, exactly as a
+    // user does, but never the account screens.
+    const canUseApp = !!session.user || session.guest;
+    if (access === 'user' && !canUseApp) {
       return { name: 'login', query: { redirect: to.fullPath } };
     }
-    if (access === 'administrator' && session.user?.role !== 'administrator') {
-      return { name: 'practice' };
+    if (access === 'administrator') {
+      // A guest has no role, so a guest reaching an administrator URL is simply
+      // returned to the app they can use, not bounced to the login screen.
+      if (session.guest) return { name: 'practice' };
+      if (!session.user) return { name: 'login', query: { redirect: to.fullPath } };
+      if (session.user.role !== 'administrator') return { name: 'practice' };
     }
     return true;
   });

@@ -10,6 +10,7 @@ import {
   StatusMessage,
   UpdateBanner,
 } from './components';
+import { endGuestSession } from './guest';
 import { session, signOut, focus } from './session';
 const { t } = useI18n();
 
@@ -25,8 +26,10 @@ const navItems = computed(() => [
     : []),
   { to: '/settings', label: t('nav.settings') },
 ]);
+// A guest uses the same app shell as a user, so the experience is identical.
+const hasIdentity = computed(() => !!session.user || session.guest);
 const signedInLayout = computed(
-  () => !!session.user && route.meta.access !== 'guest' && route.name !== 'not-found',
+  () => hasIdentity.value && route.meta.access !== 'guest' && route.name !== 'not-found',
 );
 
 function updateNetworkState(): void {
@@ -70,7 +73,12 @@ router.afterEach(async (to, from) => {
 
 async function logout(): Promise<void> {
   try {
-    await fetch('/api/v1/auth/logout', { method: 'POST' });
+    if (session.guest) {
+      // Ends the guest session and discards its temporary state.
+      await endGuestSession();
+    } else {
+      await fetch('/api/v1/auth/logout', { method: 'POST' });
+    }
   } finally {
     signOut();
     await router.replace('/login');
@@ -85,13 +93,13 @@ function reload(): void {
 <template>
   <div
     class="shell"
-    :data-layout="signedInLayout && session.user ? 'app' : 'guest'"
+    :data-layout="signedInLayout && hasIdentity ? 'app' : 'guest'"
     :data-focus="focus.practice ? 'true' : undefined"
   >
     <!-- The header stays available in focused mode: the redesign moves the tabs
          out of a live session, but signing out must remain reachable (a shared
          device, or a session that has gone wrong). -->
-    <header v-if="session.checked && signedInLayout && session.user" class="app-header">
+    <header v-if="session.checked && signedInLayout && hasIdentity" class="app-header">
       <RouterLink class="brand" to="/practice">
         <svg class="brand__mark" aria-hidden="true" width="32" height="32" viewBox="0 0 24 24">
           <path
@@ -104,10 +112,16 @@ function reload(): void {
         <span class="brand__name">TapTalk</span>
       </RouterLink>
       <AppNav v-if="!focus.practice" :label="t('nav.label')" :items="navItems" />
-      <AccountMenu :username="session.user.username" @logout="logout" />
+      <AccountMenu :username="session.user?.username" :guest="session.guest" @logout="logout" />
     </header>
     <main class="page">
       <UpdateBanner />
+      <StatusMessage
+        v-if="session.guest"
+        tone="info"
+        class="guest-banner"
+        :message="t('guest.banner')"
+      />
       <StatusMessage
         v-if="networkUnavailable"
         tone="warning"

@@ -1,5 +1,6 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
+import type { UserPreferences } from '@taptalk/shared';
 import {
   practiceDirectionSchema,
   registrationErrors,
@@ -29,7 +30,11 @@ import {
   updatePreferences,
   RepositoryError,
   type PracticeSessionRecord,
+  type VocabularyRecord,
 } from './repositories.js';
+import { clearedGuestCookie, createGuestId, guestCookie, signGuestToken } from './guest.js';
+import * as guestStore from './guest-store.js';
+import type { GuestAttempt } from './guest-store.js';
 import { calculateScore } from './learning.js';
 import { matchAnswer } from './matching.js';
 import { resolveDirection, selectQuestion, type Random } from './selection.js';
@@ -40,6 +45,7 @@ import {
   clearedSessionCookie,
   createAccessGuard,
   createSession,
+  currentActor,
   currentUser,
   hashPassword,
   needsRehash,
@@ -129,6 +135,8 @@ const logRedaction = [
 export function buildServer(database?: SqliteDatabase, options: ServerOptions = {}) {
   const config = options.config ?? loadConfig();
   database ??= openDatabase(config.databasePath);
+  // Narrowed alias: the parameter is optional, closures need a definite type.
+  const db = database;
   const server = Fastify({
     logger: {
       level: config.logLevel,
@@ -155,12 +163,51 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
   const secureCookies = options.secureCookies ?? config.nodeEnv === 'production';
   const random = options.random ?? Math.random;
 
+  function isGuest(request: FastifyRequest): boolean {
+    return currentActor(request).type === 'guest';
+  }
+
+  /** The acting id for stores that are keyed by identity: a user id or a guest id. */
+  function actorId(request: FastifyRequest): string {
+    const actor = currentActor(request);
+    if (actor.type === 'guest') return actor.guestId;
+    if (actor.type === 'authenticated') return actor.user.id;
+    throw new Error('actorId() used on a route that allows anonymous access.');
+  }
+
+  // Vocabulary is shared, read-only content, so a guest reads it exactly as a user
+  // does. Nothing here writes.
+  const vocabulary = (): VocabularyRecord[] => getVocabulary(db);
+
+  /**
+   * Preferences, chosen by actor. A guest reads and writes the in-memory copy, so
+   * `updatePreferences` for a guest can never reach user_preferences.
+   */
+  function readPreferences(request: FastifyRequest) {
+    const actor = currentActor(request);
+    return actor.type === 'guest'
+      ? guestStore.getPreferences(actor.guestId)
+      : getPreferences(db, actor.type === 'authenticated' ? actor.user.id : '');
+  }
+
+  function writePreferences(request: FastifyRequest, preferences: UserPreferences) {
+    const actor = currentActor(request);
+    return actor.type === 'guest'
+      ? guestStore.updatePreferences(actor.guestId, preferences)
+      : updatePreferences(
+          db,
+          actor.type === 'authenticated' ? actor.user.id : '',
+          preferences,
+          new Date().toISOString(),
+        );
+  }
+
   server.decorateRequest('user', null);
   server.addHook(
     'onRequest',
     createOriginGuard(options.allowedOrigins ?? config.webOrigins, allowAllOrigins),
   );
-  server.addHook('preHandler', createAccessGuard(database));
+  server.addHook('preHandler', createAccessGuard(database, config.guestSessionSecret));
   // API responses contain personal data: never store them in browser, service worker, or proxy caches.
   server.addHook('onSend', async (request, reply) => {
     reply.headers(apiSecurityHeaders);
@@ -296,9 +343,31 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
 
   // Startup check for the web app: always 200, with `user: null` when nobody is signed in, so a
   // signed-out visit does not produce a failed request. `/auth/me` keeps answering 401.
+  // Tells the client which of the three identities is active. A real session
+  // always wins over a guest cookie, so signing in is never shadowed by guest mode.
   server.get('/api/v1/auth/session', { config: { access: 'public' } }, async (request, reply) =>
-    reply.send({ user: request.user ? safeUser(request.user) : null }),
+    reply.send({
+      user: request.user ? safeUser(request.user) : null,
+      guest: currentActor(request).type === 'guest',
+    }),
   );
+
+  // Starts a guest session. Nothing is written: the response is a signed cookie
+  // and no database record of any kind is created.
+  server.post('/api/v1/auth/guest', { config: { access: 'public' } }, async (_request, reply) => {
+    const guestId = createGuestId();
+    const token = signGuestToken(config.guestSessionSecret, guestId, Date.now());
+    reply.header('set-cookie', guestCookie(token, secureCookies));
+    return reply.code(201).send({ guest: { id: guestId } });
+  });
+
+  // Ends a guest session and discards its temporary state.
+  server.delete('/api/v1/auth/guest', { config: { access: 'public' } }, async (request, reply) => {
+    const actor = currentActor(request);
+    if (actor.type === 'guest') guestStore.forgetGuest(actor.guestId);
+    reply.header('set-cookie', clearedGuestCookie(secureCookies));
+    return reply.code(204).send();
+  });
 
   server.get('/api/v1/auth/me', async (request, reply) => {
     const user = currentUser(request);
@@ -385,12 +454,15 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
 
   server.get<{ Querystring: { direction?: string; practiceSessionId?: string } }>(
     '/api/v1/practice/question',
+    { config: { access: 'guest' } },
     async (request, reply) => {
-      const user = currentUser(request);
-      const preferences = getPreferences(database, user.id);
+      const id = actorId(request);
+      const preferences = readPreferences(request);
       const { practiceSessionId } = request.query;
       const practiceSession = practiceSessionId
-        ? getPracticeSession(database, user.id, practiceSessionId)
+        ? isGuest(request)
+          ? guestStore.getPracticeSession(id, practiceSessionId)
+          : getPracticeSession(db, id, practiceSessionId)
         : undefined;
       if (practiceSessionId && !practiceSession) {
         return reply.code(404).send({
@@ -412,11 +484,15 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         });
       }
       const selection = selectQuestion(
-        getSelectionCandidates(database, user.id, practiceSession?.id ?? null),
+        isGuest(request)
+          ? guestStore.getSelectionCandidates(id, practiceSession?.id ?? null, vocabulary)
+          : getSelectionCandidates(db, id, practiceSession?.id ?? null),
         {
           repetitionPreference: preferences.repetitionPreference,
           previousEntryId: practiceSession
-            ? getLastAttemptedEntryInSession(database, practiceSession.id)
+            ? isGuest(request)
+              ? guestStore.getLastAttemptedEntryInSession(id, practiceSession.id)
+              : getLastAttemptedEntryInSession(db, practiceSession.id)
             : null,
         },
         random,
@@ -451,8 +527,8 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
       practiceSessionId?: unknown;
       retry?: unknown;
     };
-  }>('/api/v1/practice/answer', async (request, reply) => {
-    const user = currentUser(request);
+  }>('/api/v1/practice/answer', { config: { access: 'guest' } }, async (request, reply) => {
+    const id = actorId(request);
     // `prompt` is accepted for compatibility but ignored: the stored prompt is derived on the
     // server, so a client cannot write arbitrary text into the attempt history.
     const { vocabularyEntryId, direction, submittedAnswer, practiceSessionId, retry } =
@@ -477,7 +553,9 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
     }
     const practiceSession =
       typeof practiceSessionId === 'string'
-        ? getPracticeSession(database, user.id, practiceSessionId)
+        ? isGuest(request)
+          ? guestStore.getPracticeSession(id, practiceSessionId)
+          : getPracticeSession(db, id, practiceSessionId)
         : undefined;
     if (typeof practiceSessionId === 'string') {
       if (!practiceSession) {
@@ -495,7 +573,7 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         });
       }
     }
-    const entry = getVocabulary(database).find((candidate) => candidate.id === vocabularyEntryId);
+    const entry = vocabulary().find((candidate) => candidate.id === vocabularyEntryId);
     if (!entry) {
       return reply.code(404).send({
         error: { code: 'QUESTION_NOT_FOUND', message: 'Question is no longer available.' },
@@ -526,13 +604,15 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
       });
     }
     const priorErrors = practiceSession
-      ? countIncorrectAttemptsInSession(database, practiceSession.id, entry.id)
+      ? isGuest(request)
+        ? guestStore.countIncorrectAttemptsInSession(id, practiceSession.id, entry.id)
+        : countIncorrectAttemptsInSession(db, practiceSession.id, entry.id)
       : 0;
     const scoreDelta = calculateScore(match.correct, priorErrors);
     const attemptId = createId();
-    recordAttempt(database, {
+    // `direction` is narrowed to a concrete direction by the validation above.
+    const attempt: Omit<GuestAttempt, 'id'> & { id: string } = {
       id: attemptId,
-      userId: user.id,
       vocabularyEntryId: entry.id,
       direction,
       prompt: direction === 'english-to-german' ? entry.english : entry.germanDisplay,
@@ -543,7 +623,18 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
       matchingReason: match.reason,
       attemptedAt: new Date().toISOString(),
       practiceSessionId: practiceSession?.id ?? null,
-    });
+    };
+    if (isGuest(request)) {
+      // Memory only. There is no branch here that could reach learning_attempts.
+      guestStore.recordAttempt(id, attempt);
+    } else {
+      recordAttempt(db, { ...attempt, userId: id });
+    }
+    // A user's answeredCount is derived from learning_attempts by the query, so only the
+    // guest's in-memory counter needs advancing.
+    if (practiceSession && isGuest(request)) {
+      guestStore.bumpAnsweredCount(id, practiceSession.id);
+    }
     return reply.send({
       result: {
         attemptId,
@@ -566,9 +657,10 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
 
   server.post<{ Body: { direction?: unknown } | undefined }>(
     '/api/v1/practice/sessions',
+    { config: { access: 'guest' } },
     async (request, reply) => {
-      const user = currentUser(request);
-      const preferences = getPreferences(database, user.id);
+      const id = actorId(request);
+      const preferences = readPreferences(request);
       const direction = practiceDirectionSchema.safeParse(
         request.body?.direction ?? preferences.direction,
       );
@@ -577,30 +669,33 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
           error: { code: 'INVALID_DIRECTION', message: 'Practice direction is invalid.' },
         });
       }
-      if (getVocabulary(database).length === 0) {
+      if (vocabulary().length === 0) {
         return reply
           .code(404)
           .send({ error: { code: 'NO_VOCABULARY', message: 'No vocabulary is available.' } });
       }
-      const session = startPracticeSession(
-        database,
-        {
-          id: createId(),
-          userId: user.id,
-          direction: direction.data,
-          questionCount: preferences.sessionLength,
-        },
-        new Date().toISOString(),
-      );
+      const now = new Date().toISOString();
+      const sessionInput = {
+        id: createId(),
+        direction: direction.data,
+        questionCount: preferences.sessionLength,
+      };
+      // A guest round is held in memory; only a user creates a practice_sessions row.
+      const session = isGuest(request)
+        ? guestStore.startPracticeSession(id, sessionInput, now)
+        : startPracticeSession(db, { ...sessionInput, userId: id }, now);
       return reply.code(201).send({ session: publicSession(session) });
     },
   );
 
   server.get<{ Params: { sessionId: string } }>(
     '/api/v1/practice/sessions/:sessionId',
+    { config: { access: 'guest' } },
     async (request, reply) => {
-      const user = currentUser(request);
-      const summary = getPracticeSessionSummary(database, user.id, request.params.sessionId);
+      const id = actorId(request);
+      const summary = isGuest(request)
+        ? guestStore.getPracticeSessionSummary(id, request.params.sessionId, vocabulary)
+        : getPracticeSessionSummary(db, id, request.params.sessionId);
       if (!summary) {
         return reply.code(404).send({
           error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
@@ -612,51 +707,69 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
 
   server.post<{ Params: { sessionId: string } }>(
     '/api/v1/practice/sessions/:sessionId/end',
+    { config: { access: 'guest' } },
     async (request, reply) => {
-      const user = currentUser(request);
-      const session = getPracticeSession(database, user.id, request.params.sessionId);
+      const id = actorId(request);
+      const session = isGuest(request)
+        ? guestStore.getPracticeSession(id, request.params.sessionId)
+        : getPracticeSession(db, id, request.params.sessionId);
       if (!session) {
         return reply.code(404).send({
           error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
         });
       }
+      const now = new Date().toISOString();
       if (session.status === 'active') {
-        endPracticeSession(database, session, new Date().toISOString());
+        if (isGuest(request)) guestStore.endPracticeSession(id, session, now);
+        else endPracticeSession(db, session, now);
       }
-      const summary = getPracticeSessionSummary(database, user.id, session.id);
+      const summary = isGuest(request)
+        ? guestStore.getPracticeSessionSummary(id, session.id, vocabulary)
+        : getPracticeSessionSummary(db, id, session.id);
       return reply.send({ session: summary ? publicSession(summary) : null });
     },
   );
 
-  server.get('/api/v1/dashboard', async (request, reply) => {
-    const user = currentUser(request);
-    return reply.send({ dashboard: getDashboardSummary(database, user.id) });
-  });
-
-  server.get('/api/v1/settings', async (request, reply) => {
-    const user = currentUser(request);
-    return reply.send({ settings: getPreferences(database, user.id) });
-  });
-
-  server.put<{ Body: unknown }>('/api/v1/settings', async (request, reply) => {
-    const user = currentUser(request);
-    const parsed = userPreferencesSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply
-        .code(400)
-        .send({ error: { code: 'INVALID_SETTINGS', message: 'Practice settings are invalid.' } });
-    }
+  server.get('/api/v1/dashboard', { config: { access: 'guest' } }, async (request, reply) => {
+    const id = actorId(request);
     return reply.send({
-      settings: updatePreferences(database, user.id, parsed.data, new Date().toISOString()),
+      dashboard: isGuest(request)
+        ? guestStore.getDashboardSummary(id, vocabulary)
+        : getDashboardSummary(db, id),
     });
   });
+
+  server.get('/api/v1/settings', { config: { access: 'guest' } }, async (request, reply) => {
+    return reply.send({ settings: readPreferences(request) });
+  });
+
+  server.put<{ Body: unknown }>(
+    '/api/v1/settings',
+    { config: { access: 'guest' } },
+    async (request, reply) => {
+      const parsed = userPreferencesSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply
+          .code(400)
+          .send({ error: { code: 'INVALID_SETTINGS', message: 'Practice settings are invalid.' } });
+      }
+      return reply.send({ settings: writePreferences(request, parsed.data) });
+    },
+  );
 
   server.post('/api/v1/auth/logout', { config: { access: 'public' } }, async (request, reply) => {
     const token = readSessionToken(request);
     if (token) {
       revokeSession(database, token, new Date().toISOString());
     }
-    reply.header('set-cookie', clearedSessionCookie(secureCookies));
+    // Leaving a session also ends guest mode and discards the guest's temporary
+    // state, so a shared device does not hand the next person a guest session.
+    const actor = currentActor(request);
+    if (actor.type === 'guest') guestStore.forgetGuest(actor.guestId);
+    reply.header('set-cookie', [
+      clearedSessionCookie(secureCookies),
+      clearedGuestCookie(secureCookies),
+    ]);
     return reply.code(204).send();
   });
 
