@@ -19,6 +19,14 @@
 
 ### Fixed
 
+- Exam mode now looks like the Practice mode it is modelled on. The start screen uses the dashboard hero, segmented direction control and action row; the running exam rebuilds the header in the same Exit → progress → meta order, and the question card uses the same prompt and answer sections, card states, action row and in-card verdict band. The screens referenced `.practice-dashboard*` and `.practice-card__head`, which do not exist, so most of their styling never applied.
+- The exam's question card and loading row are now centred like the practice card, rather than sitting in the left margin on a wide screen.
+- "N questions left" in the exam header is pluralised. `exam.remaining` and `examStats.examsWithScore` used the `_one`/`_other` key suffixes, which vue-i18n 9 and later ignore, so the raw key was shown on screen.
+- The exam's question counter is now the progress bar's description, and the bar's `aria-valuetext` is that same counter, so assistive technology reads the number sighted users read.
+- The running exam had no `h1` for its `aria-labelledby`, because the hero only rendered before the exam started. It now keeps a visually hidden heading for the duration.
+- The loading state between exam questions rendered nothing, because `LoadingState` was used in the template without being imported, leaving an unexplained gap on the card's line.
+- The exit button in the practice and exam bars wrapped its label under its icon on a tablet-width screen. The bar's side columns now hold the button's own width, and the bar, rather than the button, is what reflows.
+
 - "Try again" could not be submitted: the retry was blocked because the question was already marked as answered. A retry is now sent with `retry: true`, which the API checks with the normal matching policy but does not record, so it earns no points, keeps the question slot, and does not change accuracy. It also works after a miss on the last question.
 - The legacy button row under the practice card rendered a second "Next question" and a second "End session" after every answer, and took focus away from the card's primary action. It is removed; focus now lands on the single primary action, so Enter after a miss triggers "Try again" rather than skipping.
 - The practice header advanced to the next question number as soon as an answer was checked, while the card still showed the current question.

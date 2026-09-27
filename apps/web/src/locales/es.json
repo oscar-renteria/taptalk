@@ -247,8 +247,11 @@
     "questionCountHint": "El número de preguntas viene de tus ajustes.",
     "progressName": "Progreso del examen",
     "questionOf": "Pregunta {current} de {total}",
-    "remaining_one": "Queda {count} pregunta",
-    "remaining_other": "Quedan {count} preguntas",
+    "questionTitle": "Pregunta del examen",
+    "remaining": "Queda {count} pregunta | Quedan {count} preguntas",
+    "pressEnter": "Pulsa",
+    "enterKey": "Enter",
+    "toSubmit": "para enviar.",
     "submit": "Enviar respuesta",
     "nextQuestion": "Siguiente pregunta",
     "correct": "Correcto",
@@ -284,8 +287,7 @@
     "trendSummary": "Puntuaciones de tus últimos {count} exámenes, de más antiguo a más reciente.",
     "startExam": "Empezar un examen",
     "correctOf": "{correct} de {total}",
-    "examsWithScore_one": "{count} examen",
-    "examsWithScore_other": "{count} exámenes",
+    "examsWithScore": "{count} examen | {count} exámenes",
     "openResult": "Abrir resultado",
     "backToExams": "Volver a los exámenes"
   }

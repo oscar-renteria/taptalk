@@ -60,6 +60,32 @@ describe('translation resources', () => {
     expect(deFlat['app.name']).toBe('TapTalk');
     expect(esFlat['app.name']).toBe('TapTalk');
   });
+
+  it('uses the plural form this version of vue-i18n understands', () => {
+    // vue-i18n 9 and later read a count as `singular | plural`. The older
+    // `key_one` / `key_other` pair is silently ignored, so the raw key is
+    // rendered on screen in place of the sentence.
+    const legacy = Object.keys(enFlat).filter((key) => /_(zero|one|two|few|many|other)$/.test(key));
+    expect(legacy, 'legacy plural suffixes are ignored by vue-i18n 9+').toEqual([]);
+
+    for (const [locale, flat] of Object.entries({ en: enFlat, de: deFlat, es: esFlat })) {
+      for (const [key, message] of Object.entries(flat)) {
+        if (!message.includes(' | ')) continue;
+        const forms = message.split(' | ');
+        expect(forms.length, `${locale}.${key} needs one form per plural rule`).toBe(2);
+        expect(forms[0], `${locale}.${key} has a singular form`).not.toBe(forms[1]);
+      }
+    }
+  });
+
+  it('resolves a pluralised message through the i18n instance', async () => {
+    await setLocale('en');
+    expect(i18n.global.t('exam.remaining', { count: 1 })).toBe('1 question left');
+    expect(i18n.global.t('exam.remaining', { count: 45 })).toBe('45 questions left');
+    await setLocale('de');
+    expect(i18n.global.t('exam.remaining', { count: 1 })).toBe('Noch 1 Frage');
+    expect(i18n.global.t('exam.remaining', { count: 45 })).toBe('Noch 45 Fragen');
+  });
 });
 
 describe('locale selection', () => {

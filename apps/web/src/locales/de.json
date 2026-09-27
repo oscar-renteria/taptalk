@@ -247,8 +247,11 @@
     "questionCountHint": "Die Anzahl der Fragen kommt aus deinen Einstellungen.",
     "progressName": "Prüfungsfortschritt",
     "questionOf": "Frage {current} von {total}",
-    "remaining_one": "Noch {count} Frage",
-    "remaining_other": "Noch {count} Fragen",
+    "questionTitle": "Prüfungsfrage",
+    "remaining": "Noch {count} Frage | Noch {count} Fragen",
+    "pressEnter": "Drücke",
+    "enterKey": "Enter",
+    "toSubmit": "zum Absenden.",
     "submit": "Antwort absenden",
     "nextQuestion": "Nächste Frage",
     "correct": "Richtig",
@@ -284,8 +287,7 @@
     "trendSummary": "Ergebnisse deiner letzten {count} Prüfungen, älteste zuerst.",
     "startExam": "Prüfung starten",
     "correctOf": "{correct} von {total}",
-    "examsWithScore_one": "{count} Prüfung",
-    "examsWithScore_other": "{count} Prüfungen",
+    "examsWithScore": "{count} Prüfung | {count} Prüfungen",
     "openResult": "Ergebnis öffnen",
     "backToExams": "Zurück zu den Prüfungen"
   }

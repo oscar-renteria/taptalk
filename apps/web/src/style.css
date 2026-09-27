@@ -1028,7 +1028,9 @@ form {
 
 .practice-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 30rem) minmax(0, 1fr);
+  /* The side columns never shrink below their content, so the exit control and
+     the counter stay on one line and the bar centres in what is left. */
+  grid-template-columns: minmax(min-content, 1fr) minmax(0, 30rem) minmax(min-content, 1fr);
   gap: var(--space-4);
   align-items: center;
   width: 100%;
@@ -1037,6 +1039,10 @@ form {
 .practice-bar__exit {
   justify-self: start;
   padding-inline: 0.6rem 1rem;
+  white-space: nowrap;
+  /* The button keeps its icon beside the label; the bar itself is what wraps on
+     a narrow screen, so an enlarged label never forces a horizontal scroll. */
+  flex-wrap: nowrap;
 }
 
 .practice-bar__progress {
@@ -1082,6 +1088,9 @@ form {
   gap: 0;
   width: min(100%, 45rem);
   max-width: none;
+  /* Centred like the practice card, so the exam and the round it is modelled on
+     keep the same optical column on a wide screen. */
+  justify-self: center;
   /* `clip` rather than `hidden`, so the sticky phone action is not trapped in a
      scroll container. */
   overflow: hidden;
@@ -1673,6 +1682,32 @@ h1[tabindex='-1']:focus {
    Reuses the existing spacing, colour, and card tokens. The trend is a plain
    bar list rather than a chart library: it needs no new dependency, scales to
    any number of exams, and the values are also in the text for screen readers. */
+
+/* The start screen uses the practice dashboard's own hero, control, and action
+   classes, so both screens are built from the same parts. There is no second
+   column of destination cards here, so the lead spans the dashboard's width
+   instead of leaving half the desktop grid empty. */
+.exam-start {
+  grid-column: 1 / -1;
+}
+
+/* The results sit in the same centred column as the exam card, so the screen
+   keeps its width when the exam ends. */
+.exam-results {
+  display: grid;
+  gap: var(--space-6);
+  justify-self: center;
+  width: min(100%, 45rem);
+}
+
+/* While a question is on its way the card is absent, so the loading row keeps
+   the card's width and centring instead of collapsing into the corner. */
+.exam-loading {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 45rem);
+  min-height: 3.5rem;
+}
 
 .exam-trend {
   display: grid;

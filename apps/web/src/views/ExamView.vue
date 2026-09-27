@@ -6,6 +6,7 @@ import {
   AppButton,
   AppCard,
   LiveMessage,
+  LoadingState,
   ProgressIndicator,
   StatusMessage,
   TextField,
@@ -39,6 +40,11 @@ const directionChoices = computed(() => [
 
 const questionNumber = computed(() => Math.min(exam.answeredCount + 1, exam.questionCount));
 const remaining = computed(() => Math.max(0, exam.questionCount - exam.answeredCount));
+// The exam reuses the practice card's states, so the verdict, the card border, and
+// the input colour always move together instead of styling the outcome separately.
+const cardState = computed(() =>
+  exam.lastCorrect === null ? 'answering' : exam.lastCorrect ? 'correct' : 'miss',
+);
 
 /** Locale-aware formatting, matching the rest of the app. */
 function formatNumber(value: number): string {
@@ -128,12 +134,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="content-section" aria-labelledby="exam-title">
+  <section class="content-section content-section--wide" aria-labelledby="exam-title">
     <!-- Results: shown only once the exam has ended. -->
     <template v-if="exam.result">
-      <div class="practice-dashboard">
-        <div class="practice-dashboard__hero">
-          <p class="eyebrow">{{ t('exam.resultsEyebrow') }}</p>
+      <div class="exam-results">
+        <div class="dashboard__hero">
+          <p class="eyebrow eyebrow--success">{{ t('exam.resultsEyebrow') }}</p>
           <h1 id="exam-title">{{ t('exam.resultsTitle') }}</h1>
         </div>
 
@@ -218,7 +224,34 @@ onMounted(async () => {
 
     <!-- Running exam: the question, progress, and one word of verdict. -->
     <template v-else-if="examInProgress()">
-      <div class="practice-bar">
+      <!-- The hero is gone while an exam runs, but the section still needs an
+           accessible name, so the heading is kept for assistive technology. -->
+      <h1 id="exam-title" class="visually-hidden">{{ t('exam.questionTitle') }}</h1>
+
+      <!-- Exit, counter with its progress bar, and the questions left sit on one
+           row, in the same order and balance as the practice header. -->
+      <header class="practice-bar">
+        <AppButton
+          variant="secondary"
+          class="practice-bar__exit"
+          :disabled="exam.ending"
+          @click="confirmingExit = true"
+        >
+          <svg
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+          {{ t('exam.exit') }}
+        </AppButton>
         <ProgressIndicator
           class="practice-bar__progress"
           :name="t('exam.progressName')"
@@ -231,31 +264,17 @@ onMounted(async () => {
             {{ t('exam.remaining', { count: remaining }) }}
           </p>
         </div>
-        <AppButton variant="text" :disabled="exam.ending" @click="confirmingExit = true">
-          {{ t('exam.exit') }}
-        </AppButton>
-      </div>
+      </header>
 
-      <!-- The verdict is one icon plus one word. The icon is real text rather than
-           a CSS decoration, so correctness is never carried by colour alone. -->
-      <StatusMessage
-        v-if="exam.lastCorrect !== null"
-        :tone="exam.lastCorrect ? 'success' : 'error'"
-        data-testid="exam-verdict"
+      <form
+        v-if="question"
+        class="practice-card"
+        :data-state="cardState"
+        :aria-busy="loadingQuestion ? 'true' : undefined"
+        novalidate
+        @submit.prevent="submit"
       >
-        <span aria-hidden="true">{{ exam.lastCorrect ? '✓' : '✗' }}</span>
-        {{ exam.lastCorrect ? t('exam.correct') : t('exam.incorrect') }}
-      </StatusMessage>
-
-      <form v-if="question" class="practice-card" @submit.prevent="submit">
-        <div class="practice-card__head">
-          <p id="exam-question-text" class="practice-card__question">
-            {{
-              question.direction === 'english-to-german'
-                ? t('practice.howDoYouSay')
-                : t('practice.whatDoesItMean')
-            }}
-          </p>
+        <div class="practice-card__prompt">
           <p
             id="exam-prompt-text"
             class="prompt"
@@ -265,72 +284,119 @@ onMounted(async () => {
             {{ question.prompt }}
           </p>
         </div>
-        <TextField
-          id="exam-answer"
-          v-model="submitted"
-          :label="t('practice.yourAnswer')"
-          class="practice-card__input"
-          :lang="question.direction === 'english-to-german' ? 'de' : 'en'"
-          describedby="exam-question-text exam-prompt-text"
-          exercise
-          autocomplete="off"
-          enterkeyhint="done"
-          :readonly="exam.lastCorrect !== null"
-        />
+        <div class="practice-card__answer">
+          <p id="exam-question-text" class="practice-card__question">
+            {{
+              question.direction === 'english-to-german'
+                ? t('practice.howDoYouSay')
+                : t('practice.whatDoesItMean')
+            }}
+          </p>
+          <TextField
+            id="exam-answer"
+            v-model="submitted"
+            :label="t('practice.yourAnswer')"
+            class="practice-card__input"
+            :lang="question.direction === 'english-to-german' ? 'de' : 'en'"
+            describedby="exam-prompt-text exam-question-text"
+            exercise
+            autocomplete="off"
+            enterkeyhint="done"
+            :readonly="exam.lastCorrect !== null"
+          />
+          <p v-if="exam.lastCorrect === null" class="muted practice-card__hint">
+            {{ t('exam.pressEnter') }} <kbd>{{ t('exam.enterKey') }}</kbd>
+            {{ t('exam.toSubmit') }}
+          </p>
+        </div>
+
+        <!-- The verdict is one icon plus one word, in the same in-card feedback row
+             practice uses. The icon is real text rather than a CSS decoration, so
+             correctness is never carried by colour alone. The row is an alert only
+             for a wrong answer, so it is announced without interrupting a correct one. -->
+        <div
+          v-if="exam.lastCorrect !== null"
+          class="practice-card__feedback"
+          :data-tone="exam.lastCorrect ? 'success' : 'warning'"
+          :role="exam.lastCorrect ? 'status' : 'alert'"
+          data-testid="exam-verdict"
+        >
+          <span class="practice-card__badge" aria-hidden="true">
+            {{ exam.lastCorrect ? '✓' : '✗' }}
+          </span>
+          <p class="practice-card__verdict">
+            {{ exam.lastCorrect ? t('exam.correct') : t('exam.incorrect') }}
+          </p>
+        </div>
+
         <div class="practice-action">
           <AppButton
             v-if="exam.lastCorrect === null"
             type="submit"
+            variant="dark"
             :loading="loadingQuestion"
             :disabled="loadingQuestion || !submitted.trim()"
           >
             {{ t('exam.submit') }}
           </AppButton>
           <AppButton v-else :loading="loadingQuestion" :disabled="loadingQuestion" @click="next">
-            {{ t('exam.nextQuestion') }}
+            {{ t('exam.nextQuestion') }} <span aria-hidden="true">→</span>
           </AppButton>
         </div>
       </form>
-      <LoadingState v-else-if="loadingQuestion" :label="t('common.loading')" />
+      <div v-if="!question && loadingQuestion" class="exam-loading">
+        <LoadingState :label="t('common.loading')" />
+      </div>
     </template>
 
     <!-- Start -->
     <template v-else>
-      <div class="practice-dashboard">
-        <div class="practice-dashboard__hero">
-          <p class="eyebrow">{{ t('exam.eyebrow') }}</p>
-          <h1 id="exam-title">{{ t('exam.heading') }}</h1>
-          <p class="practice-dashboard__intro">{{ t('exam.intro') }}</p>
-        </div>
-
-        <StatusMessage
-          v-if="exam.failed === 'vocabulary'"
-          tone="warning"
-          :message="t('vocabulary.startBlocked')"
-        />
-        <StatusMessage v-else-if="exam.failed" tone="error" :message="t('exam.failed')" />
-
-        <fieldset class="segmented">
-          <legend>{{ t('practice.direction') }}</legend>
-          <div class="segmented__options">
-            <label v-for="choice in directionChoices" :key="choice.value" class="segmented__option">
-              <input v-model="direction" type="radio" name="exam-direction" :value="choice.value" />
-              <span>{{ choice.label }}</span>
-            </label>
+      <div class="dashboard">
+        <div class="dashboard__lead exam-start">
+          <div class="dashboard__hero">
+            <p class="eyebrow">{{ t('exam.eyebrow') }}</p>
+            <h1 id="exam-title" tabindex="-1">{{ t('exam.heading') }}</h1>
+            <p class="dashboard__intro">{{ t('exam.intro') }}</p>
           </div>
-        </fieldset>
 
-        <div class="dashboard__start">
-          <AppButton
-            class="btn--large"
-            :loading="exam.loading"
-            :loading-label="t('exam.starting')"
-            :disabled="exam.loading"
-            @click="begin"
-          >
-            {{ t('exam.start') }}
-          </AppButton>
-          <span class="muted">{{ t('exam.questionCountHint') }}</span>
+          <StatusMessage
+            v-if="exam.failed === 'vocabulary'"
+            tone="warning"
+            :message="t('vocabulary.startBlocked')"
+          />
+          <StatusMessage v-else-if="exam.failed" tone="error" :message="t('exam.failed')" />
+
+          <fieldset class="segmented">
+            <legend>{{ t('practice.direction') }}</legend>
+            <div class="segmented__options">
+              <label
+                v-for="choice in directionChoices"
+                :key="choice.value"
+                class="segmented__option"
+              >
+                <input
+                  v-model="direction"
+                  type="radio"
+                  name="exam-direction"
+                  :value="choice.value"
+                />
+                <span>{{ choice.label }}</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="dashboard__start">
+            <AppButton
+              class="btn--large"
+              :loading="exam.loading"
+              :loading-label="t('exam.starting')"
+              :disabled="exam.loading"
+              @click="begin"
+            >
+              {{ t('exam.start') }}
+            </AppButton>
+            <span class="muted">{{ t('exam.questionCountHint') }}</span>
+          </div>
         </div>
       </div>
     </template>

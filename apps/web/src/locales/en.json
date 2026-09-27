@@ -247,8 +247,11 @@
     "questionCountHint": "The number of questions comes from your settings.",
     "progressName": "Exam progress",
     "questionOf": "Question {current} of {total}",
-    "remaining_one": "{count} question left",
-    "remaining_other": "{count} questions left",
+    "questionTitle": "Exam question",
+    "remaining": "{count} question left | {count} questions left",
+    "pressEnter": "Press",
+    "enterKey": "Enter",
+    "toSubmit": "to submit.",
     "submit": "Submit answer",
     "nextQuestion": "Next question",
     "correct": "Correct",
@@ -284,8 +287,7 @@
     "trendSummary": "Scores for your last {count} exams, oldest first.",
     "startExam": "Start an exam",
     "correctOf": "{correct} of {total}",
-    "examsWithScore_one": "{count} exam",
-    "examsWithScore_other": "{count} exams",
+    "examsWithScore": "{count} exam | {count} exams",
     "openResult": "Open result",
     "backToExams": "Back to exams"
   }
