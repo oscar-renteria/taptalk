@@ -2,6 +2,7 @@ import type { DashboardSummary, PracticeDirection, UserPreferences } from '@tapt
 import { recentAttemptWindow, type SelectionCandidate } from './selection.js';
 import type {
   PracticeSessionRecord,
+  PracticeVocabularyEntry,
   PracticeSessionStatus,
   PracticeSessionSummary,
   VocabularyRecord,
@@ -37,6 +38,8 @@ type GuestData = {
   preferences: UserPreferences;
   sessions: Map<string, GuestSession>;
   attempts: GuestAttempt[];
+  /** Vocabulary entries the guest has switched off for practice. */
+  excludedEntryIds: Set<string>;
 };
 
 const defaultPreferences: UserPreferences = {
@@ -57,6 +60,7 @@ function dataFor(guestId: string): GuestData {
     preferences: { ...defaultPreferences },
     sessions: new Map(),
     attempts: [],
+    excludedEntryIds: new Set(),
   };
   guests.set(guestId, data);
   while (guests.size > maxGuests) {
@@ -162,8 +166,12 @@ export function getSelectionCandidates(
 ): SelectionCandidate[] {
   const data = dataFor(guestId);
   // Only entries with at least one accepted answer, matching the user query, so
-  // an unanswerable entry is never asked of a guest either.
-  const entries = vocabulary().filter((entry) => entry.answers.length > 0);
+  // an unanswerable entry is never asked of a guest either. Entries the guest
+  // switched off are excluded here, the same place the user query filters them,
+  // so a disabled entry can never be asked of either kind of session.
+  const entries = vocabulary().filter(
+    (entry) => entry.answers.length > 0 && !data.excludedEntryIds.has(entry.id),
+  );
   const history = new Map<string, GuestAttempt[]>();
   for (const attempt of data.attempts) {
     const list = history.get(attempt.vocabularyEntryId) ?? [];
@@ -283,4 +291,48 @@ export function getDashboardSummary(
 export function bumpAnsweredCount(guestId: string, sessionId: string): void {
   const session = dataFor(guestId).sessions.get(sessionId);
   if (session) session.answeredCount += 1;
+}
+
+// --- Practice vocabulary selection -------------------------------------------
+//
+// The guest mirror of the repository functions above. Held in the same
+// in-memory record, so a guest's selection is temporary exactly like the rest of
+// their session and is never written anywhere.
+
+export function getPracticeVocabulary(
+  guestId: string,
+  vocabulary: VocabularySource,
+): PracticeVocabularyEntry[] {
+  const disabled = dataFor(guestId).excludedEntryIds;
+  return vocabulary()
+    .map((entry) => ({
+      id: entry.id,
+      english: entry.english,
+      german: entry.germanDisplay,
+      enabled: !disabled.has(entry.id),
+    }))
+    .sort((a, b) => a.english.localeCompare(b.english) || a.id.localeCompare(b.id));
+}
+
+export function setPracticeVocabularyExclusions(
+  guestId: string,
+  vocabulary: VocabularySource,
+  disabledIds: string[],
+): PracticeVocabularyEntry[] {
+  const unique = [...new Set(disabledIds)];
+  const known = new Set(vocabulary().map((entry) => entry.id));
+  const unknown = unique.filter((id) => !known.has(id));
+  if (unknown.length > 0) {
+    const error = new Error('One or more vocabulary entries do not exist.');
+    error.name = 'GuestVocabularyError';
+    throw error;
+  }
+  dataFor(guestId).excludedEntryIds = new Set(unique);
+  return getPracticeVocabulary(guestId, vocabulary);
+}
+
+/** How many entries a guest can still practise. */
+export function countPracticeVocabulary(guestId: string, vocabulary: VocabularySource): number {
+  const disabled = dataFor(guestId).excludedEntryIds;
+  return vocabulary().reduce((total, entry) => total + (disabled.has(entry.id) ? 0 : 1), 0);
 }

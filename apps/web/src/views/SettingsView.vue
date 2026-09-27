@@ -5,6 +5,13 @@ import { AppButton, SelectField, LiveMessage, TextField } from '../components';
 import { apiFetch, jsonRequest } from '../api';
 import { setLocale, supportedLocales, type LocaleCode } from '../i18n';
 import { directionValues, type Direction, type Tone } from '../types';
+import {
+  enabledCount,
+  loadPracticeVocabulary,
+  practiceVocabulary,
+  setAllEnabled,
+  setEntryEnabled,
+} from '../practice-vocabulary';
 const { t, locale } = useI18n();
 
 type Settings = {
@@ -53,6 +60,7 @@ function show(nextTone: Tone, text: string): void {
 
 onMounted(async () => {
   loading.value = true;
+  void loadPracticeVocabulary();
   try {
     const response = await apiFetch('/api/v1/settings');
     const payload = (await response.json()) as { settings?: Partial<Settings> };
@@ -135,6 +143,78 @@ async function save(): Promise<void> {
         @update:model-value="changeLanguage"
       />
     </fieldset>
+    <!-- Practice vocabulary: which entries Practice Mode may use. Available to
+         every identity, and stored the same way each identity stores everything
+         else (an account for a user, temporary state for a guest). -->
+    <section class="content-section" aria-labelledby="vocab-title">
+      <h2 id="vocab-title" class="settings__heading">{{ t('vocabulary.title') }}</h2>
+      <p class="muted">{{ t('vocabulary.intro') }}</p>
+
+      <p v-if="practiceVocabulary.saving" class="muted" role="status">
+        {{ t('vocabulary.saving') }}
+      </p>
+      <p v-else-if="practiceVocabulary.error === 'load'" class="field__error" role="alert">
+        {{ t('vocabulary.loadFailed') }}
+      </p>
+      <p v-else-if="practiceVocabulary.error === 'save'" class="field__error" role="alert">
+        {{ t('vocabulary.saveFailed') }}
+      </p>
+
+      <LoadingState
+        v-if="practiceVocabulary.loading && !practiceVocabulary.loaded"
+        :label="t('vocabulary.loading')"
+      />
+
+      <template v-else>
+        <p v-if="!practiceVocabulary.entries.length" class="muted">
+          {{ t('vocabulary.empty') }}
+        </p>
+
+        <template v-else>
+          <!-- Not a live region: each checkbox already announces its own state, so
+               announcing the count on every tick would only add noise. -->
+          <p class="muted vocabulary__count">
+            {{
+              t('vocabulary.selectedOf', {
+                enabled: enabledCount(),
+                total: practiceVocabulary.entries.length,
+              })
+            }}
+          </p>
+          <p v-if="!enabledCount()" class="field__error">{{ t('vocabulary.noneSelected') }}</p>
+
+          <div class="button-row">
+            <AppButton variant="secondary" @click="setAllEnabled(true)">
+              {{ t('vocabulary.selectAll') }}
+            </AppButton>
+            <AppButton variant="secondary" @click="setAllEnabled(false)">
+              {{ t('vocabulary.deselectAll') }}
+            </AppButton>
+          </div>
+
+          <!-- A native checkbox per row, wrapped in a label so the whole row is the
+               tap target. State is carried by the control itself, not by colour. -->
+          <ul class="vocabulary__list">
+            <li v-for="entry in practiceVocabulary.entries" :key="entry.id">
+              <label class="vocabulary__row">
+                <input
+                  type="checkbox"
+                  class="vocabulary__checkbox"
+                  :checked="entry.enabled"
+                  @change="setEntryEnabled(entry.id, ($event.target as HTMLInputElement).checked)"
+                />
+                <span class="vocabulary__word">{{ entry.english }}</span>
+                <span class="vocabulary__translation muted">{{ entry.german }}</span>
+                <span class="visually-hidden">
+                  {{ entry.enabled ? t('vocabulary.stateEnabled') : t('vocabulary.stateDisabled') }}
+                </span>
+              </label>
+            </li>
+          </ul>
+        </template>
+      </template>
+    </section>
+
     <LiveMessage :tone="tone" :message="message" />
   </section>
 </template>

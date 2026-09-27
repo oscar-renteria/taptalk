@@ -212,5 +212,22 @@
     "menuNotice": "Sesión de invitado. Tu progreso es temporal y no se guarda en ninguna cuenta.",
     "banner": "Estás usando TapTalk como invitado. No se guarda nada en ninguna cuenta.",
     "temporaryNotice": "El progreso de invitado es temporal y no se guarda en ninguna cuenta."
+  },
+  "vocabulary": {
+    "title": "Vocabulario de práctica",
+    "intro": "Elige qué palabras usa el modo de práctica. Las que desactives se omiten y nunca aparecen en una ronda.",
+    "loading": "Cargando vocabulario...",
+    "saving": "Guardando...",
+    "loadFailed": "No se pudo cargar el vocabulario.",
+    "saveFailed": "No se pudieron guardar los cambios.",
+    "empty": "Todavía no hay vocabulario. Una persona administradora puede importar palabras desde la pantalla de Vocabulario.",
+    "selectedOf": "{enabled} de {total} palabras seleccionadas para practicar",
+    "noneSelected": "Ahora mismo no hay ninguna palabra seleccionada para practicar. Activa al menos una para empezar una ronda.",
+    "selectAll": "Seleccionar todas",
+    "deselectAll": "Deseleccionar todas",
+    "stateEnabled": "seleccionada para practicar",
+    "stateDisabled": "no seleccionada para practicar",
+    "dashboardLink": "Elegir vocabulario de práctica",
+    "startBlocked": "Ahora mismo no hay ninguna palabra seleccionada para practicar."
   }
 }

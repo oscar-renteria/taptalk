@@ -105,6 +105,29 @@ export const attemptResultSchema = z.object({
   matchingReason: z.string().min(1),
 });
 
+/**
+ * Which vocabulary entries a user has switched off for Practice Mode.
+ *
+ * Only excluded ids are sent, so an empty array means "practise everything".
+ * Ids are the stable `vocabulary_entries.id` primary key, never the displayed
+ * word, so two entries sharing a word cannot collide.
+ */
+export const practiceVocabularyExclusionsSchema = z.object({
+  disabledIds: z.array(z.string().min(1).max(64)).max(5_000),
+});
+
+/** One row of the Settings vocabulary list. */
+export const practiceVocabularyEntrySchema = z.object({
+  id: z.string().min(1),
+  english: z.string().min(1),
+  german: z.string().min(1),
+  enabled: z.boolean(),
+});
+
+export const practiceVocabularySchema = z.object({
+  entries: z.array(practiceVocabularyEntrySchema),
+});
+
 export const dashboardSummarySchema = z.object({
   totalPoints: z.number().finite(),
   totalAttempts: z.number().int().nonnegative(),
@@ -127,3 +150,6 @@ export type PracticeDirection = z.infer<typeof practiceDirectionSchema>;
 export type UserPreferences = z.infer<typeof userPreferencesSchema>;
 export type AttemptResult = z.infer<typeof attemptResultSchema>;
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
+export type PracticeVocabularyExclusions = z.infer<typeof practiceVocabularyExclusionsSchema>;
+export type PracticeVocabularyEntry = z.infer<typeof practiceVocabularyEntrySchema>;
+export type PracticeVocabulary = z.infer<typeof practiceVocabularySchema>;

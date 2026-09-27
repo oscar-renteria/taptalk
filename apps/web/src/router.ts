@@ -7,6 +7,7 @@ import {
 } from 'vue-router';
 import { setSessionExpiredHandler } from './api';
 import { i18n } from './i18n';
+import { flushPracticeVocabulary } from './practice-vocabulary';
 import { actorKind, restoreSession, session } from './session';
 import AdminImportView from './views/AdminImportView.vue';
 import AuthView from './views/AuthView.vue';
@@ -85,6 +86,9 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
 
   // The UI guard only decides what to show; the API enforces access on every request.
   router.beforeEach(async (to): Promise<true | RouteLocationRaw> => {
+    // Leaving Settings is as good a moment as closing the tab: a pending
+    // vocabulary edit is sent now rather than waiting out its debounce.
+    flushPracticeVocabulary();
     await restoreSession();
     const { access } = to.meta;
     // Anyone with an identity (a real user or a guest) is kept out of the account screens.
