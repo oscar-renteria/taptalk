@@ -14,7 +14,9 @@
     "signedInAs": "Signed in as {username}",
     "logOut": "Log out",
     "more": "More",
-    "pageNotFound": "Page not found"
+    "pageNotFound": "Page not found",
+    "guestBadge": "Guest",
+    "guestMenu": "Guest session menu"
   },
   "common": {
     "checking": "Checking...",
@@ -200,5 +202,15 @@
     "goToLogin": "Go to login",
     "updateAvailable": "A new version of TapTalk is ready.",
     "updateNow": "Reload to update"
+  },
+  "guest": {
+    "continue": "Continue as Guest",
+    "starting": "Starting...",
+    "notice": "You're using the app as a guest. Your progress is temporary and won't be saved to an account.",
+    "failed": "Guest mode could not be started. Try again.",
+    "end": "End guest session",
+    "menuNotice": "Guest session. Your progress is temporary and is not saved to an account.",
+    "banner": "You are using TapTalk as a guest. Nothing is saved to an account.",
+    "temporaryNotice": "Guest progress is temporary and is not saved to an account."
   }
 }

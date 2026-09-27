@@ -4,6 +4,7 @@ import { passwordRules, registrationErrors, usernameRules } from '@taptalk/share
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { AppButton, SelectField, StatusMessage, TextField } from '../components';
+import { startGuestSession } from '../guest';
 import { setLocale, supportedLocales, type LocaleCode } from '../i18n';
 import { safeRedirect } from '../router';
 import { signIn } from '../session';
@@ -38,6 +39,25 @@ async function changeLanguage(value: string): Promise<void> {
 }
 
 const isRegister = computed(() => props.mode === 'register');
+const guestLoading = ref(false);
+
+// Starting guest mode is an explicit choice; a failure leaves the visitor on the
+// account screen with a message rather than dropping them into a broken session.
+async function continueAsGuest(): Promise<void> {
+  guestLoading.value = true;
+  formError.value = '';
+  try {
+    if (await startGuestSession()) {
+      await router.replace(safeRedirect(route.query.redirect));
+      return;
+    }
+    formError.value = t('guest.failed');
+  } catch {
+    formError.value = t('guest.failed');
+  } finally {
+    guestLoading.value = false;
+  }
+}
 // The router adds `expired` when a 401 ended the session, so the return is explained rather than
 // leaving the learner to wonder why they are back at the login screen.
 const sessionEnded = computed(() => route.query.expired === '1');
@@ -197,6 +217,17 @@ async function submit(): Promise<void> {
     >
       {{ isRegister ? t('auth.haveAccount') : t('auth.noAccount') }}
     </RouterLink>
+    <AppButton
+      class="auth__guest"
+      variant="secondary"
+      :loading="guestLoading"
+      :loading-label="t('guest.starting')"
+      :disabled="guestLoading"
+      @click="continueAsGuest"
+    >
+      {{ t('guest.continue') }}
+    </AppButton>
+    <p class="auth__guest-note muted">{{ t('guest.notice') }}</p>
     <div class="auth__language">
       <SelectField
         id="auth-language"

@@ -11,6 +11,7 @@ const productionEnvironment: NodeJS.ProcessEnv = {
   AUTH_RATE_LIMIT_MAX: '20',
   LOG_LEVEL: 'info',
   SHUTDOWN_TIMEOUT_MS: '10000',
+  GUEST_SESSION_SECRET: 'test-guest-secret',
 };
 
 describe('production configuration', () => {
@@ -25,7 +26,17 @@ describe('production configuration', () => {
       authRateLimitMax: 20,
       logLevel: 'info',
       shutdownTimeoutMs: 10_000,
+      guestSessionSecret: 'test-guest-secret',
     });
+  });
+
+  it('generates an ephemeral guest secret when none is configured', () => {
+    const env = { ...productionEnvironment, GUEST_SESSION_SECRET: undefined };
+    const secret = loadConfig(env).guestSessionSecret;
+    expect(secret).toHaveLength(64);
+    // A fresh boot invalidates previous guest cookies, which is the documented
+    // behaviour when no secret is pinned.
+    expect(loadConfig(env).guestSessionSecret).not.toBe(secret);
   });
 
   it.each([

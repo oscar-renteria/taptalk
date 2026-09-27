@@ -338,6 +338,20 @@ form {
   white-space: nowrap;
 }
 
+/* The guest badge reuses the username styling so the header does not change shape
+   when a guest is using the app. */
+.account__guest {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Guest entry point on the account screen: same buttons, quieter weight. */
+.auth__guest {
+  justify-self: stretch;
+}
+
 .account__menu {
   position: absolute;
   top: calc(100% + 0.5rem);

@@ -97,11 +97,11 @@ describe('session protection', () => {
       await session({ cookie: 'taptalk_session=forged-token' }),
     ]) {
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ user: null });
+      expect(response.json()).toEqual({ user: null, guest: false });
     }
 
     database.prepare('UPDATE sessions SET expires_at = ?').run('2000-01-01T00:00:00.000Z');
-    expect((await session({ cookie })).json()).toEqual({ user: null });
+    expect((await session({ cookie })).json()).toEqual({ user: null, guest: false });
     expect(signedIn.headers['cache-control']).toBe('no-store');
     await server.close();
   });

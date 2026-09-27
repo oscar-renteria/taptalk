@@ -1,6 +1,7 @@
 import type { DashboardSummary, PracticeDirection, UserPreferences } from '@taptalk/shared';
 import type { SqliteDatabase } from './database.js';
 import { normalizeAnswer } from './matching.js';
+import { assertPersistableUserId } from './persistence.js';
 import { recentAttemptWindow, type SelectionCandidate } from './selection.js';
 import type { ParsedVocabularyRecord } from './vocabulary.js';
 
@@ -244,6 +245,7 @@ export function getVocabularyImportHistory(
 }
 
 export function ensurePreferences(database: SqliteDatabase, userId: string, now: string): void {
+  assertPersistableUserId(userId, 'ensurePreferences');
   database
     .prepare(
       `INSERT INTO user_preferences (user_id, updated_at) VALUES (?, ?)
@@ -274,6 +276,7 @@ export function updatePreferences(
   preferences: UserPreferences,
   now: string,
 ): UserPreferences {
+  assertPersistableUserId(userId, 'updatePreferences');
   database
     .prepare(
       `INSERT INTO user_preferences (user_id, direction, session_length, repetition_preference, updated_at)
@@ -309,6 +312,7 @@ export function recordAttempt(
     practiceSessionId?: string | null;
   },
 ): void {
+  assertPersistableUserId(attempt.userId, 'recordAttempt');
   database
     .prepare(
       `INSERT INTO learning_attempts
@@ -333,6 +337,7 @@ export function recordAttempt(
 }
 
 export function getDashboardSummary(database: SqliteDatabase, userId: string): DashboardSummary {
+  assertPersistableUserId(userId, 'getDashboardSummary');
   const totals = database
     .prepare(
       `SELECT COUNT(*) AS totalAttempts,
@@ -401,6 +406,7 @@ export function startPracticeSession(
   session: { id: string; userId: string; direction: PracticeDirection; questionCount: number },
   now: string,
 ): PracticeSessionRecord {
+  assertPersistableUserId(session.userId, 'startPracticeSession');
   database.exec('BEGIN');
   try {
     database

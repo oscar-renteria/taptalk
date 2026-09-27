@@ -4,6 +4,7 @@ import { createMemoryHistory } from 'vue-router';
 import App from './App.vue';
 import { i18n, setLocale } from './i18n';
 import { createAppRouter, installSessionExpiry } from './router';
+import { forgetGuestState } from './guest';
 import { resetSession } from './session';
 
 type MockResponse = { status?: number; body?: unknown };
@@ -40,6 +41,13 @@ export const learner = { username: 'learner', role: 'user' };
 export const signedIn = { 'GET /api/v1/auth/session': { body: { user: learner } } };
 export const signedOut = { 'GET /api/v1/auth/session': { body: { user: null } } };
 
+// The server reports a guest identity with no user; the client only reflects it.
+export const asGuest = { 'GET /api/v1/auth/session': { body: { user: null, guest: true } } };
+export const startGuest = {
+  'POST /api/v1/auth/guest': { status: 201, body: { guest: { id: 'guest_test' } } },
+};
+export const endGuest = { 'DELETE /api/v1/auth/guest': { status: 204, body: null } };
+
 export const admin = { username: 'admin', role: 'administrator' };
 export const signedInAdmin = { 'GET /api/v1/auth/session': { body: { user: admin } } };
 
@@ -47,6 +55,7 @@ export const signedInAdmin = { 'GET /api/v1/auth/session': { body: { user: admin
 // first navigation (including guard redirects) have completed.
 export async function mountApp(path: string) {
   resetSession();
+  forgetGuestState();
   // Tests start from English so assertions stay deterministic. A test that
   // needs another locale calls setLocale itself.
   await setLocale('en');
