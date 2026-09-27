@@ -240,11 +240,14 @@
   "exam": {
     "eyebrow": "Ponte a prueba",
     "heading": "Modo examen",
-    "intro": "Responde a cada pregunta de memoria. Solo se te dirá si cada respuesta fue correcta; los resultados completos aparecen cuando termine el examen.",
+    "intro": "Responde a cada pregunta de memoria. No se te dirá si una respuesta fue correcta: los resultados aparecen solo cuando termina el examen.",
     "start": "Empezar el examen",
     "starting": "Comenzando...",
     "failed": "No se pudo empezar el examen. Inténtalo de nuevo.",
-    "questionCountHint": "El número de preguntas viene de tus ajustes.",
+    "length": "Duración del examen",
+    "questionCount": "{count} pregunta | {count} preguntas",
+    "actualLength": "Este examen tiene {count} preguntas.",
+    "actualLengthTrimmed": "Tu vocabulario activado tiene {available} palabras, así que este examen tiene {count} preguntas.",
     "progressName": "Progreso del examen",
     "questionOf": "Pregunta {current} de {total}",
     "questionTitle": "Pregunta del examen",
@@ -273,7 +276,8 @@
     "yourAnswer": "Tu respuesta",
     "correctAnswer": "Respuesta correcta",
     "seeProgress": "Ver tu progreso",
-    "again": "Hacer otro examen"
+    "again": "Hacer otro examen",
+    "answerRecorded": "Respuesta registrada."
   },
   "examStats": {
     "exams": "Exámenes",

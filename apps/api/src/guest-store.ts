@@ -6,7 +6,14 @@ import type {
   PracticeDirection,
   UserPreferences,
 } from '@taptalk/shared';
-import { recentAttemptWindow, type SelectionCandidate } from './selection.js';
+import {
+  buildExamQuestionSet,
+  recentAttemptWindow,
+  type DirectionPreference,
+  type ExamQuestion,
+  type RepetitionPreference,
+  type SelectionCandidate,
+} from './selection.js';
 import type {
   PracticeSessionRecord,
   PracticeVocabularyEntry,
@@ -39,7 +46,12 @@ export type GuestAttempt = {
   practiceSessionId: string | null;
 };
 
-type GuestSession = PracticeSessionRecord & { attempts: GuestAttempt[]; kind: 'practice' | 'exam' };
+type GuestSession = PracticeSessionRecord & {
+  attempts: GuestAttempt[];
+  kind: 'practice' | 'exam';
+  /** The exam's frozen questions. Empty for a practice round. */
+  questions: ExamQuestion[];
+};
 
 type GuestData = {
   preferences: UserPreferences;
@@ -159,9 +171,51 @@ export function startPracticeSession(
     endedAt: null,
     answeredCount: 0,
     attempts: [],
+    questions: [],
   };
   data.sessions.set(session.id, record);
   return publicSession(record);
+}
+
+/**
+ * The guest mirror of `createExamQuestionSet`.
+ *
+ * Held in the same in-memory session, so a guest's exam is exactly as temporary
+ * as the rest of their session and is never written anywhere.
+ */
+export function createExamQuestionSet(
+  guestId: string,
+  sessionId: string,
+  candidates: SelectionCandidate[],
+  options: {
+    questionCount: number;
+    direction: DirectionPreference;
+    repetitionPreference: RepetitionPreference;
+  },
+  random: () => number,
+): ExamQuestion[] {
+  const session = dataFor(guestId).sessions.get(sessionId);
+  if (!session) return [];
+  const questions = buildExamQuestionSet(candidates, options, random);
+  session.questions = questions;
+  // The session is told the clamped length, so the count the learner sees is the
+  // count they will actually answer.
+  session.questionCount = questions.length;
+  return questions;
+}
+
+export function getExamQuestionAt(
+  guestId: string,
+  sessionId: string,
+  position: number,
+): ExamQuestion | undefined {
+  return dataFor(guestId)
+    .sessions.get(sessionId)
+    ?.questions.find((question) => question.position === position);
+}
+
+export function getExamQuestions(guestId: string, sessionId: string): ExamQuestion[] {
+  return dataFor(guestId).sessions.get(sessionId)?.questions ?? [];
 }
 
 export function getPracticeSession(
@@ -409,8 +463,9 @@ export function guestExamScore(correct: number, total: number): number {
 export function getExamHistory(guestId: string, limit: number): ExamHistoryEntry[] {
   return [...dataFor(guestId).sessions.values()]
     .filter(
-      (session) =>
-        session.kind === 'exam' && session.status !== 'active' && session.endedAt !== null,
+      // Only completed exams. An abandoned one was never evaluated, so it is not
+      // a result and must not appear as one.
+      (session) => session.kind === 'exam' && session.status === 'completed',
     )
     .sort((a, b) => Date.parse(b.endedAt!) - Date.parse(a.endedAt!))
     .slice(0, limit)
@@ -429,8 +484,8 @@ export function getExamHistory(guestId: string, limit: number): ExamHistoryEntry
 export function getExamStatistics(guestId: string, trendLimit: number): ExamStatistics {
   const sessions = [...dataFor(guestId).sessions.values()]
     .filter(
-      (session) =>
-        session.kind === 'exam' && session.status !== 'active' && session.endedAt !== null,
+      // Completed exams only, so an abandoned one is never averaged in.
+      (session) => session.kind === 'exam' && session.status === 'completed',
     )
     .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
   const scores = sessions.map((session) =>

@@ -17,7 +17,63 @@
 
 ## Unreleased
 
+### Changed
+
+- **An exam no longer reveals correctness while it runs.** The answer endpoint
+  returned `{ result: { correct } }` on every submission and the card showed a
+  verdict band, a `data-state` of `correct`/`miss`, and a `role="alert"`, so a
+  learner was told after every question whether they were right. The response is
+  now position and progress only, the store holds no correctness at all, and the
+  card has no verdict, no state, and no alert. The evaluation happens after the
+  final answer and is the first place correctness appears. This is the
+  difference between an exam and a practice round, and it is now enforced by the
+  server rather than left to the UI.
+- An exam's questions are now drawn and stored when the exam starts, in a new
+  `exam_questions` table, instead of being re-selected on every question from the
+  learner's live settings. A question set could shift mid-exam if the learner
+  opened Settings, and the same entry could be asked twice; a unique index now
+  makes a duplicate impossible rather than merely unlikely.
+- The exam length is 5, 10, or 20 questions, chosen on the exam start screen,
+  instead of being taken from the Practice "questions per session" setting. An
+  exam is a test, not a practice round, and a practice preference should not
+  decide how long a test is. The start screen states the real number of
+  questions, which is capped by the enabled vocabulary: asking for 20 with 12
+  words enabled produces 12 questions.
+- `POST /api/v1/exams/:id/answer` takes a question `position` rather than a
+  vocabulary entry id, so the server resolves which question was actually asked.
+  A client can no longer skip ahead, replay a position, or score an entry the
+  exam never used.
+- An exam completes on its last answer, on the server, instead of when the client
+  next asks for the result. A finished exam could otherwise sit in `active`,
+  where no statistic can see it.
+- Leaving an exam now calls `POST /api/v1/exams/:id/abandon`, so an unfinished
+  exam is recorded as `abandoned` rather than left to be discovered later.
+- `GET /api/v1/exams/:id/question` serves the frozen question at the current
+  position. The exam no longer reuses the live `/api/v1/practice/question`
+  selector.
+
 ### Fixed
+
+- Clicking a past exam in the Progress history did nothing useful. The row links
+  to `/exams?result=<id>`, but the exam screen never read that query, so it
+  opened the start screen and a stored result was unreachable from anywhere in
+  the app. The screen now reads the id, shows that result, and drops the query
+  so a reload does not re-open it. The endpoint already refused an exam that is
+  still running, so this cannot be used to read a result early.
+- Tapping another tab straight after confirming "Leave exam" bounced the learner
+  back to the exam screen. The exam was navigated away from only after the
+  abandon request returned, so a tap made in between was undone when that late
+  navigation landed. The learner is now taken back immediately and the abandon
+  request is left to finish on its own.
+- Abandoned exams were counted in the exam history and the exam statistics.
+  Both queries excluded only `active` sessions, so an exam the learner left
+  part-way appeared as a result. They now count completed exams only, as the
+  statistics are defined to.
+- `totalQuestionsAnswered` reported the number of answers marked _correct_, not
+  the number of questions answered. The old fixture made the two the same number
+  by coincidence, so the test passed and the figure was wrong.
+- An exam that answered every question was recorded as `abandoned`, because the
+  session was read before the final answer was counted.
 
 - Exam mode now looks like the Practice mode it is modelled on. The start screen uses the dashboard hero, segmented direction control and action row; the running exam rebuilds the header in the same Exit → progress → meta order, and the question card uses the same prompt and answer sections, card states, action row and in-card verdict band. The screens referenced `.practice-dashboard*` and `.practice-card__head`, which do not exist, so most of their styling never applied.
 - The exam's question card and loading row are now centred like the practice card, rather than sitting in the left margin on a wide screen.

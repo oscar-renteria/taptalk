@@ -2,6 +2,8 @@ import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import type { UserPreferences } from '@taptalk/shared';
 import {
+  defaultExamLength,
+  examLengthSchema,
   practiceDirectionSchema,
   practiceVocabularyExclusionsSchema,
   registrationErrors,
@@ -27,6 +29,8 @@ import {
   getPracticeVocabulary,
   countPracticeVocabulary,
   setPracticeVocabularyExclusions,
+  createExamQuestionSet,
+  getExamQuestionAt,
   getPreferences,
   getSelectionCandidates,
   getVocabulary,
@@ -44,7 +48,12 @@ import * as guestStore from './guest-store.js';
 import type { GuestAttempt } from './guest-store.js';
 import { calculateScore } from './learning.js';
 import { matchAnswer } from './matching.js';
-import { resolveDirection, selectQuestion, type Random } from './selection.js';
+import {
+  resolveDirection,
+  selectQuestion,
+  type Random,
+  type SelectionCandidate,
+} from './selection.js';
 import { previewVocabularyImport } from './vocabulary.js';
 import { createRateLimiter, type RateLimitOptions } from './rate-limit.js';
 import { apiSecurityHeaders, createOriginGuard } from './security.js';
@@ -201,6 +210,21 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
       return guestStore.countPracticeVocabulary(actor.guestId, vocabulary);
     if (actor.type === 'authenticated') return countPracticeVocabulary(db, actor.user.id);
     return 0;
+  }
+
+  /**
+   * The pool an exam draws from: the learner's enabled Practice Vocabulary,
+   * chosen by actor exactly as Practice Mode chooses it.
+   */
+  function getSelectionCandidatesFor(
+    request: FastifyRequest,
+    sessionId: string | null,
+  ): SelectionCandidate[] {
+    const actor = currentActor(request);
+    if (actor.type === 'guest')
+      return guestStore.getSelectionCandidates(actor.guestId, sessionId, vocabulary);
+    if (actor.type === 'authenticated') return getSelectionCandidates(db, actor.user.id, sessionId);
+    return [];
   }
 
   // Vocabulary is shared, read-only content, so a guest reads it exactly as a user
@@ -825,11 +849,19 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
   );
 
   // --- Exam Mode ---------------------------------------------------------------
-  // An exam is a practice session with kind = 'exam': same question selection,
-  // same answer matching, same lifecycle. The only difference is feedback, and
-  // that is enforced here rather than in the client.
+  // An exam is a practice session with kind = 'exam': same answer matching, same
+  // lifecycle. Two things differ from a practice round, and both are enforced
+  // here rather than in the client.
+  //
+  //   1. The questions are drawn and stored once, at the start. Practice Mode
+  //      re-draws on every request against the live selection; an exam may not,
+  //      or the pool could change mid-exam and the same word could repeat.
+  //   2. Nothing says whether an answer was correct until the exam ends. The
+  //      answer endpoint reports position only, so the client holds no
+  //      correctness at any point during the exam and cannot leak one it does
+  //      not have — in the DOM, in a label, or in the network response.
 
-  server.post<{ Body: { direction?: unknown } | undefined }>(
+  server.post<{ Body: { direction?: unknown; questionCount?: unknown } | undefined }>(
     '/api/v1/exams',
     { config: { access: 'guest' } },
     async (request, reply) => {
@@ -842,9 +874,20 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
           error: { code: 'INVALID_DIRECTION', message: 'Practice direction is invalid.' },
         });
       }
+      // The exam length is the exam's own setting, not the Practice "questions
+      // per session" preference, and only the offered lengths are accepted.
+      const questionCount = examLengthSchema.safeParse(
+        request.body?.questionCount ?? defaultExamLength,
+      );
+      if (!questionCount.success) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_EXAM_LENGTH', message: 'Exam length is invalid.' },
+        });
+      }
       // The same eligible pool as Practice Mode, so the vocabulary selection in
       // Settings governs exams too.
-      if (countPracticeVocabularyFor(request) === 0) {
+      const candidates = getSelectionCandidatesFor(request, null);
+      if (candidates.length === 0) {
         return reply.code(404).send({
           error: {
             code: 'NO_PRACTICE_VOCABULARY',
@@ -852,40 +895,104 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
           },
         });
       }
-      // Exam length reuses the existing session-length preference.
       const now = new Date().toISOString();
+      const id = createId();
       const input = {
-        id: createId(),
+        id,
         direction: direction.data,
-        questionCount: preferences.sessionLength,
+        // Provisional: the real length is the size of the drawn set, which is
+        // capped by the pool and corrected below where the questions are stored.
+        questionCount: questionCount.data,
         kind: 'exam' as const,
       };
       const actor = currentActor(request);
-      const session =
-        actor.type === 'guest'
-          ? guestStore.startPracticeSession(actor.guestId, input, now)
-          : actor.type === 'authenticated'
-            ? startPracticeSession(db, { ...input, userId: actor.user.id }, now)
-            : null;
-      if (!session) {
+      // Checked explicitly so the actor is narrowed to the two real cases below,
+      // rather than inferred from the session that has not been made yet.
+      if (actor.type === 'anonymous') {
         return reply
           .code(401)
           .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
       }
-      return reply.code(201).send({ session: publicSession(session) });
+      if (actor.type === 'guest') guestStore.startPracticeSession(actor.guestId, input, now);
+      else startPracticeSession(db, { ...input, userId: actor.user.id }, now);
+      const options = {
+        questionCount: questionCount.data,
+        direction: direction.data,
+        repetitionPreference: preferences.repetitionPreference,
+      };
+      // Draw once. This set is the exam, fixed for its whole life. The actor is
+      // one of the two by now: an anonymous request already failed the 401 above.
+      const questions =
+        actor.type === 'authenticated'
+          ? createExamQuestionSet(db, actor.user.id, id, candidates, options, random)
+          : guestStore.createExamQuestionSet(actor.guestId, id, candidates, options, random);
+      // `questionCount` is the real number of questions, so the start screen can
+      // promise it before the first question is shown.
+      return reply.code(201).send({
+        session: { id, direction: direction.data, questionCount: questions.length },
+      });
     },
   );
 
   /**
-   * Submitting an exam answer returns correctness and nothing else.
+  /**
+   * The exam's next question, read from the frozen set.
    *
-   * No correctAnswer, no matching reason, no score: the client cannot render the
-   * answer even if it wanted to, so there is nothing in the DOM, in an
-   * accessibility label, or in the network response to leak it. The full detail
-   * is only readable from the result endpoint, which refuses an active exam.
+   * Position is always `answeredCount + 1`, so the order can be neither skipped
+   * nor replayed. The response carries the prompt and nothing that says how the
+   * learner is doing.
+   */
+  server.get<{ Params: { sessionId: string } }>(
+    '/api/v1/exams/:sessionId/question',
+    { config: { access: 'guest' } },
+    async (request, reply) => {
+      const id = actorId(request);
+      const session = isGuest(request)
+        ? guestStore.getPracticeSession(id, request.params.sessionId)
+        : getPracticeSession(db, id, request.params.sessionId);
+      if (!session) {
+        return reply.code(404).send({
+          error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
+        });
+      }
+      if (session.status !== 'active') {
+        return reply.code(409).send({
+          error: { code: 'SESSION_NOT_ACTIVE', message: 'Practice session is no longer active.' },
+        });
+      }
+      const question = isGuest(request)
+        ? guestStore.getExamQuestionAt(id, request.params.sessionId, session.answeredCount + 1)
+        : getExamQuestionAt(db, request.params.sessionId, session.answeredCount + 1);
+      const entry = question
+        ? vocabulary().find((candidate) => candidate.id === question.vocabularyEntryId)
+        : undefined;
+      if (!question || !entry) {
+        return reply.code(404).send({
+          error: { code: 'QUESTION_NOT_FOUND', message: 'Exam question was not found.' },
+        });
+      }
+      return reply.send({
+        question: {
+          position: question.position,
+          direction: question.direction,
+          prompt: question.direction === 'english-to-german' ? entry.english : entry.germanDisplay,
+          phonetics: entry.phonetics,
+        },
+      });
+    },
+  );
+
+  /**
+   * Records an answer and says nothing about whether it was right.
+   *
+   * The client sends a position, not a vocabulary entry, so the server resolves
+   * which question was actually asked: a client cannot score an entry the exam
+   * never used, cannot skip ahead, and cannot replay an earlier position.
+   * Correctness is matched and stored here for the final evaluation, and is
+   * deliberately absent from the response.
    */
   server.post<{
-    Body: { vocabularyEntryId?: unknown; direction?: unknown; submittedAnswer?: unknown };
+    Body: { position?: unknown; submittedAnswer?: unknown };
     Params: { sessionId: string };
   }>('/api/v1/exams/:sessionId/answer', { config: { access: 'guest' } }, async (request, reply) => {
     const id = actorId(request);
@@ -904,11 +1011,12 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         error: { code: 'SESSION_NOT_ACTIVE', message: 'Practice session is no longer active.' },
       });
     }
-    const { vocabularyEntryId, direction, submittedAnswer } = request.body ?? {};
+    const { position, submittedAnswer } = request.body ?? {};
     if (
-      typeof vocabularyEntryId !== 'string' ||
-      vocabularyEntryId.length > 64 ||
-      (direction !== 'english-to-german' && direction !== 'german-to-english') ||
+      typeof position !== 'number' ||
+      !Number.isInteger(position) ||
+      // The position must be the one being asked, not any position at all.
+      position !== session.answeredCount + 1 ||
       typeof submittedAnswer !== 'string' ||
       submittedAnswer.length > maxSubmittedAnswerLength
     ) {
@@ -916,12 +1024,18 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         .code(400)
         .send({ error: { code: 'INVALID_ANSWER', message: 'Answer submission is invalid.' } });
     }
-    const entry = vocabulary().find((candidate) => candidate.id === vocabularyEntryId);
-    if (!entry) {
+    const question = isGuest(request)
+      ? guestStore.getExamQuestionAt(id, request.params.sessionId, position)
+      : getExamQuestionAt(db, request.params.sessionId, position);
+    const entry = question
+      ? vocabulary().find((candidate) => candidate.id === question.vocabularyEntryId)
+      : undefined;
+    if (!question || !entry) {
       return reply.code(404).send({
         error: { code: 'QUESTION_NOT_FOUND', message: 'Question is no longer available.' },
       });
     }
+    const direction = question.direction;
     const accepted = direction === 'english-to-german' ? entry.answers : [entry.english];
     // The same matching policy as Practice Mode, so correctness is judged the
     // same way in both modes.
@@ -933,6 +1047,8 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
       prompt: direction === 'english-to-german' ? entry.english : entry.germanDisplay,
       submittedAnswer,
       normalizedAnswer: match.normalizedAnswer,
+      // Kept for the final evaluation. It leaves the server only through the
+      // result endpoint, which refuses to answer while the exam is running.
       correct: match.correct,
       // An exam awards a pass/fail per question, so it does not use the practice
       // points; the aggregate percentage is computed at the end instead.
@@ -947,13 +1063,23 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
     } else {
       recordAttempt(db, { ...attempt, userId: id });
     }
+    const answeredCount = session.answeredCount + 1;
+    const complete = answeredCount >= session.questionCount;
+    // The exam finishes on its last answer, on the server. Waiting for the
+    // client to ask for the result would leave a finished exam stuck in
+    // 'active', where no statistic can see it and nothing can recover it.
+    if (complete) {
+      const now = new Date().toISOString();
+      // The session was read before this answer was recorded, so it is passed on
+      // with the new count: the status is decided by what was answered, not by
+      // what had been answered a moment ago.
+      const finished = { ...session, answeredCount };
+      if (isGuest(request)) guestStore.endPracticeSession(id, finished, now);
+      else endPracticeSession(db, finished, now);
+    }
+    // Position and progress only: no correctness, no answer, no score.
     return reply.send({
-      result: { correct: match.correct },
-      session: {
-        id: session.id,
-        answeredCount: session.answeredCount + 1,
-        questionCount: session.questionCount,
-      },
+      session: { answeredCount, questionCount: session.questionCount, complete },
     });
   });
 
@@ -979,6 +1105,37 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         ? guestStore.getExamResult(id, session.id, vocabulary)
         : getExamResult(db, id, session.id);
       return reply.send({ result: result ?? null });
+    },
+  );
+
+  /**
+   * Records that the learner left before finishing.
+   *
+   * Leaving is not a failed exam: it is never scored, never counted, and never
+   * averaged. Saying so explicitly is what keeps it out of the statistics,
+   * rather than relying on a row that happens to still be 'active'.
+   */
+  server.post<{ Params: { sessionId: string } }>(
+    '/api/v1/exams/:sessionId/abandon',
+    { config: { access: 'guest' } },
+    async (request, reply) => {
+      const id = actorId(request);
+      const session = isGuest(request)
+        ? guestStore.getPracticeSession(id, request.params.sessionId)
+        : getPracticeSession(db, id, request.params.sessionId);
+      if (!session) {
+        return reply.code(404).send({
+          error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
+        });
+      }
+      if (session.status === 'active') {
+        const now = new Date().toISOString();
+        // Ends as 'abandoned' whenever questions remain, and is a no-op on a
+        // session the server already completed.
+        if (isGuest(request)) guestStore.endPracticeSession(id, session, now);
+        else endPracticeSession(db, session, now);
+      }
+      return reply.send({ abandoned: true });
     },
   );
 

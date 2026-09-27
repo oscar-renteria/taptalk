@@ -240,11 +240,14 @@
   "exam": {
     "eyebrow": "Test yourself",
     "heading": "Exam mode",
-    "intro": "Answer every question from memory. You will only be told whether each answer was right; the full results appear when the exam ends.",
+    "intro": "Answer every question from memory. You will not be told whether an answer was right: the results appear only when the exam ends.",
     "start": "Start exam",
     "starting": "Starting...",
     "failed": "The exam could not be started. Try again.",
-    "questionCountHint": "The number of questions comes from your settings.",
+    "length": "Exam length",
+    "questionCount": "{count} question | {count} questions",
+    "actualLength": "This exam has {count} questions.",
+    "actualLengthTrimmed": "Your enabled vocabulary has {available} words, so this exam has {count} questions.",
     "progressName": "Exam progress",
     "questionOf": "Question {current} of {total}",
     "questionTitle": "Exam question",
@@ -273,7 +276,8 @@
     "yourAnswer": "Your answer",
     "correctAnswer": "Correct answer",
     "seeProgress": "See your progress",
-    "again": "Take another exam"
+    "again": "Take another exam",
+    "answerRecorded": "Answer recorded."
   },
   "examStats": {
     "exams": "Exams",

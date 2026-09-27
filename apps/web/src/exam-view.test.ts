@@ -7,7 +7,7 @@ import { setLocale } from './i18n';
 import { mockApi, mountApp, signedIn } from './test-api';
 
 const question = {
-  vocabularyEntryId: 'entry-1',
+  position: 1,
   direction: 'english-to-german' as const,
   prompt: 'hello',
   phonetics: null,
@@ -17,16 +17,22 @@ function routes(overrides: Record<string, { status?: number; body?: unknown }> =
   return {
     ...signedIn,
     'GET /api/v1/settings': { body: { settings: { direction: 'english-to-german' } } },
+    'GET /api/v1/practice/vocabulary': {
+      body: {
+        entries: [
+          { id: 'entry-1', english: 'hello', german: 'Hallo', enabled: true },
+          { id: 'entry-2', english: 'bye', german: 'Tschüss', enabled: true },
+        ],
+      },
+    },
     'POST /api/v1/exams': {
       status: 201,
       body: { session: { id: 'exam-1', questionCount: 45, answeredCount: 0 } },
     },
-    'GET /api/v1/practice/question': { body: { question } },
+    'GET /api/v1/exams/exam-1/question': { body: { question } },
     'POST /api/v1/exams/exam-1/answer': {
-      body: {
-        result: { correct: false },
-        session: { id: 'exam-1', answeredCount: 1, questionCount: 45 },
-      },
+      // Position and progress only. There is no correctness here to find.
+      body: { session: { answeredCount: 1, questionCount: 45, complete: false } },
     },
     ...overrides,
   };
@@ -126,21 +132,41 @@ describe('exam question card', () => {
     );
   });
 
-  it('shows the verdict in the card and moves the card state with it', async () => {
+  it('shows no verdict, and no card state, after an answer', async () => {
     const wrapper = await startExam();
-    expect(wrapper.get('form.practice-card').attributes('data-state')).toBe('answering');
+    // The card carries no correctness state at all: there is nothing to leak,
+    // because nothing was ever told.
+    expect(wrapper.get('form.practice-card').attributes('data-state')).toBeUndefined();
     await wrapper.get('#exam-answer').setValue('wrong');
     await wrapper.get('form.practice-card').trigger('submit');
     await flushPromises();
 
     const card = wrapper.get('form.practice-card');
-    expect(card.attributes('data-state')).toBe('miss');
-    // In the card, beside the question, instead of floating above it.
-    const verdict = card.get('.practice-card__feedback[data-testid="exam-verdict"]');
-    expect(verdict.text()).toBe('✗Incorrect');
-    expect(verdict.attributes('data-tone')).toBe('warning');
-    expect(verdict.attributes('role')).toBe('alert');
+    expect(card.find('[data-testid="exam-verdict"]').exists()).toBe(false);
+    // Not a word, not an icon, not a tone, not an alert, not a class.
+    expect(card.text()).not.toMatch(/Correct|Incorrect|✓|✗/);
+    // Every channel a verdict could hide in: a test id, a tone, a state, or a
+    // class name. (Not the bare word 'correct', which `autocorrect` contains.)
+    expect(card.html()).not.toMatch(
+      /exam-verdict|data-tone|data-correct|data-state|__correct|__miss/,
+    );
+    // The answer is locked so it cannot be edited, and the next step is offered.
     expect(wrapper.get('#exam-answer').attributes('readonly')).toBeDefined();
+    expect(card.get('.practice-action button').text()).toContain('Next question');
+  });
+
+  it('moves to the next question without saying how the last one went', async () => {
+    const wrapper = await startExam();
+    await wrapper.get('#exam-answer').setValue('Hallo');
+    await wrapper.get('form.practice-card').trigger('submit');
+    await flushPromises();
+    const next = wrapper.get('.practice-action button');
+    await next.trigger('click');
+    await flushPromises();
+    // The next question is asked, and the screen is back to its answering state.
+    expect(wrapper.get('[data-testid="session-progress"]').text()).toBe('Question 2 of 45');
+    expect(wrapper.get('form.practice-card').attributes('data-state')).toBeUndefined();
+    expect(wrapper.text()).not.toMatch(/Correct|Incorrect/);
   });
 });
 
@@ -155,16 +181,98 @@ describe('exam start screen', () => {
     document.body.innerHTML = '';
   });
 
-  it('is built from the practice dashboard parts', async () => {
+  it('offers the exam lengths and says how many questions there will be', async () => {
     mockApi(routes());
     const { wrapper } = await mountApp('/exams');
-    expect(wrapper.get('.dashboard .dashboard__hero #exam-title').text()).toBe('Exam mode');
-    expect(wrapper.get('.dashboard__intro').text()).toContain('Answer every question from memory');
-    expect(wrapper.find('.segmented').exists()).toBe(true);
-    expect(wrapper.get('.dashboard__start .btn--large').text()).toBe('Start exam');
-    // The class names this screen used before had no rules at all, which is
-    // what left it looking nothing like the practice dashboard.
-    expect(wrapper.find('.practice-dashboard').exists()).toBe(false);
+    // The lengths are 5, 10 and 20, and 10 is preselected.
+    const values = wrapper
+      .findAll('input[name="exam-length"]')
+      .map((input) => input.attributes('value'));
+    expect(values).toEqual(['5', '10', '20']);
+    const checked = wrapper
+      .findAll('input[name="exam-length"]')
+      .find((input) => (input.element as HTMLInputElement).checked);
+    expect(checked?.attributes('value')).toBe('10');
+    // The pool here holds two enabled words, so a 10-question request is really
+    // two questions, and the screen says so before the exam starts.
+    expect(wrapper.get('[data-testid="exam-actual-length"]').text()).toBe(
+      'Your enabled vocabulary has 2 words, so this exam has 2 questions.',
+    );
+  });
+
+  it('does not promise more questions than the vocabulary can supply', async () => {
+    mockApi(
+      routes({
+        'GET /api/v1/practice/vocabulary': {
+          body: {
+            entries: [
+              { id: 'entry-1', english: 'hello', german: 'Hallo', enabled: true },
+              { id: 'entry-2', english: 'bye', german: 'Tschüss', enabled: true },
+              { id: 'entry-3', english: 'cat', german: 'Katze', enabled: true },
+              { id: 'entry-4', english: 'dog', german: 'Hund', enabled: true },
+            ],
+          },
+        },
+      }),
+    );
+    const { wrapper } = await mountApp('/exams');
+    // Four enabled words cannot make a 10-question exam.
+    expect(wrapper.get('[data-testid="exam-actual-length"]').text()).toBe(
+      'Your enabled vocabulary has 4 words, so this exam has 4 questions.',
+    );
+  });
+
+  it('opens a past result from the Progress history link', async () => {
+    // Progress links here with ?result=<id>, which used to be ignored, so the
+    // link landed on the start screen and the past result was unreachable.
+    mockApi(
+      routes({
+        'GET /api/v1/exams/exam-9': {
+          body: {
+            result: {
+              id: 'exam-9',
+              direction: 'english-to-german',
+              status: 'completed',
+              totalQuestions: 2,
+              correctCount: 1,
+              incorrectCount: 1,
+              score: 50,
+              durationSeconds: 65,
+              startedAt: '2026-01-01T00:00:00.000Z',
+              endedAt: '2026-01-01T00:01:05.000Z',
+              questions: [
+                {
+                  index: 1,
+                  vocabularyEntryId: 'entry-1',
+                  prompt: 'hello',
+                  direction: 'english-to-german',
+                  submittedAnswer: 'Hallo',
+                  correctAnswer: 'Hallo',
+                  correct: true,
+                },
+              ],
+            },
+          },
+        },
+      }),
+    );
+    const { wrapper } = await mountApp('/exams?result=exam-9');
+    await flushPromises();
+    // The stored result is shown, not a new exam.
+    expect(wrapper.find('.exam-results').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Exam results');
+    expect(wrapper.get('.stat').text()).toContain('50%');
+    // And the start screen is not rendered behind it.
+    expect(wrapper.find('form.practice-card').exists()).toBe(false);
+  });
+
+  it('ignores a result id the server does not know', async () => {
+    mockApi(routes({ 'GET /api/v1/exams/exam-missing': { status: 404, body: {} } }));
+    const { wrapper } = await mountApp('/exams?result=exam-missing');
+    await flushPromises();
+    // Nothing is shown rather than something wrong: the start screen stands.
+    expect(wrapper.find('.exam-results').exists()).toBe(false);
+    expect(wrapper.get('.dashboard__start').text()).toContain('Start exam');
   });
 });
 

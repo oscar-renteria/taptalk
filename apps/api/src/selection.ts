@@ -87,6 +87,65 @@ export function resolveDirection(preference: DirectionPreference, random: Random
   return random() < 0.5 ? 'english-to-german' : 'german-to-english';
 }
 
+/**
+ * An exam question, frozen at the moment the exam starts.
+ *
+ * `position` is 1-based and is the exam's own question order.
+ */
+export type ExamQuestion = {
+  position: number;
+  vocabularyEntryId: string;
+  direction: Direction;
+};
+
+/**
+ * Draws an exam's whole question set up front.
+ *
+ * Practice Mode asks `selectQuestion` one question at a time against the live
+ * selection. An exam cannot work that way: the learner is told how many
+ * questions there are before the first one, the pool must not shift under them
+ * if they open Settings mid-exam, and no entry may be asked twice. So the set is
+ * drawn once, here, and written down.
+ *
+ * The draw is still the normal weighted policy, so an exam keeps preferring
+ * words the learner gets wrong. Each pick is simply removed from the pool before
+ * the next, which is what makes duplicates impossible, and the length is capped
+ * by the pool: asking for 20 with 12 eligible entries yields 12 questions
+ * rather than repeating any of them.
+ */
+export function buildExamQuestionSet(
+  candidates: SelectionCandidate[],
+  options: {
+    questionCount: number;
+    direction: DirectionPreference;
+    repetitionPreference: RepetitionPreference;
+  },
+  random: Random,
+): ExamQuestion[] {
+  const length = Math.max(0, Math.min(options.questionCount, candidates.length));
+  const remaining = [...candidates];
+  const questions: ExamQuestion[] = [];
+  for (let position = 1; position <= length; position += 1) {
+    const selection = selectQuestion(
+      remaining,
+      {
+        repetitionPreference: options.repetitionPreference,
+        previousEntryId: null,
+      },
+      random,
+    );
+    if (!selection) break;
+    const index = remaining.findIndex((candidate) => candidate.id === selection.id);
+    remaining.splice(index, 1);
+    questions.push({
+      position,
+      vocabularyEntryId: selection.id,
+      direction: resolveDirection(options.direction, random),
+    });
+  }
+  return questions;
+}
+
 // Deterministic generator (mulberry32) for reproducible tests.
 export function createSeededRandom(seed: number): Random {
   let state = seed >>> 0;

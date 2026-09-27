@@ -132,9 +132,47 @@ export const practiceVocabularySchema = z.object({
 // An exam is a practice session with kind = 'exam', so it reuses the same
 // question selection and answer matching. Only the feedback model differs.
 
-/** What the exam returns while it is still running: correctness and nothing else. */
-export const examAnswerResultSchema = z.object({
-  correct: z.boolean(),
+/**
+ * The exam lengths the product offers. Fixed, and deliberately separate from the
+ * Practice "questions per session" setting: an exam is a fixed-length test, not
+ * a practice round, and coupling the two would let a practice preference change
+ * the exam a learner thought they had started.
+ */
+export const examLengths = [5, 10, 20] as const;
+
+export const defaultExamLength = 10;
+
+export const examLengthSchema = z.union([
+  z.literal(examLengths[0]),
+  z.literal(examLengths[1]),
+  z.literal(examLengths[2]),
+]);
+
+/**
+ * The configuration an exam is built from.
+ *
+ * Intentionally a small, closed shape. New options can be added here without
+ * touching the exam's core architecture, which is the point of naming it.
+ */
+export const examConfigurationSchema = z.object({
+  /** The length the learner asked for, before the pool is taken into account. */
+  questionCount: examLengthSchema,
+  languageDirection: practiceDirectionSchema,
+});
+
+/**
+ * What the exam returns while it is still running: position only.
+ *
+ * There is deliberately no `correct` field, no answer, and no score. The
+ * evaluation is the server's business until the exam ends, so the client has
+ * nothing to leak — in the DOM, in an accessibility label, or in the network
+ * response.
+ */
+export const examAnswerProgressSchema = z.object({
+  answeredCount: z.number().int().nonnegative(),
+  questionCount: z.number().int().nonnegative(),
+  /** True once the final answer is in, which is the first moment results exist. */
+  complete: z.boolean(),
 });
 
 /** One answered question, shown only after the exam has been completed. */
@@ -212,7 +250,9 @@ export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
 export type PracticeVocabularyExclusions = z.infer<typeof practiceVocabularyExclusionsSchema>;
 export type PracticeVocabularyEntry = z.infer<typeof practiceVocabularyEntrySchema>;
 export type PracticeVocabulary = z.infer<typeof practiceVocabularySchema>;
-export type ExamAnswerResult = z.infer<typeof examAnswerResultSchema>;
+export type ExamLength = z.infer<typeof examLengthSchema>;
+export type ExamConfiguration = z.infer<typeof examConfigurationSchema>;
+export type ExamAnswerProgress = z.infer<typeof examAnswerProgressSchema>;
 export type ExamQuestionResult = z.infer<typeof examQuestionResultSchema>;
 export type ExamResult = z.infer<typeof examResultSchema>;
 export type ExamHistoryEntry = z.infer<typeof examHistoryEntrySchema>;

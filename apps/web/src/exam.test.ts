@@ -9,7 +9,7 @@ const germanAnswer = 'Hallo';
 
 /** The question the mock always returns. */
 const question = {
-  vocabularyEntryId: 'entry-hello',
+  position: 1,
   direction: 'english-to-german' as const,
   prompt: 'hello',
   phonetics: null,
@@ -27,16 +27,23 @@ function examApi(overrides: Record<string, { status?: number; body?: unknown }> 
         },
       },
     },
+    'GET /api/v1/practice/vocabulary': {
+      body: {
+        entries: [
+          { id: 'entry-hello', english: 'hello', german: 'Hallo', enabled: true },
+          { id: 'entry-bye', english: 'bye', german: 'Tschüss', enabled: true },
+        ],
+      },
+    },
     'POST /api/v1/exams': {
       status: 201,
       body: { session: { id: 'exam-1', questionCount: 1, answeredCount: 0 } },
     },
-    'GET /api/v1/practice/question': { body: { question } },
+    'GET /api/v1/exams/exam-1/question': { body: { question } },
     'POST /api/v1/exams/exam-1/answer': {
-      body: {
-        result: { correct: true },
-        session: { id: 'exam-1', answeredCount: 1, questionCount: 1 },
-      },
+      // Progress only. Correctness is not in the response at all, so the client
+      // has nothing to hold and nothing to leak.
+      body: { session: { answeredCount: 1, questionCount: 1, complete: true } },
     },
     'POST /api/v1/exams/exam-1/end': {
       body: {
@@ -98,27 +105,27 @@ describe('exam mode state', () => {
     resetExam();
   });
 
-  it('keeps only the verdict from a submitted answer', async () => {
+  it('keeps only progress from a submitted answer, never correctness', async () => {
     mockApi(examApi());
     await mountApp('/exams');
     await flushPromises();
     await examAndSubmit();
-    // The store holds correctness and progress, and nothing that could be an answer.
-    expect(exam.lastCorrect).toBe(true);
-    expect(JSON.stringify(exam)).not.toMatch(/correctAnswer/);
+    // The store holds progress. There is no field anywhere in it that could say
+    // whether the answer was right, so no view can render one by accident.
+    expect(exam.answeredCount).toBe(1);
+    expect(exam.complete).toBe(true);
+    expect(Object.keys(exam).join(',')).not.toMatch(/correct|verdict|score/i);
+    expect(JSON.stringify(exam)).not.toMatch(/correctAnswer|correctCount|score/);
   });
 });
 
 async function examAndSubmit(): Promise<void> {
   const { startExam, submitExamAnswer } = await import('./exam');
-  await startExam('english-to-german');
-  await submitExamAnswer(
-    { vocabularyEntryId: question.vocabularyEntryId, direction: question.direction },
-    germanAnswer,
-  );
+  await startExam('english-to-german', 5);
+  await submitExamAnswer(1, germanAnswer);
 }
 
-describe('an exam only shows correctness while it runs', () => {
+describe('an exam reveals nothing about correctness while it runs', () => {
   beforeEach(() => {
     resetExam();
   });
@@ -147,36 +154,20 @@ describe('an exam only shows correctness while it runs', () => {
     expect(wrapper.html()).not.toContain(germanAnswer);
   });
 
-  it('shows a single word of feedback after a correct answer', async () => {
-    mockApi(examApi());
-    const { wrapper } = await mountApp('/exams');
-    await flushPromises();
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text().includes('Start exam'))!
-      .trigger('click');
-    await flushPromises();
-    await wrapper.get('#exam-answer').setValue(germanAnswer);
-    await wrapper.get('form.practice-card').trigger('submit');
-    await flushPromises();
-
-    // The result replaced the running screen; still nothing during the exam.
-    expect(exam.result).not.toBeNull();
-    // Now, and only now, the review exists.
-    expect(wrapper.text()).toContain('Review your answers');
-    expect(wrapper.text()).toContain('Correct');
-  });
-
-  it('shows Incorrect and no answer after a wrong answer', async () => {
+  it('says nothing at all about a wrong answer', async () => {
+    // A two-question exam, so the screen keeps going after the first answer and
+    // the learner sees exactly what a wrong answer looks like: the same as a
+    // right one, because it is the same.
     mockApi(
       examApi({
-        'GET /api/v1/practice/question': { body: { question } },
-        'POST /api/v1/exams/exam-1/answer': {
-          body: {
-            result: { correct: false },
-            session: { id: 'exam-1', answeredCount: 0, questionCount: 2 },
-          },
+        'POST /api/v1/exams': {
+          status: 201,
+          body: { session: { id: 'exam-1', questionCount: 2, answeredCount: 0 } },
         },
+        'POST /api/v1/exams/exam-1/answer': {
+          body: { session: { answeredCount: 1, questionCount: 2, complete: false } },
+        },
+        'GET /api/v1/exams/exam-1/question': { body: { question: { ...question, position: 1 } } },
       }),
     );
     const { wrapper } = await mountApp('/exams');
@@ -190,8 +181,36 @@ describe('an exam only shows correctness while it runs', () => {
     await wrapper.get('form.practice-card').trigger('submit');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Incorrect');
-    expect(wrapper.text()).not.toContain('Correct answer');
+    // The whole screen, after a wrong answer. No verdict word, no tick, no
+    // cross, no correctness in a class, a role, or an attribute.
+    expect(wrapper.text()).not.toMatch(/Correct|Incorrect|Right|Wrong|Score|%/);
+    expect(wrapper.html()).not.toMatch(
+      /✓|✗|exam-verdict|data-tone|data-correct|data-state|__correct|__miss/,
+    );
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+    // Only that the answer was recorded, and that the exam is not over.
+    expect(wrapper.text()).toContain('Answer recorded');
+    expect(wrapper.text()).toContain('Next question');
+  });
+
+  it('shows the review only once the exam has been evaluated', async () => {
+    mockApi(examApi());
+    const { wrapper } = await mountApp('/exams');
+    await flushPromises();
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Start exam'))!
+      .trigger('click');
+    await flushPromises();
+    await wrapper.get('#exam-answer').setValue(germanAnswer);
+    await wrapper.get('form.practice-card').trigger('submit');
+    await flushPromises();
+
+    // The last answer completed the exam, so the results replaced the running
+    // screen. This, and only this, is where correctness is allowed to appear.
+    expect(exam.result).not.toBeNull();
+    expect(wrapper.text()).toContain('Review your answers');
+    expect(wrapper.text()).toContain('Correct');
   });
 
   it('uses the same no-autocorrect answer field as Practice Mode', async () => {

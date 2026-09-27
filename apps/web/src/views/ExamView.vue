@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   AppButton,
   AppCard,
@@ -12,14 +12,26 @@ import {
   TextField,
 } from '../components';
 import { apiFetch } from '../api';
-import { endExam, exam, examInProgress, resetExam, startExam, submitExamAnswer } from '../exam';
+import { defaultExamLength, examLengths } from '@taptalk/shared';
+import {
+  abandonExam,
+  endExam,
+  exam,
+  examInProgress,
+  loadExamResult,
+  resetExam,
+  startExam,
+  submitExamAnswer,
+} from '../exam';
 import { focus } from '../session';
+import { enabledCount, loadPracticeVocabulary } from '../practice-vocabulary';
 
 const { t, locale } = useI18n();
 const router = useRouter();
+const route = useRoute();
 
 type Question = {
-  vocabularyEntryId: string;
+  position: number;
   direction: 'english-to-german' | 'german-to-english';
   prompt: string;
   phonetics: string | null;
@@ -28,7 +40,10 @@ type Direction = 'english-to-german' | 'german-to-english' | 'random';
 
 const question = ref<Question | null>(null);
 const direction = ref<Direction>('random');
+const length = ref<number>(defaultExamLength);
 const submitted = ref('');
+/** True once an answer is in, which shows Next instead of Submit. */
+const answered = ref(false);
 const loadingQuestion = ref(false);
 const confirmingExit = ref(false);
 
@@ -38,13 +53,27 @@ const directionChoices = computed(() => [
   { value: 'random' as Direction, label: t('practice.mixed') },
 ]);
 
+const lengthChoices = computed(() =>
+  examLengths.map((value) => ({ value, label: t('exam.questionCount', { count: value }) })),
+);
+
 const questionNumber = computed(() => Math.min(exam.answeredCount + 1, exam.questionCount));
 const remaining = computed(() => Math.max(0, exam.questionCount - exam.answeredCount));
-// The exam reuses the practice card's states, so the verdict, the card border, and
-// the input colour always move together instead of styling the outcome separately.
-const cardState = computed(() =>
-  exam.lastCorrect === null ? 'answering' : exam.lastCorrect ? 'correct' : 'miss',
+
+/**
+ * The number of questions the learner will actually be asked.
+ *
+ * An exam cannot ask more than the enabled vocabulary holds, so a 20-question
+ * exam drawn from 12 words is 12 questions. Showing the real figure before the
+ * exam starts is the point: nobody should begin an exam expecting 20 questions
+ * and be given 12.
+ */
+const availableCount = computed(() => enabledCount());
+const actualLength = computed(() =>
+  availableCount.value > 0 ? Math.min(length.value, availableCount.value) : length.value,
 );
+/** True when the request is trimmed to the pool, which is worth saying plainly. */
+const trimmed = computed(() => availableCount.value > 0 && actualLength.value < length.value);
 
 /** Locale-aware formatting, matching the rest of the app. */
 function formatNumber(value: number): string {
@@ -65,13 +94,14 @@ function formatDuration(totalSeconds: number): string {
 async function loadQuestion(): Promise<void> {
   loadingQuestion.value = true;
   try {
-    const response = await apiFetch(
-      `/api/v1/practice/question?practiceSessionId=${encodeURIComponent(exam.sessionId)}`,
-    );
+    // The exam's own question endpoint, which serves the set frozen at the start.
+    const response = await apiFetch(`/api/v1/exams/${exam.sessionId}/question`);
     const payload = (await response.json()) as { question?: Question };
     if (response.ok && payload.question) {
       question.value = payload.question;
+      exam.position = payload.question.position;
       submitted.value = '';
+      answered.value = false;
       focus.practice = true;
     } else {
       question.value = null;
@@ -85,21 +115,29 @@ async function loadQuestion(): Promise<void> {
 
 async function begin(): Promise<void> {
   exam.failed = '';
-  if (await startExam(direction.value)) await loadQuestion();
+  if (await startExam(direction.value, length.value)) await loadQuestion();
 }
 
+/**
+ * Records the answer and moves on.
+ *
+ * Nothing on the screen changes to say whether the answer was right, because the
+ * client was never told. The only change is the button: Next replaces Submit,
+ * and the next question arrives when the learner asks for it.
+ */
 async function submit(): Promise<void> {
   if (!question.value) return;
-  const answered = await submitExamAnswer(question.value, submitted.value);
-  if (!answered) return;
-  // The last answer ends the exam and reveals the results; otherwise the verdict
-  // stays on screen until the learner chooses to move on.
-  if (exam.answeredCount >= exam.questionCount) await finish();
+  if (!(await submitExamAnswer(exam.position, submitted.value))) return;
+  // The last answer ends the exam, and the results are the first place anything
+  // about correctness is shown.
+  if (exam.complete) {
+    await finish();
+    return;
+  }
+  answered.value = true;
 }
 
-/** Moves to the next question, clearing the previous verdict. */
 async function next(): Promise<void> {
-  exam.lastCorrect = null;
   await loadQuestion();
 }
 
@@ -109,12 +147,19 @@ async function finish(): Promise<void> {
   question.value = null;
 }
 
-function leave(): void {
-  // Leaving discards the run: an unfinished exam is never recorded.
+async function leave(): Promise<void> {
+  // Leaving discards the run: an unfinished exam is never scored or counted.
   focus.practice = false;
-  resetExam();
   confirmingExit.value = false;
-  void router.push('/exams');
+  // The learner is taken back straight away, and the abandon request is left to
+  // finish on its own. Awaiting it first left a window in which the navigation
+  // was live, so tapping another tab was undone when this push finally landed.
+  // The session id is read synchronously when the request is built, so clearing
+  // the store below does not lose it.
+  const abandoned = abandonExam();
+  resetExam();
+  await router.push('/exams');
+  await abandoned;
 }
 
 async function goToProgress(): Promise<void> {
@@ -124,6 +169,20 @@ async function goToProgress(): Promise<void> {
 }
 
 onMounted(async () => {
+  // The Progress page's exam history links here with ?result=<id>. Without this
+  // the link landed on the start screen and the past result was unreachable.
+  const requested = route.query.result;
+  if (typeof requested === 'string' && requested) {
+    await loadExamResult(requested);
+    // The id is not part of the exam start screen, so it is dropped once read.
+    if (exam.result) {
+      focus.practice = false;
+      await router.replace({ name: 'exams' });
+    }
+  }
+  // The enabled vocabulary decides the real exam length, so it is needed before
+  // the learner presses Start, not after.
+  void loadPracticeVocabulary();
   await apiFetch('/api/v1/settings')
     .then((response) => response.json())
     .then((payload: { settings?: { direction?: Direction } }) => {
@@ -222,7 +281,8 @@ onMounted(async () => {
       </div>
     </template>
 
-    <!-- Running exam: the question, progress, and one word of verdict. -->
+    <!-- Running exam: the question and the position, and nothing at all about
+         how the learner is doing. -->
     <template v-else-if="examInProgress()">
       <!-- The hero is gone while an exam runs, but the section still needs an
            accessible name, so the heading is kept for assistive technology. -->
@@ -269,10 +329,9 @@ onMounted(async () => {
       <form
         v-if="question"
         class="practice-card"
-        :data-state="cardState"
         :aria-busy="loadingQuestion ? 'true' : undefined"
         novalidate
-        @submit.prevent="submit"
+        @submit.prevent="answered ? next() : submit()"
       >
         <div class="practice-card__prompt">
           <p
@@ -302,36 +361,18 @@ onMounted(async () => {
             exercise
             autocomplete="off"
             enterkeyhint="done"
-            :readonly="exam.lastCorrect !== null"
+            :readonly="answered"
           />
-          <p v-if="exam.lastCorrect === null" class="muted practice-card__hint">
+          <p v-if="!answered" class="muted practice-card__hint">
             {{ t('exam.pressEnter') }} <kbd>{{ t('exam.enterKey') }}</kbd>
             {{ t('exam.toSubmit') }}
           </p>
-        </div>
-
-        <!-- The verdict is one icon plus one word, in the same in-card feedback row
-             practice uses. The icon is real text rather than a CSS decoration, so
-             correctness is never carried by colour alone. The row is an alert only
-             for a wrong answer, so it is announced without interrupting a correct one. -->
-        <div
-          v-if="exam.lastCorrect !== null"
-          class="practice-card__feedback"
-          :data-tone="exam.lastCorrect ? 'success' : 'warning'"
-          :role="exam.lastCorrect ? 'status' : 'alert'"
-          data-testid="exam-verdict"
-        >
-          <span class="practice-card__badge" aria-hidden="true">
-            {{ exam.lastCorrect ? '✓' : '✗' }}
-          </span>
-          <p class="practice-card__verdict">
-            {{ exam.lastCorrect ? t('exam.correct') : t('exam.incorrect') }}
-          </p>
+          <p v-else class="muted practice-card__hint">{{ t('exam.answerRecorded') }}</p>
         </div>
 
         <div class="practice-action">
           <AppButton
-            v-if="exam.lastCorrect === null"
+            v-if="!answered"
             type="submit"
             variant="dark"
             :loading="loadingQuestion"
@@ -385,6 +426,23 @@ onMounted(async () => {
             </div>
           </fieldset>
 
+          <!-- The exam length is the exam's own setting: 5, 10, or 20 questions. It
+               is deliberately not the Practice "questions per session" preference. -->
+          <fieldset class="segmented">
+            <legend>{{ t('exam.length') }}</legend>
+            <div class="segmented__options">
+              <label v-for="choice in lengthChoices" :key="choice.value" class="segmented__option">
+                <input
+                  v-model.number="length"
+                  type="radio"
+                  name="exam-length"
+                  :value="choice.value"
+                />
+                <span>{{ choice.label }}</span>
+              </label>
+            </div>
+          </fieldset>
+
           <div class="dashboard__start">
             <AppButton
               class="btn--large"
@@ -395,7 +453,14 @@ onMounted(async () => {
             >
               {{ t('exam.start') }}
             </AppButton>
-            <span class="muted">{{ t('exam.questionCountHint') }}</span>
+            <span class="muted" data-testid="exam-actual-length">{{
+              trimmed
+                ? t('exam.actualLengthTrimmed', {
+                    count: actualLength,
+                    available: availableCount,
+                  })
+                : t('exam.actualLength', { count: actualLength })
+            }}</span>
           </div>
         </div>
       </div>

@@ -240,11 +240,14 @@
   "exam": {
     "eyebrow": "Teste dich selbst",
     "heading": "Prüfungsmodus",
-    "intro": "Beantworte jede Frage aus dem Gedächtnis. Du erfährst nur, ob eine Antwort richtig war; alle Ergebnisse erscheinen, wenn die Prüfung endet.",
+    "intro": "Beantworte jede Frage aus dem Gedächtnis. Du erfährst nicht, ob eine Antwort richtig war: die Ergebnisse erscheinen erst, wenn die Prüfung endet.",
     "start": "Prüfung starten",
     "starting": "Wird gestartet...",
     "failed": "Die Prüfung konnte nicht gestartet werden. Versuche es noch einmal.",
-    "questionCountHint": "Die Anzahl der Fragen kommt aus deinen Einstellungen.",
+    "length": "Prüfungslänge",
+    "questionCount": "{count} Frage | {count} Fragen",
+    "actualLength": "Diese Prüfung hat {count} Fragen.",
+    "actualLengthTrimmed": "Dein aktiviertes Vokabular hat {available} Wörter, daher hat diese Prüfung {count} Fragen.",
     "progressName": "Prüfungsfortschritt",
     "questionOf": "Frage {current} von {total}",
     "questionTitle": "Prüfungsfrage",
@@ -273,7 +276,8 @@
     "yourAnswer": "Deine Antwort",
     "correctAnswer": "Richtige Antwort",
     "seeProgress": "Fortschritt ansehen",
-    "again": "Weitere Prüfung"
+    "again": "Weitere Prüfung",
+    "answerRecorded": "Antwort gespeichert."
   },
   "examStats": {
     "exams": "Prüfungen",

@@ -5,10 +5,11 @@ import type { ExamHistoryEntry, ExamResult, ExamStatistics } from '@taptalk/shar
 /**
  * Exam Mode state.
  *
- * An exam is the existing question flow with one rule: the server returns only
- * whether an answer was correct, and the result is unreadable until the exam
- * ends. Nothing here ever holds a correct answer during an exam, so there is
- * nothing for the UI to leak by accident.
+ * An exam is the existing question flow with one rule: the client never learns
+ * whether an answer was right. The server sends position and nothing else, so
+ * there is no correctness anywhere in this module for the UI to leak by
+ * accident — no field to render, no class to bind, no label to announce. The
+ * evaluation is readable only once the exam has ended.
  *
  * Follows the app's existing state pattern: one module-level `reactive` object,
  * like `session` and `practiceVocabulary`.
@@ -17,8 +18,10 @@ export const exam = reactive({
   sessionId: '' as string,
   questionCount: 0,
   answeredCount: 0,
-  /** The most recent verdict, shown as a single word plus an icon. Nothing else. */
-  lastCorrect: null as boolean | null,
+  /** The question being answered, as the frozen set serves it. */
+  position: 0,
+  /** True once the server has accepted the last answer. */
+  complete: false,
   result: null as ExamResult | null,
   history: [] as ExamHistoryEntry[],
   statistics: null as ExamStatistics | null,
@@ -33,7 +36,8 @@ export function resetExam(): void {
   exam.sessionId = '';
   exam.questionCount = 0;
   exam.answeredCount = 0;
-  exam.lastCorrect = null;
+  exam.position = 0;
+  exam.complete = false;
   exam.result = null;
   exam.history = [];
   exam.statistics = null;
@@ -47,11 +51,14 @@ export function examInProgress(): boolean {
   return !!exam.sessionId && !exam.result;
 }
 
-export async function startExam(direction: string): Promise<boolean> {
+export async function startExam(direction: string, questionCount: number): Promise<boolean> {
   exam.loading = true;
   exam.failed = '';
   try {
-    const response = await apiFetch('/api/v1/exams', jsonRequest('POST', { direction }));
+    const response = await apiFetch(
+      '/api/v1/exams',
+      jsonRequest('POST', { direction, questionCount }),
+    );
     const payload = (await response.json()) as {
       session?: { id: string; questionCount: number };
       error?: { code?: string; message?: string };
@@ -62,9 +69,12 @@ export async function startExam(direction: string): Promise<boolean> {
       return false;
     }
     exam.sessionId = payload.session.id;
+    // The server's count, not the requested one: a pool smaller than the request
+    // produces a shorter exam, and the learner is told the length they will get.
     exam.questionCount = payload.session.questionCount;
     exam.answeredCount = 0;
-    exam.lastCorrect = null;
+    exam.position = 1;
+    exam.complete = false;
     exam.result = null;
     return true;
   } catch {
@@ -76,35 +86,42 @@ export async function startExam(direction: string): Promise<boolean> {
 }
 
 /**
- * Submits an answer and keeps only the verdict. The response carries no answer,
- * no reason, and no score, so the UI has nothing more to show.
+ * Submits an answer for the current position and keeps only the progress.
+ *
+ * The request carries a position and an answer, and the response carries a
+ * position and a count. Correctness is matched on the server and stays there
+ * until the exam is over, so there is nothing here that could reveal it.
  */
 export async function submitExamAnswer(
-  question: {
-    vocabularyEntryId: string;
-    direction: 'english-to-german' | 'german-to-english';
-  },
+  position: number,
   submittedAnswer: string,
 ): Promise<boolean> {
   const response = await apiFetch(
     `/api/v1/exams/${exam.sessionId}/answer`,
-    jsonRequest('POST', {
-      vocabularyEntryId: question.vocabularyEntryId,
-      direction: question.direction,
-      submittedAnswer,
-    }),
+    jsonRequest('POST', { position, submittedAnswer }),
   );
   if (!response.ok) {
     exam.failed = 'answer';
     return false;
   }
   const payload = (await response.json()) as {
-    result: { correct: boolean };
-    session: { answeredCount: number };
+    session: { answeredCount: number; questionCount: number; complete: boolean };
   };
-  exam.lastCorrect = payload.result.correct;
   exam.answeredCount = payload.session.answeredCount;
+  exam.complete = payload.session.complete;
   return true;
+}
+
+/** Leaves an unfinished exam. The server records it as abandoned, not as a result. */
+export async function abandonExam(): Promise<void> {
+  if (!exam.sessionId) return;
+  try {
+    await apiFetch(`/api/v1/exams/${exam.sessionId}/abandon`, jsonRequest('POST', {}));
+  } catch {
+    // Leaving must always work, even if the server cannot be reached. The
+    // session is then left 'active' and is excluded from every statistic anyway.
+  }
+  exam.sessionId = '';
 }
 
 /** Ends the exam and takes the result, which is the first time answers appear. */
@@ -136,6 +153,30 @@ export async function loadExamProgress(): Promise<void> {
     if (statistics.ok && statisticsBody.statistics) exam.statistics = statisticsBody.statistics;
   } catch {
     // A missing exam section must not take the Practice statistics down with it.
+  } finally {
+    exam.loading = false;
+  }
+}
+
+/**
+ * Reads a finished exam by id, for the history rows on the Progress page.
+ *
+ * The server refuses an exam that is still running, so this cannot be used to
+ * read a result before the exam has been evaluated. A result that is missing, or
+ * belongs to someone else, simply leaves the screen as it was.
+ */
+export async function loadExamResult(sessionId: string): Promise<boolean> {
+  exam.loading = true;
+  exam.failed = '';
+  try {
+    const response = await apiFetch(`/api/v1/exams/${encodeURIComponent(sessionId)}`);
+    if (!response.ok) return false;
+    const payload = (await response.json()) as { result?: ExamResult | null };
+    if (!payload.result) return false;
+    exam.result = payload.result;
+    return true;
+  } catch {
+    return false;
   } finally {
     exam.loading = false;
   }

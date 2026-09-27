@@ -9,7 +9,15 @@ import type {
 import type { SqliteDatabase } from './database.js';
 import { normalizeAnswer } from './matching.js';
 import { assertPersistableUserId } from './persistence.js';
-import { recentAttemptWindow, type SelectionCandidate } from './selection.js';
+import {
+  buildExamQuestionSet,
+  recentAttemptWindow,
+  type Direction,
+  type DirectionPreference,
+  type ExamQuestion,
+  type RepetitionPreference,
+  type SelectionCandidate,
+} from './selection.js';
 import type { ParsedVocabularyRecord } from './vocabulary.js';
 
 export type UserRecord = {
@@ -462,6 +470,80 @@ export function getPracticeSession(
   return row ? { ...row, answeredCount: Number(row.answeredCount) } : undefined;
 }
 
+// --- Exam question set -------------------------------------------------------
+// Written once when the exam starts and read back in order. Nothing re-derives a
+// question from the live selection, so the exam cannot change under the learner.
+
+/**
+ * Draws and stores an exam's questions, and returns them.
+ *
+ * The session is created with the clamped length, not the requested one, so the
+ * number the learner is told is the number they will actually answer: asking for
+ * 20 with 12 eligible entries produces 12 questions.
+ */
+export function createExamQuestionSet(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string,
+  candidates: SelectionCandidate[],
+  options: {
+    questionCount: number;
+    direction: DirectionPreference;
+    repetitionPreference: RepetitionPreference;
+  },
+  random: () => number,
+): ExamQuestion[] {
+  assertPersistableUserId(userId, 'createExamQuestionSet');
+  const questions = buildExamQuestionSet(candidates, options, random);
+  database.exec('BEGIN');
+  try {
+    database
+      .prepare(
+        `UPDATE practice_sessions SET question_count = ? WHERE id = ? AND user_id = ? AND kind = 'exam'`,
+      )
+      .run(questions.length, sessionId, userId);
+    const insert = database.prepare(
+      `INSERT INTO exam_questions (session_id, position, vocabulary_entry_id, direction)
+       VALUES (?, ?, ?, ?)`,
+    );
+    for (const question of questions) {
+      insert.run(sessionId, question.position, question.vocabularyEntryId, question.direction);
+    }
+    database.exec('COMMIT');
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  }
+  return questions;
+}
+
+/** The exam's frozen questions, in order. */
+export function getExamQuestions(database: SqliteDatabase, sessionId: string): ExamQuestion[] {
+  const rows = database
+    .prepare(
+      `SELECT position, vocabulary_entry_id AS vocabularyEntryId, direction
+       FROM exam_questions WHERE session_id = ? ORDER BY position ASC`,
+    )
+    .all(sessionId) as Array<{ position: number; vocabularyEntryId: string; direction: Direction }>;
+  return rows.map((row) => ({ ...row, position: Number(row.position) }));
+}
+
+/** One frozen question, by its position in the exam. */
+export function getExamQuestionAt(
+  database: SqliteDatabase,
+  sessionId: string,
+  position: number,
+): ExamQuestion | undefined {
+  const row = database
+    .prepare(
+      `SELECT position, vocabulary_entry_id AS vocabularyEntryId, direction
+       FROM exam_questions WHERE session_id = ? AND position = ?`,
+    )
+    .get(sessionId, position) as
+    { position: number; vocabularyEntryId: string; direction: Direction } | undefined;
+  return row ? { ...row, position: Number(row.position) } : undefined;
+}
+
 // Per-entry learning history for question selection. Only entries with at least one accepted
 // answer are candidates, so unanswerable entries are never asked.
 export function getSelectionCandidates(
@@ -795,7 +877,7 @@ export function getExamHistory(
               (SELECT COUNT(*) FROM learning_attempts a
                 WHERE a.practice_session_id = s.id AND a.correct = 1) AS correctCount
        FROM practice_sessions s
-       WHERE s.user_id = ? AND s.kind = 'exam' AND s.status <> 'active' AND s.ended_at IS NOT NULL
+       WHERE s.user_id = ? AND s.kind = 'exam' AND s.status = 'completed' AND s.ended_at IS NOT NULL
        ORDER BY s.ended_at DESC, s.id DESC
        LIMIT ?`,
     )
@@ -828,18 +910,17 @@ export function getExamStatistics(
   const totals = database
     .prepare(
       `SELECT COUNT(*) AS examsCompleted,
-              COALESCE(SUM(s.question_count), 0) AS totalQuestions,
-              COALESCE(SUM((
-                SELECT COUNT(*) FROM learning_attempts a
-                 WHERE a.practice_session_id = s.id AND a.correct = 1
-              )), 0) AS totalCorrect
+              COALESCE(SUM(s.question_count), 0) AS totalQuestions
        FROM practice_sessions s
-       WHERE s.user_id = ? AND s.kind = 'exam' AND s.status <> 'active' AND s.ended_at IS NOT NULL`,
+       WHERE s.user_id = ? AND s.kind = 'exam' AND s.status = 'completed' AND s.ended_at IS NOT NULL`,
     )
-    .get(userId) as { examsCompleted: number; totalQuestions: number; totalCorrect: number };
+    .get(userId) as { examsCompleted: number; totalQuestions: number };
 
   const examsCompleted = Number(totals.examsCompleted);
-  const totalCorrect = Number(totals.totalCorrect);
+  // Every question in a completed exam was answered, so the question count is the
+  // number answered. This is deliberately the total, not the number answered
+  // correctly: "questions answered" is not a score.
+  const totalQuestionsAnswered = Number(totals.totalQuestions);
 
   const trend = database
     .prepare(
@@ -847,7 +928,7 @@ export function getExamStatistics(
               (SELECT COUNT(*) FROM learning_attempts a
                 WHERE a.practice_session_id = s.id AND a.correct = 1) AS correctCount
        FROM practice_sessions s
-       WHERE s.user_id = ? AND s.kind = 'exam' AND s.status <> 'active' AND s.ended_at IS NOT NULL
+       WHERE s.user_id = ? AND s.kind = 'exam' AND s.status = 'completed' AND s.ended_at IS NOT NULL
        ORDER BY s.ended_at ASC, s.id ASC
        LIMIT ?`,
     )
@@ -868,7 +949,7 @@ export function getExamStatistics(
     averageScore: average,
     bestScore: scoreHistory.length === 0 ? 0 : Math.max(...scoreHistory),
     latestScore: scoreHistory.length === 0 ? 0 : scoreHistory[scoreHistory.length - 1]!,
-    totalQuestionsAnswered: totalCorrect,
+    totalQuestionsAnswered,
     scoreHistory,
   };
 }
