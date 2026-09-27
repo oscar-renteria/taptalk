@@ -7,10 +7,12 @@ import { setLocale, supportedLocales, type LocaleCode } from '../i18n';
 import { directionValues, type Direction, type Tone } from '../types';
 import {
   enabledCount,
+  isFiltering,
   loadPracticeVocabulary,
   practiceVocabulary,
   setAllEnabled,
   setEntryEnabled,
+  visibleEntries,
 } from '../practice-vocabulary';
 const { t, locale } = useI18n();
 
@@ -183,19 +185,51 @@ async function save(): Promise<void> {
           </p>
           <p v-if="!enabledCount()" class="field__error">{{ t('vocabulary.noneSelected') }}</p>
 
+          <!-- Filtering the list narrows what the bulk buttons act on, so the
+               labels below say how many words they will touch. -->
+          <TextField
+            id="vocabulary-search"
+            v-model="practiceVocabulary.query"
+            type="search"
+            :label="t('vocabulary.searchLabel')"
+            :placeholder="t('vocabulary.searchPlaceholder')"
+            autocomplete="off"
+          />
+
+          <p v-if="isFiltering()" class="muted vocabulary__count">
+            {{
+              t('vocabulary.showingOf', {
+                shown: visibleEntries.length,
+                total: practiceVocabulary.entries.length,
+              })
+            }}
+          </p>
+
           <div class="button-row">
-            <AppButton variant="secondary" @click="setAllEnabled(true)">
-              {{ t('vocabulary.selectAll') }}
+            <AppButton variant="secondary" @click="setAllEnabled(true, visibleEntries)">
+              {{
+                isFiltering()
+                  ? t('vocabulary.selectAllVisible', { count: visibleEntries.length })
+                  : t('vocabulary.selectAll')
+              }}
             </AppButton>
-            <AppButton variant="secondary" @click="setAllEnabled(false)">
-              {{ t('vocabulary.deselectAll') }}
+            <AppButton variant="secondary" @click="setAllEnabled(false, visibleEntries)">
+              {{
+                isFiltering()
+                  ? t('vocabulary.deselectAllVisible', { count: visibleEntries.length })
+                  : t('vocabulary.deselectAll')
+              }}
             </AppButton>
           </div>
+
+          <p v-if="!visibleEntries.length" class="muted">
+            {{ t('vocabulary.noMatches') }}
+          </p>
 
           <!-- A native checkbox per row, wrapped in a label so the whole row is the
                tap target. State is carried by the control itself, not by colour. -->
           <ul class="vocabulary__list">
-            <li v-for="entry in practiceVocabulary.entries" :key="entry.id">
+            <li v-for="entry in visibleEntries" :key="entry.id">
               <label class="vocabulary__row">
                 <input
                   type="checkbox"

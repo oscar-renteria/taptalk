@@ -41,18 +41,20 @@ async function promptsSeen(
       await start.click();
       await page.waitForSelector('[data-testid="practice-prompt"]');
     }
+    // The field is readonly while a verdict is showing, so wait for the card to
+    // become interactive again rather than racing it.
+    await expect(page.getByLabel('Your answer')).toBeEnabled();
     const prompt = (await page.getByTestId('practice-prompt').innerText()).trim();
     seen.push(prompt);
     // Answered correctly so the round advances the same way it does for a user.
     await page.getByLabel('Your answer').fill(answerFor(prompt));
     await page.locator('form.practice-card').press('Enter');
     await expect(page.locator('.practice-card__verdict')).toBeVisible();
-    if (await page.getByRole('button', { name: 'See results' }).isVisible()) break;
     const next = page.locator('.practice-action button[type="submit"]');
-    if ((await next.innerText()).includes('Next question')) {
-      await next.click();
-      await page.waitForSelector('[data-testid="practice-prompt"]');
-    }
+    if (!(await next.innerText()).includes('Next question')) break;
+    await next.click();
+    // The next question is fetched, so the prompt text is what confirms arrival.
+    await expect(page.getByLabel('Your answer')).toBeEnabled();
   }
   return seen;
 }
@@ -207,5 +209,92 @@ test.describe('practice vocabulary selection', () => {
     await expect(rows(page).first()).toBeFocused();
     await page.keyboard.press('Space');
     await expect(rows(page).first()).not.toBeChecked();
+  });
+});
+
+test.describe('a long list stays usable', () => {
+  test('search narrows the list and reports how many are shown', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await logIn(page, await registerLearner(request, testInfo, 'vocab-search'));
+    await openSettings(page);
+    const total = await rows(page).count();
+    expect(total).toBeGreaterThan(2);
+    // Take a real word from the list so the test does not assume which words the
+    // fixtures happen to contain.
+    const target = (await page.locator('.vocabulary__word').first().innerText()).trim();
+
+    await page.getByLabel('Search words').fill(target);
+    // The count line only appears once the filter has been applied.
+    const shownLine = page.getByText(/^\d+ of \d+ shown$/);
+    await expect(shownLine).toBeVisible();
+    const shown = Number((await shownLine.innerText()).split(' ')[0]);
+    expect(shown).toBeGreaterThan(0);
+    expect(shown).toBeLessThan(total);
+    await expect(rows(page)).toHaveCount(shown);
+
+    // Clearing the search brings everything back.
+    await page.getByLabel('Search words').fill('');
+    await expect(rows(page)).toHaveCount(total);
+    await expect(shownLine).toHaveCount(0);
+  });
+
+  test('the bulk buttons only touch the words the search shows', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await logIn(page, await registerLearner(request, testInfo, 'vocab-scoped'));
+    await openSettings(page);
+    const total = await rows(page).count();
+    const target = (await page.locator('.vocabulary__word').first().innerText()).trim();
+
+    await page.getByLabel('Search words').fill(target);
+    const shownLine = page.getByText(/^\d+ of \d+ shown$/);
+    await expect(shownLine).toBeVisible();
+    const shown = Number((await shownLine.innerText()).split(' ')[0]);
+    expect(shown).toBeGreaterThan(0);
+    expect(shown).toBeLessThan(total);
+
+    // The label says how many rows the action will change, not "all".
+    const deselect = page.getByRole('button', { name: `Deselect these ${shown}`, exact: true });
+    await expect(deselect).toBeVisible();
+    await deselect.click();
+    await saved(page);
+
+    // Exactly the visible rows went off, and nothing outside the search did.
+    await expect(
+      page.getByText(new RegExp(`^${total - shown} of ${total} words selected for practice$`)),
+    ).toBeVisible();
+
+    await page.getByLabel('Search words').fill('');
+    await expect(rows(page)).toHaveCount(total);
+    const off = await page
+      .locator('.vocabulary__row:not(:has(input:checked)) .vocabulary__word')
+      .allInnerTexts();
+    expect(off.map((word) => word.trim())).toEqual([target]);
+  });
+
+  test('a search with no matches says so instead of showing an empty list', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await logIn(page, await registerLearner(request, testInfo, 'vocab-nomatch'));
+    await openSettings(page);
+    await page.getByLabel('Search words').fill('zzzzzz');
+    await expect(page.getByText('No words match your search.')).toBeVisible();
+    await expect(rows(page)).toHaveCount(0);
+    // The selection itself is untouched: clearing the search restores it.
+    await page.getByLabel('Search words').fill('');
+    await expect(rows(page).first()).toBeChecked();
+  });
+
+  test('the search is localized', async ({ page, request }, testInfo) => {
+    await logIn(page, await registerLearner(request, testInfo, 'vocab-search-i18n'));
+    await openSettings(page);
+    await page.getByLabel('App language').selectOption('de');
+    await expect(page.getByLabel('Wörter suchen')).toBeVisible();
+    await page.getByLabel('App-Sprache').selectOption('es');
+    await expect(page.getByLabel('Buscar palabras')).toBeVisible();
   });
 });
