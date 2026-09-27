@@ -7,6 +7,7 @@ import { createAppRouter } from './router';
 import { resetSession } from './session';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bodyOf, mockApi, mountApp, signedIn } from './test-api';
+import { i18n } from './i18n';
 
 const storedSettings = {
   direction: 'german-to-english',
@@ -61,7 +62,7 @@ describe('settings view', () => {
     resetSession();
     const router = createAppRouter(createMemoryHistory());
     await router.push('/settings');
-    const wrapper = mount(App, { global: { plugins: [router] } });
+    const wrapper = mount(App, { global: { plugins: [i18n, router] } });
     await flushPromises();
     expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined();
 

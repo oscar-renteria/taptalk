@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { passwordRules, registrationErrors, usernameRules } from '@taptalk/shared';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { AppButton, StatusMessage, TextField } from '../components';
+import { AppButton, SelectField, StatusMessage, TextField } from '../components';
+import { setLocale, supportedLocales, type LocaleCode } from '../i18n';
 import { safeRedirect } from '../router';
 import { signIn } from '../session';
 import type { ApiErrorBody, User } from '../types';
+const { t, locale } = useI18n();
 
 type Field = 'username' | 'password';
 
@@ -22,6 +25,18 @@ const serverErrors = reactive<Record<Field, string>>({ username: '', password: '
 const usernameField = ref<InstanceType<typeof TextField> | null>(null);
 const passwordField = ref<InstanceType<typeof TextField> | null>(null);
 
+// Language names are shown in their own language, which is what a language
+// picker is expected to do and needs no per-locale translation.
+const languageOptions = supportedLocales.map((entry) => ({
+  value: entry.code,
+  label: entry.label,
+}));
+
+async function changeLanguage(value: string): Promise<void> {
+  if (!supportedLocales.some((entry) => entry.code === value)) return;
+  await setLocale(value as LocaleCode);
+}
+
 const isRegister = computed(() => props.mode === 'register');
 // The router adds `expired` when a 401 ended the session, so the return is explained rather than
 // leaving the learner to wonder why they are back at the login screen.
@@ -31,8 +46,8 @@ const sessionEnded = computed(() => route.query.expired === '1');
 // Login only checks for presence, so accounts created under older rules can still sign in.
 const clientErrors = computed<Record<Field, string>>(() => {
   const errors: Record<Field, string> = { username: '', password: '' };
-  if (!username.value.trim()) errors.username = 'Enter your username.';
-  if (!password.value) errors.password = 'Enter your password.';
+  if (!username.value.trim()) errors.username = t('auth.usernameRequired');
+  if (!password.value) errors.password = t('auth.passwordRequired');
   if (isRegister.value && !errors.username && !errors.password) {
     for (const issue of registrationErrors({
       username: username.value,
@@ -95,10 +110,10 @@ async function submit(): Promise<void> {
         serverErrors[field] ||= detail.message;
       }
       if (payload.error?.code === 'USERNAME_UNAVAILABLE') {
-        serverErrors.username = 'This username is taken. Try another one.';
+        serverErrors.username = t('auth.usernameTaken');
       }
       if (!details.length && payload.error?.code !== 'USERNAME_UNAVAILABLE') {
-        formError.value = payload.error?.message ?? 'The request could not be completed.';
+        formError.value = payload.error?.message ?? t('auth.requestFailed');
       }
       await focusFirstError();
       return;
@@ -107,7 +122,7 @@ async function submit(): Promise<void> {
     signIn(payload.user);
     await router.replace(safeRedirect(route.query.redirect));
   } catch {
-    formError.value = 'The service is unavailable. Try again in a moment.';
+    formError.value = t('auth.serviceUnavailable');
   } finally {
     loading.value = false;
   }
@@ -116,21 +131,17 @@ async function submit(): Promise<void> {
 
 <template>
   <section class="panel" aria-labelledby="page-title">
-    <p class="eyebrow">TapTalk</p>
-    <h1 id="page-title">Small steps. Stronger words.</h1>
-    <p class="intro">A quiet place to build your German, one answer at a time.</p>
-    <h2 id="form-title">{{ isRegister ? 'Create your account' : 'Log in to practise' }}</h2>
-    <StatusMessage
-      v-if="sessionEnded"
-      tone="info"
-      message="Your session ended, so we brought you back here. Sign in to carry on where you left off."
-    />
+    <p class="eyebrow">{{ t('app.name') }}</p>
+    <h1 id="page-title">{{ t('auth.heading') }}</h1>
+    <p class="intro">{{ t('app.tagline') }}</p>
+    <h2 id="form-title">{{ isRegister ? t('auth.registerTitle') : t('auth.loginTitle') }}</h2>
+    <StatusMessage v-if="sessionEnded" tone="info" :message="t('auth.sessionEnded')" />
     <form aria-labelledby="form-title" novalidate @submit.prevent="submit">
       <TextField
         id="username"
         ref="usernameField"
         v-model="username"
-        label="Username"
+        :label="t('auth.username')"
         autocomplete="username"
         autocapitalize="off"
         spellcheck="false"
@@ -147,7 +158,7 @@ async function submit(): Promise<void> {
         id="password"
         ref="passwordField"
         v-model="password"
-        label="Password"
+        :label="t('auth.password')"
         :type="showPassword ? 'text' : 'password'"
         :autocomplete="isRegister ? 'new-password' : 'current-password'"
         :maxlength="passwordRules.maxLength"
@@ -166,7 +177,7 @@ async function submit(): Promise<void> {
             aria-controls="password"
             @click="showPassword = !showPassword"
           >
-            {{ showPassword ? 'Hide' : 'Show' }}
+            {{ showPassword ? t('auth.hidePasswordShort') : t('auth.showPasswordShort') }}
             <span class="visually-hidden">password</span>
           </AppButton>
         </template>
@@ -174,9 +185,9 @@ async function submit(): Promise<void> {
       <AppButton
         type="submit"
         :loading="loading"
-        :loading-label="isRegister ? 'Creating account...' : 'Logging in...'"
+        :loading-label="isRegister ? t('auth.creatingAccount') : t('auth.loggingIn')"
       >
-        {{ isRegister ? 'Create account' : 'Log in' }}
+        {{ isRegister ? t('auth.register') : t('auth.logIn') }}
       </AppButton>
     </form>
     <StatusMessage v-if="formError" tone="error" :message="formError" />
@@ -184,7 +195,16 @@ async function submit(): Promise<void> {
       class="btn btn--text"
       :to="{ name: isRegister ? 'login' : 'register', query: route.query }"
     >
-      {{ isRegister ? 'Already have an account?' : 'Need an account?' }}
+      {{ isRegister ? t('auth.haveAccount') : t('auth.noAccount') }}
     </RouterLink>
+    <div class="auth__language">
+      <SelectField
+        id="auth-language"
+        :model-value="locale"
+        :label="t('settings.language')"
+        :options="languageOptions"
+        @update:model-value="changeLanguage"
+      />
+    </div>
   </section>
 </template>

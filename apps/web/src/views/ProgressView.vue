@@ -1,8 +1,27 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { AppButton, ErrorState, LoadingState, StatTile } from '../components';
 import { apiFetch } from '../api';
+const { t, locale } = useI18n();
+
+/**
+ * Numbers, percentages and dates follow the active UI locale rather than
+ * English conventions: 1,234.56 in English, 1.234,56 in German, 1.234,56 in
+ * Spanish. Using Intl keeps separators, decimals and percent placement correct
+ * without hand-rolled formatting.
+ */
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat(locale.value).format(value);
+}
+
+function formatPercent(ratio: number): string {
+  return new Intl.NumberFormat(locale.value, {
+    style: 'percent',
+    maximumFractionDigits: 0,
+  }).format(ratio);
+}
 
 type Dashboard = {
   totalPoints: number;
@@ -36,22 +55,30 @@ onMounted(load);
 
 <template>
   <section class="content-section" aria-labelledby="progress-title">
-    <p class="eyebrow">Your progress</p>
-    <h1 id="progress-title">A clear beginning.</h1>
-    <LoadingState v-if="loading" label="Loading your progress..." />
-    <ErrorState v-else-if="failed" message="Your progress could not be loaded." @retry="load" />
+    <p class="eyebrow">{{ t('progress.eyebrow') }}</p>
+    <h1 id="progress-title">{{ t('progress.heading') }}</h1>
+    <LoadingState v-if="loading" :label="t('progress.loading')" />
+    <ErrorState v-else-if="failed" :message="t('progress.loadFailed')" @retry="load" />
     <template v-else-if="dashboard">
       <div class="stat-grid">
-        <StatTile data-testid="stat-points" :value="dashboard.totalPoints" label="points" />
-        <StatTile data-testid="stat-attempts" :value="dashboard.totalAttempts" label="attempts" />
+        <StatTile
+          data-testid="stat-points"
+          :value="formatNumber(dashboard.totalPoints)"
+          :label="t('progress.points')"
+        />
+        <StatTile
+          data-testid="stat-attempts"
+          :value="formatNumber(dashboard.totalAttempts)"
+          :label="t('progress.attempts')"
+        />
         <StatTile
           data-testid="stat-accuracy"
-          :value="`${Math.round(dashboard.accuracy * 100)}%`"
-          label="accuracy"
+          :value="formatPercent(dashboard.accuracy)"
+          :label="t('progress.accuracy')"
         />
       </div>
       <div v-if="dashboard.repeatedErrorWords.length" class="empty-state">
-        <h2 class="empty-state__title">Words worth another look</h2>
+        <h2 class="empty-state__title">{{ t('progress.trickyTitle') }}</h2>
         <p class="muted">
           You have answered these incorrectly more than once. A short round in this direction is
           usually enough to turn them around.
@@ -61,13 +88,9 @@ onMounted(load);
         </ul>
       </div>
       <div v-else class="empty-state">
-        <h2 class="empty-state__title">No history yet</h2>
+        <h2 class="empty-state__title">{{ t('progress.emptyTitle') }}</h2>
         <p class="muted">
-          {{
-            dashboard.totalAttempts > 0
-              ? 'You have answered questions, but nothing has come up twice yet. That is a good sign.'
-              : 'Answer a few questions and your accuracy, points, and tricky words will appear here.'
-          }}
+          {{ dashboard.totalAttempts > 0 ? t('progress.emptyAttempts') : t('progress.emptyNone') }}
         </p>
         <AppButton variant="secondary" @click="router.push('/practice')">
           Start practising

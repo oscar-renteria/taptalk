@@ -1,3 +1,4 @@
+import { watch } from 'vue';
 import {
   createRouter,
   createWebHistory,
@@ -5,6 +6,7 @@ import {
   type RouterHistory,
 } from 'vue-router';
 import { setSessionExpiredHandler } from './api';
+import { i18n } from './i18n';
 import { restoreSession, session } from './session';
 import AdminImportView from './views/AdminImportView.vue';
 import AuthView from './views/AuthView.vue';
@@ -15,7 +17,8 @@ import SettingsView from './views/SettingsView.vue';
 
 declare module 'vue-router' {
   interface RouteMeta {
-    title: string;
+    /** Translation key for the document title, resolved in the active UI language. */
+    titleKey: string;
     access: 'guest' | 'user' | 'administrator' | 'any';
   }
 }
@@ -37,44 +40,44 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
         name: 'login',
         component: AuthView,
         props: { mode: 'login' },
-        meta: { title: 'Log in', access: 'guest' },
+        meta: { titleKey: 'auth.loginTitle', access: 'guest' },
       },
       {
         path: '/register',
         name: 'register',
         component: AuthView,
         props: { mode: 'register' },
-        meta: { title: 'Create account', access: 'guest' },
+        meta: { titleKey: 'auth.registerTitle', access: 'guest' },
       },
       {
         path: '/practice',
         name: 'practice',
         component: PracticeView,
-        meta: { title: 'Practice', access: 'user' },
+        meta: { titleKey: 'nav.practice', access: 'user' },
       },
       {
         path: '/progress',
         name: 'progress',
         component: ProgressView,
-        meta: { title: 'Progress', access: 'user' },
+        meta: { titleKey: 'nav.progress', access: 'user' },
       },
       {
         path: '/settings',
         name: 'settings',
         component: SettingsView,
-        meta: { title: 'Settings', access: 'user' },
+        meta: { titleKey: 'nav.settings', access: 'user' },
       },
       {
         path: '/admin/import',
         name: 'admin-import',
         component: AdminImportView,
-        meta: { title: 'Import vocabulary', access: 'administrator' },
+        meta: { titleKey: 'admin.title', access: 'administrator' },
       },
       {
         path: '/:pathMatch(.*)*',
         name: 'not-found',
         component: NotFoundView,
-        meta: { title: 'Page not found', access: 'any' },
+        meta: { titleKey: 'nav.pageNotFound', access: 'any' },
       },
     ],
     scrollBehavior: () => ({ top: 0 }),
@@ -94,9 +97,22 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
     return true;
   });
 
-  router.afterEach((to) => {
-    document.title = `${to.meta.title} · TapTalk`;
-  });
+  // Titles are translation keys so they follow the UI language, including when
+  // the language changes while the user stays on the same route.
+  const applyTitle = (to: { meta: { titleKey?: string } }): void => {
+    const key = to.meta.titleKey;
+    document.title = key
+      ? `${i18n.global.t(key)} · ${i18n.global.t('app.name')}`
+      : (i18n.global.t('app.name') as string);
+  };
+  router.afterEach(applyTitle);
+  // Re-apply on locale change so switching language updates the title too.
+  watch(
+    () => i18n.global.locale.value,
+    () => applyTitle(router.currentRoute.value),
+  );
+  // Set once at creation so the first paint already has a translated title.
+  applyTitle(router.currentRoute.value);
 
   return router;
 }

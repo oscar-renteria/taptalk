@@ -41,7 +41,7 @@ test.describe('administrator vocabulary import', () => {
     });
     await page.getByRole('button', { name: 'Preview import' }).click();
 
-    await expect(page.getByText('1 invalid records')).toBeVisible();
+    await expect(page.getByText('1 invalid record')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Confirm and import' })).toBeDisabled();
   });
 });

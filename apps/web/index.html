@@ -1,16 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f5f1e8" />
     <meta name="description" content="A focused English and German practice space." />
+    <!-- The application owns its own localization. These discourage the browser
+         from rewriting the interface or the learning material. translate="no" on
+         the root and the notranslate class below are the standards-based
+         mechanisms; the meta tag covers Google Chrome specifically. None of
+         these replace the app's own i18n. -->
+    <meta name="google" content="notranslate" />
     <link rel="icon" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>TapTalk</title>
   </head>
-  <body>
-    <div id="app"></div>
+  <body class="notranslate">
+    <div id="app" class="notranslate"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

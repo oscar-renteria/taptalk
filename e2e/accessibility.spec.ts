@@ -98,7 +98,7 @@ test.describe('automated accessibility audit', () => {
       buffer: Buffer.from(JSON.stringify([{ english: '', german: '' }])),
     });
     await page.getByRole('button', { name: 'Preview import' }).click();
-    await expect(page.getByText('1 invalid records')).toBeVisible();
+    await expect(page.getByText('1 invalid record')).toBeVisible();
     await expectNoViolations(page, 'import preview with errors');
   });
 });
