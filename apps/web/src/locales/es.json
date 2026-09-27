@@ -228,6 +228,12 @@
     "stateEnabled": "seleccionada para practicar",
     "stateDisabled": "no seleccionada para practicar",
     "dashboardLink": "Elegir vocabulario de práctica",
-    "startBlocked": "Ahora mismo no hay ninguna palabra seleccionada para practicar."
+    "startBlocked": "Ahora mismo no hay ninguna palabra seleccionada para practicar.",
+    "searchLabel": "Buscar palabras",
+    "searchPlaceholder": "Filtrar por inglés o alemán",
+    "showingOf": "{shown} de {total} mostradas",
+    "selectAllVisible": "Seleccionar estas {count}",
+    "deselectAllVisible": "Deseleccionar estas {count}",
+    "noMatches": "Ninguna palabra coincide con la búsqueda."
   }
 }

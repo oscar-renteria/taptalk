@@ -228,6 +228,12 @@
     "stateEnabled": "selected for practice",
     "stateDisabled": "not selected for practice",
     "dashboardLink": "Choose practice vocabulary",
-    "startBlocked": "No vocabulary is currently selected for practice."
+    "startBlocked": "No vocabulary is currently selected for practice.",
+    "searchLabel": "Search words",
+    "searchPlaceholder": "Filter by English or German",
+    "showingOf": "{shown} of {total} shown",
+    "selectAllVisible": "Select these {count}",
+    "deselectAllVisible": "Deselect these {count}",
+    "noMatches": "No words match your search."
   }
 }

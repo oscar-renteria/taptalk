@@ -228,6 +228,12 @@
     "stateEnabled": "für die Übung ausgewählt",
     "stateDisabled": "nicht für die Übung ausgewählt",
     "dashboardLink": "Übungsvokabeln auswählen",
-    "startBlocked": "Zurzeit sind keine Vokabeln für die Übung ausgewählt."
+    "startBlocked": "Zurzeit sind keine Vokabeln für die Übung ausgewählt.",
+    "searchLabel": "Wörter suchen",
+    "searchPlaceholder": "Nach Englisch oder Deutsch filtern",
+    "showingOf": "{shown} von {total} angezeigt",
+    "selectAllVisible": "Diese {count} auswählen",
+    "deselectAllVisible": "Diese {count} abwählen",
+    "noMatches": "Keine Wörter passen zur Suche."
   }
 }

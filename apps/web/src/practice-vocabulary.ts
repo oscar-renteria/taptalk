@@ -1,4 +1,4 @@
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 import { apiFetch, jsonRequest } from './api';
 import { session } from './session';
 import type { PracticeVocabularyEntry } from '@taptalk/shared';
@@ -20,6 +20,8 @@ export const practiceVocabulary = reactive({
   saving: false,
   error: '',
   loaded: false,
+  /** Search text for the Settings list. Transient, never sent anywhere. */
+  query: '',
 });
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -30,8 +32,41 @@ let generation = 0;
 
 const saveDelayMs = 600;
 
+/**
+ * Id lookup, so a toggle is O(1) instead of scanning the list. Rebuilt whenever
+ * the list is replaced; this only matters once the list is long.
+ */
+let byId = new Map<string, PracticeVocabularyEntry>();
+
+function reindex(): void {
+  byId = new Map(practiceVocabulary.entries.map((entry) => [entry.id, entry]));
+}
+
 export function enabledCount(): number {
-  return practiceVocabulary.entries.filter((entry) => entry.enabled).length;
+  return practiceVocabulary.entries.reduce((total, entry) => total + (entry.enabled ? 1 : 0), 0);
+}
+
+/**
+ * The rows the user can currently see: everything, or the matches for the search
+ * box. Matching is case-insensitive across both languages, because a learner
+ * looking for a word may know it in either.
+ *
+ * Filtering is client-side on purpose. The API already returns the whole list in
+ * one response, so the client already holds every row: paging the reads would not
+ * save anything and would make "select everything" ambiguous.
+ */
+export const visibleEntries = computed(() => {
+  const query = practiceVocabulary.query.trim().toLowerCase();
+  if (!query) return practiceVocabulary.entries;
+  return practiceVocabulary.entries.filter(
+    (entry) =>
+      entry.english.toLowerCase().includes(query) || entry.german.toLowerCase().includes(query),
+  );
+});
+
+/** True when a search is narrowing the list, so bulk actions must say so. */
+export function isFiltering(): boolean {
+  return practiceVocabulary.query.trim().length > 0;
 }
 
 /** Loads the list and the stored selection for the current identity. */
@@ -43,6 +78,7 @@ export async function loadPracticeVocabulary(): Promise<void> {
     const payload = (await response.json()) as { entries?: PracticeVocabularyEntry[] };
     if (response.ok && payload.entries) {
       practiceVocabulary.entries = payload.entries;
+      reindex();
       practiceVocabulary.loaded = true;
     } else if (response.status !== 401) {
       practiceVocabulary.error = 'load';
@@ -56,16 +92,22 @@ export async function loadPracticeVocabulary(): Promise<void> {
 
 /** Flips one entry and schedules a batched save. */
 export function setEntryEnabled(id: string, enabled: boolean): void {
-  const entry = practiceVocabulary.entries.find((candidate) => candidate.id === id);
+  const entry = byId.get(id);
   if (!entry) return;
   entry.enabled = enabled;
   generation += 1;
   scheduleSave();
 }
 
-/** Bulk actions share the same batched save, so a full list change is still one request. */
-export function setAllEnabled(enabled: boolean): void {
-  for (const entry of practiceVocabulary.entries) entry.enabled = enabled;
+/**
+ * Bulk action over the given rows, defaulting to the whole list.
+ *
+ * Settings passes the rows the user can actually see, so a search followed by
+ * "deselect" only touches the matches. Without that, filtering to find something
+ * and then deselecting would quietly switch off every word that was never shown.
+ */
+export function setAllEnabled(enabled: boolean, rows?: PracticeVocabularyEntry[]): void {
+  for (const entry of rows ?? practiceVocabulary.entries) entry.enabled = enabled;
   generation += 1;
   scheduleSave();
 }
@@ -98,7 +140,10 @@ export async function savePracticeVocabulary(): Promise<void> {
     if (sentAt !== generation) return;
     if (response.ok) {
       const payload = (await response.json()) as { entries?: PracticeVocabularyEntry[] };
-      if (payload.entries) practiceVocabulary.entries = payload.entries;
+      if (payload.entries) {
+        practiceVocabulary.entries = payload.entries;
+        reindex();
+      }
     } else {
       practiceVocabulary.error = 'save';
     }
@@ -136,6 +181,8 @@ export function resetPracticeVocabulary(): void {
   pending = null;
   generation += 1;
   practiceVocabulary.entries = [];
+  practiceVocabulary.query = '';
+  reindex();
   practiceVocabulary.loading = false;
   practiceVocabulary.saving = false;
   practiceVocabulary.error = '';
