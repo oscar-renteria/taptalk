@@ -21,6 +21,9 @@ import {
   getVocabularyImportHistory,
   getPracticeSession,
   getPracticeSessionSummary,
+  getExamHistory,
+  getExamResult,
+  getExamStatistics,
   getPracticeVocabulary,
   countPracticeVocabulary,
   setPracticeVocabularyExclusions,
@@ -123,6 +126,10 @@ export function assertProductionConfiguration(environment: NodeJS.ProcessEnv): v
 const defaultBodyLimit = 64 * 1024;
 const importBodyLimit = 2 * 1024 * 1024;
 const maxSubmittedAnswerLength = 500;
+// The Progress page only needs recent exams listed, and a bounded trend for the
+// chart, so neither endpoint ever returns an unbounded history.
+const examHistoryLimit = 20;
+const examTrendLimit = 30;
 
 // Default request logging records method, URL, host and client address only. The redaction list
 // guards against headers or credentials being added to log objects in the future.
@@ -814,6 +821,206 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         }
         throw error;
       }
+    },
+  );
+
+  // --- Exam Mode ---------------------------------------------------------------
+  // An exam is a practice session with kind = 'exam': same question selection,
+  // same answer matching, same lifecycle. The only difference is feedback, and
+  // that is enforced here rather than in the client.
+
+  server.post<{ Body: { direction?: unknown } | undefined }>(
+    '/api/v1/exams',
+    { config: { access: 'guest' } },
+    async (request, reply) => {
+      const preferences = readPreferences(request);
+      const direction = practiceDirectionSchema.safeParse(
+        request.body?.direction ?? preferences.direction,
+      );
+      if (!direction.success) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_DIRECTION', message: 'Practice direction is invalid.' },
+        });
+      }
+      // The same eligible pool as Practice Mode, so the vocabulary selection in
+      // Settings governs exams too.
+      if (countPracticeVocabularyFor(request) === 0) {
+        return reply.code(404).send({
+          error: {
+            code: 'NO_PRACTICE_VOCABULARY',
+            message: 'No vocabulary is currently selected for practice.',
+          },
+        });
+      }
+      // Exam length reuses the existing session-length preference.
+      const now = new Date().toISOString();
+      const input = {
+        id: createId(),
+        direction: direction.data,
+        questionCount: preferences.sessionLength,
+        kind: 'exam' as const,
+      };
+      const actor = currentActor(request);
+      const session =
+        actor.type === 'guest'
+          ? guestStore.startPracticeSession(actor.guestId, input, now)
+          : actor.type === 'authenticated'
+            ? startPracticeSession(db, { ...input, userId: actor.user.id }, now)
+            : null;
+      if (!session) {
+        return reply
+          .code(401)
+          .send({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required.' } });
+      }
+      return reply.code(201).send({ session: publicSession(session) });
+    },
+  );
+
+  /**
+   * Submitting an exam answer returns correctness and nothing else.
+   *
+   * No correctAnswer, no matching reason, no score: the client cannot render the
+   * answer even if it wanted to, so there is nothing in the DOM, in an
+   * accessibility label, or in the network response to leak it. The full detail
+   * is only readable from the result endpoint, which refuses an active exam.
+   */
+  server.post<{
+    Body: { vocabularyEntryId?: unknown; direction?: unknown; submittedAnswer?: unknown };
+    Params: { sessionId: string };
+  }>('/api/v1/exams/:sessionId/answer', { config: { access: 'guest' } }, async (request, reply) => {
+    const id = actorId(request);
+    const session = isGuest(request)
+      ? guestStore.getPracticeSession(id, request.params.sessionId)
+      : getPracticeSession(db, id, request.params.sessionId);
+    if (!session) {
+      return reply.code(404).send({
+        error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
+      });
+    }
+    if (session.status !== 'active' || session.answeredCount >= session.questionCount) {
+      // Refusing once the exam is full also prevents duplicate submissions from
+      // inflating the score.
+      return reply.code(409).send({
+        error: { code: 'SESSION_NOT_ACTIVE', message: 'Practice session is no longer active.' },
+      });
+    }
+    const { vocabularyEntryId, direction, submittedAnswer } = request.body ?? {};
+    if (
+      typeof vocabularyEntryId !== 'string' ||
+      vocabularyEntryId.length > 64 ||
+      (direction !== 'english-to-german' && direction !== 'german-to-english') ||
+      typeof submittedAnswer !== 'string' ||
+      submittedAnswer.length > maxSubmittedAnswerLength
+    ) {
+      return reply
+        .code(400)
+        .send({ error: { code: 'INVALID_ANSWER', message: 'Answer submission is invalid.' } });
+    }
+    const entry = vocabulary().find((candidate) => candidate.id === vocabularyEntryId);
+    if (!entry) {
+      return reply.code(404).send({
+        error: { code: 'QUESTION_NOT_FOUND', message: 'Question is no longer available.' },
+      });
+    }
+    const accepted = direction === 'english-to-german' ? entry.answers : [entry.english];
+    // The same matching policy as Practice Mode, so correctness is judged the
+    // same way in both modes.
+    const match = matchAnswer(submittedAnswer, accepted);
+    const attempt: Omit<GuestAttempt, 'id'> & { id: string } = {
+      id: createId(),
+      vocabularyEntryId: entry.id,
+      direction,
+      prompt: direction === 'english-to-german' ? entry.english : entry.germanDisplay,
+      submittedAnswer,
+      normalizedAnswer: match.normalizedAnswer,
+      correct: match.correct,
+      // An exam awards a pass/fail per question, so it does not use the practice
+      // points; the aggregate percentage is computed at the end instead.
+      scoreDelta: 0,
+      matchingReason: match.reason,
+      attemptedAt: new Date().toISOString(),
+      practiceSessionId: session.id,
+    };
+    if (isGuest(request)) {
+      guestStore.recordAttempt(id, attempt);
+      guestStore.bumpAnsweredCount(id, session.id);
+    } else {
+      recordAttempt(db, { ...attempt, userId: id });
+    }
+    return reply.send({
+      result: { correct: match.correct },
+      session: {
+        id: session.id,
+        answeredCount: session.answeredCount + 1,
+        questionCount: session.questionCount,
+      },
+    });
+  });
+
+  server.post<{ Params: { sessionId: string } }>(
+    '/api/v1/exams/:sessionId/end',
+    { config: { access: 'guest' } },
+    async (request, reply) => {
+      const id = actorId(request);
+      const session = isGuest(request)
+        ? guestStore.getPracticeSession(id, request.params.sessionId)
+        : getPracticeSession(db, id, request.params.sessionId);
+      if (!session) {
+        return reply.code(404).send({
+          error: { code: 'SESSION_NOT_FOUND', message: 'Practice session was not found.' },
+        });
+      }
+      const now = new Date().toISOString();
+      if (session.status === 'active') {
+        if (isGuest(request)) guestStore.endPracticeSession(id, session, now);
+        else endPracticeSession(db, session, now);
+      }
+      const result = isGuest(request)
+        ? guestStore.getExamResult(id, session.id, vocabulary)
+        : getExamResult(db, id, session.id);
+      return reply.send({ result: result ?? null });
+    },
+  );
+
+  /** The result and its review. Refused while the exam is still running. */
+  server.get<{ Params: { sessionId: string } }>(
+    '/api/v1/exams/:sessionId',
+    { config: { access: 'guest' } },
+    async (request, reply) => {
+      const id = actorId(request);
+      const result = isGuest(request)
+        ? guestStore.getExamResult(id, request.params.sessionId, vocabulary)
+        : getExamResult(db, id, request.params.sessionId);
+      if (!result) {
+        // Either it does not exist, it belongs to someone else, or it is still
+        // active. All three are refused the same way, so this endpoint cannot be
+        // used to probe for a running exam.
+        return reply.code(404).send({
+          error: { code: 'EXAM_NOT_FOUND', message: 'Exam result was not found.' },
+        });
+      }
+      return reply.send({ result });
+    },
+  );
+
+  server.get('/api/v1/exams', { config: { access: 'guest' } }, async (request, reply) => {
+    const id = actorId(request);
+    const history = isGuest(request)
+      ? guestStore.getExamHistory(id, examHistoryLimit)
+      : getExamHistory(db, id, examHistoryLimit);
+    return reply.send({ history });
+  });
+
+  /** Aggregates, computed server-side so Progress never downloads the history. */
+  server.get(
+    '/api/v1/exams/statistics',
+    { config: { access: 'guest' } },
+    async (request, reply) => {
+      const id = actorId(request);
+      const statistics = isGuest(request)
+        ? guestStore.getExamStatistics(id, examTrendLimit)
+        : getExamStatistics(db, id, examTrendLimit);
+      return reply.send({ statistics });
     },
   );
 

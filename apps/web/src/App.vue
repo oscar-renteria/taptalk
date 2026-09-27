@@ -20,6 +20,7 @@ const networkUnavailable = ref(typeof navigator !== 'undefined' && !navigator.on
 const viewFailed = ref(false);
 const navItems = computed(() => [
   { to: '/practice', label: t('nav.practice') },
+  { to: '/exams', label: t('nav.exams') },
   { to: '/progress', label: t('nav.progress') },
   ...(session.user?.role === 'administrator'
     ? [{ to: '/admin/import', label: t('nav.vocabulary') }]

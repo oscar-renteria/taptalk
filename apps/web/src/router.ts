@@ -14,6 +14,7 @@ import AuthView from './views/AuthView.vue';
 import NotFoundView from './views/NotFoundView.vue';
 import PracticeView from './views/PracticeView.vue';
 import ProgressView from './views/ProgressView.vue';
+import ExamView from './views/ExamView.vue';
 import SettingsView from './views/SettingsView.vue';
 
 declare module 'vue-router' {
@@ -55,6 +56,12 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
         name: 'practice',
         component: PracticeView,
         meta: { titleKey: 'nav.practice', access: 'user' },
+      },
+      {
+        path: '/exams',
+        name: 'exams',
+        component: ExamView,
+        meta: { titleKey: 'nav.exams', access: 'user' },
       },
       {
         path: '/progress',

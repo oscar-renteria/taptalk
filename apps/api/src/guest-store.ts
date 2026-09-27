@@ -1,4 +1,11 @@
-import type { DashboardSummary, PracticeDirection, UserPreferences } from '@taptalk/shared';
+import type {
+  DashboardSummary,
+  ExamHistoryEntry,
+  ExamResult,
+  ExamStatistics,
+  PracticeDirection,
+  UserPreferences,
+} from '@taptalk/shared';
 import { recentAttemptWindow, type SelectionCandidate } from './selection.js';
 import type {
   PracticeSessionRecord,
@@ -32,7 +39,7 @@ export type GuestAttempt = {
   practiceSessionId: string | null;
 };
 
-type GuestSession = PracticeSessionRecord & { attempts: GuestAttempt[] };
+type GuestSession = PracticeSessionRecord & { attempts: GuestAttempt[]; kind: 'practice' | 'exam' };
 
 type GuestData = {
   preferences: UserPreferences;
@@ -123,7 +130,12 @@ function publicSession(session: GuestSession): PracticeSessionRecord {
 
 export function startPracticeSession(
   guestId: string,
-  session: { id: string; direction: PracticeDirection; questionCount: number },
+  session: {
+    id: string;
+    direction: PracticeDirection;
+    questionCount: number;
+    kind?: 'practice' | 'exam';
+  },
   now: string,
 ): PracticeSessionRecord {
   const data = dataFor(guestId);
@@ -136,6 +148,7 @@ export function startPracticeSession(
   }
   const record: GuestSession = {
     id: session.id,
+    kind: session.kind ?? 'practice',
     // Present so the record matches the persisted shape. It is never written
     // anywhere: there is no row behind this id.
     userId: guestId,
@@ -335,4 +348,110 @@ export function setPracticeVocabularyExclusions(
 export function countPracticeVocabulary(guestId: string, vocabulary: VocabularySource): number {
   const disabled = dataFor(guestId).excludedEntryIds;
   return vocabulary().reduce((total, entry) => total + (disabled.has(entry.id) ? 0 : 1), 0);
+}
+
+// --- Exam Mode (guests) ------------------------------------------------------
+//
+// The guest mirror of the exam functions in repositories.ts. Everything stays in
+// the in-memory record, so a guest exam produces results and statistics without
+// any database row, exactly like the rest of guest state.
+
+export function getExamResult(
+  guestId: string,
+  sessionId: string,
+  vocabulary: VocabularySource,
+): ExamResult | undefined {
+  const stored = dataFor(guestId).sessions.get(sessionId);
+  if (!stored || stored.kind !== 'exam' || stored.status === 'active' || !stored.endedAt) {
+    return undefined;
+  }
+  // Attempts never store the answer, so the review recovers it from vocabulary.
+  const entries = new Map(vocabulary().map((entry) => [entry.id, entry]));
+  const questions = stored.attempts.map((attempt, index) => {
+    const entry = entries.get(attempt.vocabularyEntryId);
+    return {
+      index: index + 1,
+      vocabularyEntryId: attempt.vocabularyEntryId,
+      prompt: attempt.prompt,
+      direction: attempt.direction,
+      submittedAnswer: attempt.submittedAnswer,
+      correctAnswer:
+        entry && attempt.direction === 'english-to-german'
+          ? entry.germanDisplay
+          : (entry?.english ?? ''),
+      correct: attempt.correct,
+    };
+  });
+  const correctCount = questions.filter((question) => question.correct).length;
+  return {
+    id: stored.id,
+    direction: stored.direction,
+    status: stored.status,
+    totalQuestions: questions.length,
+    correctCount,
+    incorrectCount: questions.length - correctCount,
+    score: guestExamScore(correctCount, questions.length),
+    durationSeconds: Math.max(
+      0,
+      Math.round((Date.parse(stored.endedAt) - Date.parse(stored.startedAt)) / 1000),
+    ),
+    startedAt: stored.startedAt,
+    endedAt: stored.endedAt,
+    questions,
+  };
+}
+
+/** Mirrors `examScore` so guests and users are scored identically. */
+export function guestExamScore(correct: number, total: number): number {
+  return total === 0 ? 0 : Math.round((correct / total) * 100);
+}
+
+export function getExamHistory(guestId: string, limit: number): ExamHistoryEntry[] {
+  return [...dataFor(guestId).sessions.values()]
+    .filter(
+      (session) =>
+        session.kind === 'exam' && session.status !== 'active' && session.endedAt !== null,
+    )
+    .sort((a, b) => Date.parse(b.endedAt!) - Date.parse(a.endedAt!))
+    .slice(0, limit)
+    .map((session) => {
+      const correctCount = session.attempts.filter((attempt) => attempt.correct).length;
+      return {
+        id: session.id,
+        score: guestExamScore(correctCount, session.attempts.length),
+        correctCount,
+        totalQuestions: session.attempts.length,
+        endedAt: session.endedAt!,
+      };
+    });
+}
+
+export function getExamStatistics(guestId: string, trendLimit: number): ExamStatistics {
+  const sessions = [...dataFor(guestId).sessions.values()]
+    .filter(
+      (session) =>
+        session.kind === 'exam' && session.status !== 'active' && session.endedAt !== null,
+    )
+    .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+  const scores = sessions.map((session) =>
+    guestExamScore(
+      session.attempts.filter((attempt) => attempt.correct).length,
+      session.attempts.length,
+    ),
+  );
+  const trend = scores.slice(-trendLimit);
+  return {
+    examsCompleted: sessions.length,
+    averageScore:
+      trend.length === 0
+        ? 0
+        : Math.round(trend.reduce((sum, score) => sum + score, 0) / trend.length),
+    bestScore: trend.length === 0 ? 0 : Math.max(...trend),
+    latestScore: trend.length === 0 ? 0 : trend[trend.length - 1]!,
+    totalQuestionsAnswered: sessions.reduce(
+      (total, session) => total + session.attempts.filter((attempt) => attempt.correct).length,
+      0,
+    ),
+    scoreHistory: trend,
+  };
 }
