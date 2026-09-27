@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+const { t } = useI18n();
 
 // The account chip from the redesign. A disclosure (not an ARIA menu): the toggle reports
 // aria-expanded, the panel holds ordinary buttons, and Escape or a click outside closes it.
@@ -50,7 +52,7 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick));
       class="account__toggle"
       :aria-expanded="open ? 'true' : 'false'"
       aria-controls="account-menu"
-      :aria-label="`Account menu for ${props.username}`"
+      :aria-label="t('nav.accountMenu', { username: props.username })"
       @click="toggleMenu"
     >
       <span class="account__avatar" aria-hidden="true">{{ initial }}</span>
@@ -71,10 +73,10 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick));
     </button>
     <div v-show="open" id="account-menu" class="account__menu">
       <p class="account__signed-in">
-        Signed in as <strong>{{ props.username }}</strong>
+        {{ t('nav.signedInAs', { username: props.username }) }}
       </p>
       <button ref="logoutButton" type="button" class="account__item" @click="emit('logout')">
-        Log out
+        {{ t('nav.logOut') }}
       </button>
     </div>
   </div>

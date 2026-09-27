@@ -2,6 +2,7 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { afterEach, vi } from 'vitest';
 import { createMemoryHistory } from 'vue-router';
 import App from './App.vue';
+import { i18n, setLocale } from './i18n';
 import { createAppRouter, installSessionExpiry } from './router';
 import { resetSession } from './session';
 
@@ -46,12 +47,15 @@ export const signedInAdmin = { 'GET /api/v1/auth/session': { body: { user: admin
 // first navigation (including guard redirects) have completed.
 export async function mountApp(path: string) {
   resetSession();
+  // Tests start from English so assertions stay deterministic. A test that
+  // needs another locale calls setLocale itself.
+  await setLocale('en');
   // Installing the router starts the first navigation from the history location.
   const history = createMemoryHistory();
   history.replace(path);
   const router = createAppRouter(history);
   installSessionExpiry(router);
-  const wrapper = mount(App, { global: { plugins: [router] }, attachTo: document.body });
+  const wrapper = mount(App, { global: { plugins: [i18n, router] }, attachTo: document.body });
   await router.isReady();
   await flushPromises();
   return { wrapper, router };

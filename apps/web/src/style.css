@@ -225,6 +225,15 @@ form {
   box-shadow: var(--shadow-panel);
 }
 
+/* The language picker sits quietly at the top of the account panel. It reuses the
+   existing field styles and spacing tokens so the design is unchanged. */
+.auth__language {
+  justify-self: end;
+  /* No fixed width: the panel must keep reflowing at 320px with 200% text. */
+  max-width: 100%;
+  margin-top: var(--space-2);
+}
+
 .content-section {
   display: grid;
   /* A zero minimum lets the column shrink to the screen instead of growing to the

@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { onMounted, ref } from 'vue';
 import { AppButton, AppCard, LoadingState, LiveMessage } from '../components';
 import { apiFetch, jsonRequest } from '../api';
 import type { Tone } from '../types';
+const { t } = useI18n();
 
 type ImportPreview = {
   valid: Array<{ english: string; german: string; alternatives: string[] }>;
@@ -42,10 +44,10 @@ async function loadImportHistory(): Promise<void> {
       error?: { message?: string };
     };
     if (response.ok && payload.imports) adminHistory.value = payload.imports;
-    else adminMessage.value = payload.error?.message ?? 'Import history could not be loaded.';
+    else adminMessage.value = payload.error?.message ?? t('admin.historyFailed');
   } catch {
     adminTone.value = 'error';
-    adminMessage.value = 'Import history could not be loaded.';
+    adminMessage.value = t('admin.historyFailed');
   } finally {
     adminLoading.value = false;
   }
@@ -74,13 +76,13 @@ async function previewImport(): Promise<void> {
     };
     if (!response.ok || !payload.preview) {
       adminTone.value = 'error';
-      adminMessage.value = payload.error?.message ?? 'Preview could not be created.';
+      adminMessage.value = payload.error?.message ?? t('admin.previewFailed');
       return;
     }
     adminPreview.value = payload.preview;
   } catch {
     adminTone.value = 'error';
-    adminMessage.value = 'Preview could not be created.';
+    adminMessage.value = t('admin.previewFailed');
   } finally {
     adminLoading.value = false;
   }
@@ -101,17 +103,17 @@ async function commitImport(): Promise<void> {
     const payload = (await response.json()) as { error?: { message?: string } };
     if (!response.ok) {
       adminTone.value = 'error';
-      adminMessage.value = payload.error?.message ?? 'Import could not be committed.';
+      adminMessage.value = payload.error?.message ?? t('admin.failed');
       return;
     }
     adminPreview.value = null;
     adminContent.value = '';
     await loadImportHistory();
     adminTone.value = 'success';
-    adminMessage.value = 'Import committed successfully.';
+    adminMessage.value = t('admin.success');
   } catch {
     adminTone.value = 'error';
-    adminMessage.value = 'Import could not be committed.';
+    adminMessage.value = t('admin.failed');
   } finally {
     adminLoading.value = false;
   }
@@ -120,10 +122,10 @@ async function commitImport(): Promise<void> {
 
 <template>
   <section class="content-section" aria-labelledby="import-title">
-    <p class="eyebrow">Administrator tools</p>
-    <h1 id="import-title">Manage vocabulary.</h1>
+    <p class="eyebrow">{{ t('admin.eyebrow') }}</p>
+    <h1 id="import-title">{{ t('admin.heading') }}</h1>
     <div class="field">
-      <label for="vocabulary-file">Vocabulary JSON file</label>
+      <label for="vocabulary-file">{{ t('admin.fileLabel') }}</label>
       <input
         id="vocabulary-file"
         type="file"
@@ -131,7 +133,9 @@ async function commitImport(): Promise<void> {
         @change="selectImportFile"
       />
     </div>
-    <p v-if="adminSourceName" class="muted">Selected: {{ adminSourceName }}</p>
+    <p v-if="adminSourceName" class="muted">
+      {{ t('admin.selectedFile', { name: adminSourceName }) }}
+    </p>
     <AppButton
       variant="secondary"
       :disabled="!adminContent"
@@ -143,15 +147,15 @@ async function commitImport(): Promise<void> {
     <AppCard v-if="adminPreview" aria-live="polite">
       <strong>{{ adminPreview.valid.length }} valid records</strong>
       <span class="muted"
-        >{{ adminPreview.additions.length }} additions ·
-        {{ adminPreview.updates.length }} updates</span
+        >{{ t('admin.additions', { count: adminPreview.additions.length }) }} ·
+        {{ t('admin.updates', { count: adminPreview.updates.length }) }}</span
       >
-      <span v-if="adminPreview.invalid.length" class="muted"
-        >{{ adminPreview.invalid.length }} invalid records</span
-      >
-      <span v-if="adminPreview.duplicates.length" class="muted"
-        >{{ adminPreview.duplicates.length }} duplicates</span
-      >
+      <span v-if="adminPreview.invalid.length" class="muted">{{
+        t('admin.invalidRecordsCount', { count: adminPreview.invalid.length })
+      }}</span>
+      <span v-if="adminPreview.duplicates.length" class="muted">{{
+        t('admin.duplicatesCount', { count: adminPreview.duplicates.length })
+      }}</span>
       <AppButton
         :disabled="
           adminLoading ||
@@ -165,16 +169,20 @@ async function commitImport(): Promise<void> {
       </AppButton>
     </AppCard>
     <LiveMessage :tone="adminTone" :message="adminMessage" />
-    <h2>Import history</h2>
-    <LoadingState v-if="adminLoading && !adminHistory.length" label="Loading history..." />
-    <ul v-else-if="adminHistory.length" class="history-list" aria-label="Import history">
+    <h2>{{ t('admin.history') }}</h2>
+    <LoadingState v-if="adminLoading && !adminHistory.length" :label="t('admin.loadingHistory')" />
+    <ul v-else-if="adminHistory.length" class="history-list" :aria-label="t('admin.history')">
       <li v-for="item in adminHistory" :key="item.id">
-        <strong>{{ item.sourceName || 'Unnamed import' }}</strong>
-        <span
-          >{{ item.status }} · {{ item.recordCount }} records · {{ item.addedCount }} added</span
-        >
+        <strong>{{ item.sourceName || t('admin.unnamedImport') }}</strong>
+        <span>{{
+          t('admin.historyEntry', {
+            status: item.status,
+            records: item.recordCount,
+            added: item.addedCount,
+          })
+        }}</span>
       </li>
     </ul>
-    <p v-else class="muted">No imports yet.</p>
+    <p v-else class="muted">{{ t('admin.noHistory') }}</p>
   </section>
 </template>

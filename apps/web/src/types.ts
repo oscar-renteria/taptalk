@@ -6,8 +6,5 @@ export type ApiErrorBody = {
   error?: { code?: string; message?: string; details?: Array<{ field: string; message: string }> };
 };
 
-export const directionOptions = [
-  { value: 'random', label: 'Random direction' },
-  { value: 'english-to-german', label: 'English to German' },
-  { value: 'german-to-english', label: 'German to English' },
-] as const;
+/** Direction values are stable API-facing identifiers; labels are localized by the view. */
+export const directionValues = ['random', 'english-to-german', 'german-to-english'] as const;

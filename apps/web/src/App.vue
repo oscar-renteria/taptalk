@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, nextTick, onErrorCaptured, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -10,16 +11,19 @@ import {
   UpdateBanner,
 } from './components';
 import { session, signOut, focus } from './session';
+const { t } = useI18n();
 
 const route = useRoute();
 const router = useRouter();
 const networkUnavailable = ref(typeof navigator !== 'undefined' && !navigator.onLine);
 const viewFailed = ref(false);
 const navItems = computed(() => [
-  { to: '/practice', label: 'Practice' },
-  { to: '/progress', label: 'Progress' },
-  ...(session.user?.role === 'administrator' ? [{ to: '/admin/import', label: 'Vocabulary' }] : []),
-  { to: '/settings', label: 'Settings' },
+  { to: '/practice', label: t('nav.practice') },
+  { to: '/progress', label: t('nav.progress') },
+  ...(session.user?.role === 'administrator'
+    ? [{ to: '/admin/import', label: t('nav.vocabulary') }]
+    : []),
+  { to: '/settings', label: t('nav.settings') },
 ]);
 const signedInLayout = computed(
   () => !!session.user && route.meta.access !== 'guest' && route.name !== 'not-found',
@@ -99,7 +103,7 @@ function reload(): void {
         </svg>
         <span class="brand__name">TapTalk</span>
       </RouterLink>
-      <AppNav v-if="!focus.practice" label="Main navigation" :items="navItems" />
+      <AppNav v-if="!focus.practice" :label="t('nav.label')" :items="navItems" />
       <AccountMenu :username="session.user.username" @logout="logout" />
     </header>
     <main class="page">
@@ -108,16 +112,16 @@ function reload(): void {
         v-if="networkUnavailable"
         tone="warning"
         class="offline-banner"
-        message="You are offline. Practice and account data need a connection."
+        :message="t('errors.network')"
       />
       <div v-if="!session.checked" class="panel">
-        <LoadingState label="Checking your session..." />
+        <LoadingState :label="t('common.checkingSession')" />
       </div>
       <ErrorState
         v-else-if="viewFailed"
         :class="{ panel: !signedInLayout }"
-        message="Something went wrong on this page."
-        retry-label="Reload"
+        :message="t('errors.pageError')"
+        :retry-label="t('errors.reload')"
         @retry="reload"
       />
       <RouterView v-else />

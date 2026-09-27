@@ -1,10 +1,29 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { AppButton, ProgressIndicator, StatTile, LiveMessage, TextField } from '../components';
 import { apiFetch, jsonRequest } from '../api';
 import { focus, session } from '../session';
 import type { Direction, Tone } from '../types';
+const { t, locale } = useI18n();
+
+/**
+ * Numbers, percentages and dates follow the active UI locale rather than
+ * English conventions: 1,234.56 in English, 1.234,56 in German, 1.234,56 in
+ * Spanish. Using Intl keeps separators, decimals and percent placement correct
+ * without hand-rolled formatting.
+ */
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat(locale.value).format(value);
+}
+
+function formatPercent(ratio: number): string {
+  return new Intl.NumberFormat(locale.value, {
+    style: 'percent',
+    maximumFractionDigits: 0,
+  }).format(ratio);
+}
 
 type Question = {
   vocabularyEntryId: string;
@@ -57,11 +76,12 @@ const sessionPoints = ref(0);
 
 // The dashboard's direction choice, shown as a segmented control. "Mixed" is the
 // API's random direction: each question picks one.
-const directionChoices: { value: Direction; label: string }[] = [
-  { value: 'german-to-english', label: 'German → English' },
-  { value: 'english-to-german', label: 'English → German' },
-  { value: 'random', label: 'Mixed' },
-];
+// Recomputed when the language changes so the labels follow the UI language.
+const directionChoices = computed(() => [
+  { value: 'german-to-english' as Direction, label: t('practice.germanToEnglish') },
+  { value: 'english-to-german' as Direction, label: t('practice.englishToGerman') },
+  { value: 'random' as Direction, label: t('practice.mixed') },
+]);
 const username = computed(() => session.user?.username ?? '');
 const speaking = ref(false);
 
@@ -134,7 +154,7 @@ async function startPractice(): Promise<void> {
     };
     if (!response.ok || !payload.session) {
       practiceTone.value = 'error';
-      practiceMessage.value = payload.error?.message ?? 'Practice could not be started.';
+      practiceMessage.value = payload.error?.message ?? t('practice.couldNotStart');
       return;
     }
     practiceSession.value = payload.session;
@@ -142,7 +162,7 @@ async function startPractice(): Promise<void> {
     focus.practice = true;
   } catch {
     practiceTone.value = 'error';
-    practiceMessage.value = 'The practice service is unavailable.';
+    practiceMessage.value = t('practice.unavailable');
     return;
   } finally {
     practiceLoading.value = false;
@@ -164,7 +184,7 @@ async function loadQuestion(): Promise<void> {
     };
     if (!response.ok || !payload.question) {
       practiceTone.value = 'error';
-      practiceMessage.value = payload.error?.message ?? 'No question is available yet.';
+      practiceMessage.value = payload.error?.message ?? t('practice.noQuestion');
       return;
     }
     // The card switches to the new question in one step. Until the question arrives
@@ -178,7 +198,7 @@ async function loadQuestion(): Promise<void> {
     practiceState.value = 'answering';
   } catch {
     practiceTone.value = 'error';
-    practiceMessage.value = 'The practice service is unavailable.';
+    practiceMessage.value = t('practice.unavailable');
   } finally {
     practiceLoading.value = false;
   }
@@ -213,7 +233,7 @@ async function submitAnswer(): Promise<void> {
     };
     if (!response.ok || !payload.result) {
       practiceTone.value = 'error';
-      practiceMessage.value = payload.error?.message ?? 'The answer could not be submitted.';
+      practiceMessage.value = payload.error?.message ?? t('practice.submitFailed');
       return;
     }
 
@@ -238,16 +258,16 @@ async function submitAnswer(): Promise<void> {
     practiceTone.value = payload.result.correct ? 'success' : 'warning';
     if (payload.result.correct) {
       practiceMessage.value = retry
-        ? 'Correct on the second try. No points this time.'
+        ? t('practice.correctSecondTry')
         : `Correct. +${payload.result.scoreDelta} points.`;
     } else {
       practiceMessage.value = retry
-        ? 'Not quite yet.'
+        ? t('practice.notQuiteYet')
         : `Not quite. The answer is ${payload.result.correctAnswer}.`;
     }
   } catch {
     practiceTone.value = 'error';
-    practiceMessage.value = 'The answer could not be submitted.';
+    practiceMessage.value = t('practice.submitFailed');
   } finally {
     practiceLoading.value = false;
     checking.value = false;
@@ -270,8 +290,17 @@ function sessionIsFull(): boolean {
 // The question in the card depends on which side is shown.
 const answerQuestion = computed(() =>
   question.value?.direction === 'english-to-german'
-    ? 'How do you say this in German?'
-    : 'What does this mean?',
+    ? t('practice.howDoYouSay')
+    : t('practice.whatDoesItMean'),
+);
+
+/**
+ * The language of the learning material, which is independent of the interface
+ * language. A German interface can still show an English or German answer, so
+ * this is derived from the question's direction rather than from the locale.
+ */
+const answerLanguage = computed(() =>
+  question.value?.direction === 'german-to-english' ? 'en' : 'de',
 );
 
 const questionNumber = computed(() =>
@@ -341,7 +370,7 @@ async function endSession(): Promise<void> {
     };
     if (!response.ok || !payload.session) {
       practiceTone.value = 'error';
-      practiceMessage.value = payload.error?.message ?? 'The session could not be ended.';
+      practiceMessage.value = payload.error?.message ?? t('practice.endFailed');
       return;
     }
     sessionSummary.value = payload.session;
@@ -351,7 +380,7 @@ async function endSession(): Promise<void> {
     focus.practice = false;
   } catch {
     practiceTone.value = 'error';
-    practiceMessage.value = 'The session could not be ended.';
+    practiceMessage.value = t('practice.endFailed');
   } finally {
     practiceLoading.value = false;
   }
@@ -370,23 +399,31 @@ async function endSession(): Promise<void> {
   >
     <template v-if="sessionSummary">
       <!-- The summary keeps the page's top-level heading; the visible title is its h2. -->
-      <h1 id="practice-title" class="visually-hidden">Practice results</h1>
+      <h1 id="practice-title" class="visually-hidden">{{ t('practice.resultsTitle') }}</h1>
     </template>
     <template v-else-if="practiceSession">
       <!-- The hero is removed to free vertical space, but the section still needs
            an accessible name, so the heading is kept for assistive technology. -->
-      <h1 id="practice-title" class="visually-hidden">Practice question</h1>
+      <h1 id="practice-title" class="visually-hidden">{{ t('practice.questionTitle') }}</h1>
     </template>
 
     <div v-if="sessionSummary" class="session-summary" aria-labelledby="summary-title">
       <p class="eyebrow eyebrow--success">
-        {{ sessionSummary.status === 'completed' ? 'Session complete' : 'Session ended' }}
+        {{
+          sessionSummary.status === 'completed'
+            ? t('practice.summaryComplete')
+            : t('practice.summaryEnded')
+        }}
       </p>
       <h2 id="summary-title" ref="summaryHeading" tabindex="-1">
-        {{ sessionSummary.status === 'completed' ? 'Session complete.' : 'Session ended early.' }}
+        {{
+          sessionSummary.status === 'completed'
+            ? t('practice.summaryComplete')
+            : t('practice.summaryEarly')
+        }}
       </h2>
       <p v-if="sessionSummary.answeredCount === 0" class="muted">
-        No questions were answered in this session.
+        {{ t('practice.summaryNone') }}
       </p>
       <template v-else>
         <p v-if="sessionSummary.status !== 'completed'" class="muted">
@@ -416,30 +453,34 @@ async function endSession(): Promise<void> {
           />
           <StatTile
             data-testid="summary-accuracy"
-            :value="`${Math.round(sessionSummary.accuracy * 100)}%`"
+            :value="formatPercent(sessionSummary.accuracy)"
             label="accuracy"
           />
         </div>
         <template v-if="sessionSummary.wordsToPractice.length">
-          <h3>Words to practice again</h3>
-          <ul class="chip-list" aria-label="Words to practice again">
+          <h3>{{ t('practice.wordsToPractice') }}</h3>
+          <ul class="chip-list" :aria-label="t('practice.wordsToPractice')">
             <li v-for="word in sessionSummary.wordsToPractice" :key="word" class="chip">
               {{ word }}
             </li>
           </ul>
         </template>
-        <p v-else class="muted">Every answer was correct. No words need extra practice.</p>
+        <p v-else class="muted">{{ t('practice.allCorrect') }}</p>
       </template>
       <div class="button-row">
-        <AppButton :disabled="practiceLoading" @click="startPractice">Practice again</AppButton>
-        <AppButton variant="secondary" @click="router.push('/progress')">Go to progress</AppButton>
+        <AppButton :disabled="practiceLoading" @click="startPractice">
+          {{ t('practice.practiceAgain') }}
+        </AppButton>
+        <AppButton variant="secondary" @click="router.push('/progress')">
+          {{ t('practice.goToProgress') }}
+        </AppButton>
       </div>
     </div>
 
     <div v-else-if="!practiceSession" class="dashboard">
       <div class="dashboard__lead">
         <div class="dashboard__hero">
-          <p class="eyebrow">Today's practice</p>
+          <p class="eyebrow">{{ t('practice.eyebrow') }}</p>
           <h1 id="practice-title" tabindex="-1">
             Welcome back<template v-if="username">, {{ username }}</template
             >.
@@ -449,7 +490,7 @@ async function endSession(): Promise<void> {
           </p>
         </div>
         <fieldset class="segmented">
-          <legend>Direction</legend>
+          <legend>{{ t('practice.direction') }}</legend>
           <div class="segmented__options">
             <label v-for="choice in directionChoices" :key="choice.value" class="segmented__option">
               <input
@@ -467,11 +508,11 @@ async function endSession(): Promise<void> {
           <AppButton
             class="btn--large"
             :loading="practiceLoading"
-            loading-label="Starting..."
+            :loading-label="t('practice.starting')"
             :disabled="practiceSessionSize === 0"
             @click="startPractice"
           >
-            Start practice
+            {{ t('practice.start') }}
             <svg
               aria-hidden="true"
               width="20"
@@ -489,7 +530,7 @@ async function endSession(): Promise<void> {
           <span class="muted">{{ practiceSessionSize }} questions</span>
         </div>
       </div>
-      <ul class="dashboard__cards" aria-label="More">
+      <ul class="dashboard__cards" :aria-label="t('nav.more')">
         <li>
           <RouterLink class="dashboard-card" to="/progress">
             <span class="dashboard-card__icon" data-tone="success" aria-hidden="true">
@@ -507,8 +548,8 @@ async function endSession(): Promise<void> {
               </svg>
             </span>
             <span class="dashboard-card__text">
-              <span class="dashboard-card__title">Progress</span>
-              <span class="muted">Accuracy, points, and tricky words.</span>
+              <span class="dashboard-card__title">{{ t('nav.progress') }}</span>
+              <span class="muted">{{ t('progress.cardBody') }}</span>
             </span>
             <svg
               class="dashboard-card__chevron"
@@ -544,8 +585,8 @@ async function endSession(): Promise<void> {
               </svg>
             </span>
             <span class="dashboard-card__text">
-              <span class="dashboard-card__title">Vocabulary</span>
-              <span class="muted">Import a new word list.</span>
+              <span class="dashboard-card__title">{{ t('nav.vocabulary') }}</span>
+              <span class="muted">{{ t('admin.cardBody') }}</span>
             </span>
             <svg
               class="dashboard-card__chevron"
@@ -583,8 +624,8 @@ async function endSession(): Promise<void> {
               </svg>
             </span>
             <span class="dashboard-card__text">
-              <span class="dashboard-card__title">Settings</span>
-              <span class="muted">Session length and direction.</span>
+              <span class="dashboard-card__title">{{ t('nav.settings') }}</span>
+              <span class="muted">{{ t('settings.cardBody') }}</span>
             </span>
             <svg
               class="dashboard-card__chevron"
@@ -625,7 +666,7 @@ async function endSession(): Promise<void> {
         </AppButton>
         <ProgressIndicator
           class="practice-bar__progress"
-          name="Session progress"
+          :name="t('practice.progressName')"
           :value="practiceSession.answeredCount"
           :max="practiceSession.questionCount"
           :label="`Question ${questionNumber} of ${practiceSession.questionCount}`"
@@ -656,7 +697,9 @@ async function endSession(): Promise<void> {
               type="button"
               class="speak"
               :aria-pressed="speaking"
-              :aria-label="speaking ? 'Playing pronunciation' : 'Play pronunciation'"
+              :aria-label="
+                speaking ? t('practice.playingPronunciation') : t('practice.playPronunciation')
+              "
               @click="speak"
             >
               <svg
@@ -676,7 +719,7 @@ async function endSession(): Promise<void> {
               </svg>
             </button>
             <span class="speak-row__label" aria-hidden="true">{{
-              speaking ? 'Playing...' : 'Listen'
+              speaking ? t('practice.playing') : t('practice.listen')
             }}</span>
           </div>
           <p
@@ -703,7 +746,7 @@ async function endSession(): Promise<void> {
             id="answer"
             ref="answerInput"
             v-model="submittedAnswer"
-            label="Your answer"
+            :label="t('practice.yourAnswer')"
             class="practice-card__input"
             :lang="question.direction === 'english-to-german' ? 'de' : 'en'"
             :describedby="
@@ -715,9 +758,10 @@ async function endSession(): Promise<void> {
             enterkeyhint="done"
             :readonly="practiceState === 'correct' || practiceState === 'miss'"
           />
-          <p v-if="practiceState === 'retry'" class="muted">Second try — type it from memory.</p>
+          <p v-if="practiceState === 'retry'" class="muted">{{ t('practice.secondTry') }}</p>
           <p v-else-if="practiceState === 'answering'" class="muted practice-card__hint">
-            Press <kbd>Enter</kbd> to check
+            {{ t('practice.pressEnter') }} <kbd>{{ t('practice.enterKey') }}</kbd>
+            {{ t('practice.toCheck') }}
           </p>
         </div>
 
@@ -754,22 +798,30 @@ async function endSession(): Promise<void> {
             </svg>
           </span>
           <div v-if="practiceState === 'correct'" class="practice-card__verdict-block">
-            <p class="practice-card__verdict">Correct!</p>
+            <p class="practice-card__verdict">{{ t('practice.correct') }}</p>
             <p class="practice-card__detail">
-              {{ lastScore > 0 ? `+${lastScore} points` : 'Second try, so no points this time.' }}
-              <template v-if="lastScore > 0 && streak > 1"> · {{ streak }} in a row</template>
+              {{
+                lastScore > 0
+                  ? t('practice.pointsEarned', { points: formatNumber(lastScore) })
+                  : t('practice.correctNoPoints')
+              }}
+              <template v-if="lastScore > 0 && streak > 1">
+                · {{ t('practice.streak', { count: streak }) }}
+              </template>
             </p>
           </div>
           <div v-else class="practice-card__verdict-block">
-            <p class="practice-card__verdict">Not quite</p>
+            <p class="practice-card__verdict">{{ t('practice.notQuite') }}</p>
             <dl class="practice-card__compare">
               <div>
-                <dt>Your answer</dt>
-                <dd>{{ lastSubmitted || '—' }}</dd>
+                <dt>{{ t('practice.yourAnswer') }}</dt>
+                <dd :lang="answerLanguage">{{ lastSubmitted || '—' }}</dd>
               </div>
               <div v-if="revealExpected">
-                <dt>Expected</dt>
-                <dd class="practice-card__expected">{{ expectedAnswer }}</dd>
+                <dt>{{ t('practice.expectedLabel') }}</dt>
+                <dd class="practice-card__expected" :lang="answerLanguage">
+                  {{ expectedAnswer }}
+                </dd>
               </div>
             </dl>
           </div>
@@ -783,15 +835,17 @@ async function endSession(): Promise<void> {
               practiceState === 'answering' || practiceState === 'retry' ? 'dark' : 'primary'
             "
             :loading="checking"
-            loading-label="Checking..."
+            :loading-label="t('common.checking')"
             :disabled="practiceLoading || (!stateful && !submittedAnswer.trim())"
           >
-            <template v-if="practiceState === 'correct' && sessionIsFull()">See results</template>
-            <template v-else-if="practiceState === 'correct'">
-              Next question <span aria-hidden="true">→</span>
+            <template v-if="practiceState === 'correct' && sessionIsFull()">
+              {{ t('practice.seeResults') }}
             </template>
-            <template v-else-if="practiceState === 'miss'">Try again</template>
-            <template v-else>Check answer</template>
+            <template v-else-if="practiceState === 'correct'">
+              {{ t('practice.nextQuestion') }} <span aria-hidden="true">→</span>
+            </template>
+            <template v-else-if="practiceState === 'miss'">{{ t('common.tryAgain') }}</template>
+            <template v-else>{{ t('practice.checkAnswer') }}</template>
           </AppButton>
           <AppButton
             v-if="practiceState === 'miss'"
@@ -799,7 +853,7 @@ async function endSession(): Promise<void> {
             :disabled="practiceLoading"
             @click="nextQuestion"
           >
-            {{ sessionIsFull() ? 'Skip to results' : 'Skip question' }}
+            {{ sessionIsFull() ? t('practice.skipToResults') : t('practice.skipQuestion') }}
           </AppButton>
         </div>
       </form>

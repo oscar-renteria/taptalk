@@ -3,6 +3,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { UpdateBanner } from './components';
+import { i18n } from './i18n';
 import { pwa, setupPwa } from './pwa';
 
 function register() {
@@ -20,7 +21,7 @@ describe('service worker updates', () => {
   it('registers immediately and waits for the learner before reloading into a new version', async () => {
     const { registerSW, update, callbacks } = register();
     expect(registerSW).toHaveBeenCalledWith(expect.objectContaining({ immediate: true }));
-    const banner = mount(UpdateBanner);
+    const banner = mount(UpdateBanner, { global: { plugins: [i18n] } });
     expect(banner.text()).toBe('');
 
     callbacks().onNeedRefresh?.();
@@ -35,7 +36,7 @@ describe('service worker updates', () => {
 
   it('can postpone the update', async () => {
     const { update, callbacks } = register();
-    const banner = mount(UpdateBanner);
+    const banner = mount(UpdateBanner, { global: { plugins: [i18n] } });
     callbacks().onNeedRefresh?.();
     await flushPromises();
     await banner.findAll('button')[1]?.trigger('click');
