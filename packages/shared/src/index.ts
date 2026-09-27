@@ -128,6 +128,65 @@ export const practiceVocabularySchema = z.object({
   entries: z.array(practiceVocabularyEntrySchema),
 });
 
+// --- Exam Mode ---------------------------------------------------------------
+// An exam is a practice session with kind = 'exam', so it reuses the same
+// question selection and answer matching. Only the feedback model differs.
+
+/** What the exam returns while it is still running: correctness and nothing else. */
+export const examAnswerResultSchema = z.object({
+  correct: z.boolean(),
+});
+
+/** One answered question, shown only after the exam has been completed. */
+export const examQuestionResultSchema = z.object({
+  index: z.number().int().positive(),
+  vocabularyEntryId: z.string().min(1),
+  prompt: z.string().min(1),
+  direction: z.enum(['english-to-german', 'german-to-english']),
+  submittedAnswer: z.string(),
+  correctAnswer: z.string().min(1),
+  correct: z.boolean(),
+});
+
+/** The full result, available only once the exam is no longer active. */
+export const examResultSchema = z.object({
+  id: z.string().min(1),
+  direction: z.enum(['english-to-german', 'german-to-english', 'random']),
+  status: z.enum(['completed', 'abandoned']),
+  totalQuestions: z.number().int().nonnegative(),
+  correctCount: z.number().int().nonnegative(),
+  incorrectCount: z.number().int().nonnegative(),
+  /** Percentage, 0-100, rounded to a whole number so it is deterministic. */
+  score: z.number().min(0).max(100),
+  durationSeconds: z.number().int().nonnegative(),
+  startedAt: z.string().datetime(),
+  endedAt: z.string().datetime(),
+  questions: z.array(examQuestionResultSchema),
+});
+
+/** One row of the exam history list. */
+export const examHistoryEntrySchema = z.object({
+  id: z.string().min(1),
+  score: z.number().min(0).max(100),
+  correctCount: z.number().int().nonnegative(),
+  totalQuestions: z.number().int().nonnegative(),
+  endedAt: z.string().datetime(),
+});
+
+/**
+ * Aggregates are computed on the server so the Progress page never downloads the
+ * whole history to average it.
+ */
+export const examStatisticsSchema = z.object({
+  examsCompleted: z.number().int().nonnegative(),
+  averageScore: z.number().min(0).max(100),
+  bestScore: z.number().min(0).max(100),
+  latestScore: z.number().min(0).max(100),
+  totalQuestionsAnswered: z.number().int().nonnegative(),
+  /** Oldest first, for the score-over-time view. */
+  scoreHistory: z.array(z.number().min(0).max(100)),
+});
+
 export const dashboardSummarySchema = z.object({
   totalPoints: z.number().finite(),
   totalAttempts: z.number().int().nonnegative(),
@@ -153,3 +212,8 @@ export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
 export type PracticeVocabularyExclusions = z.infer<typeof practiceVocabularyExclusionsSchema>;
 export type PracticeVocabularyEntry = z.infer<typeof practiceVocabularyEntrySchema>;
 export type PracticeVocabulary = z.infer<typeof practiceVocabularySchema>;
+export type ExamAnswerResult = z.infer<typeof examAnswerResultSchema>;
+export type ExamQuestionResult = z.infer<typeof examQuestionResultSchema>;
+export type ExamResult = z.infer<typeof examResultSchema>;
+export type ExamHistoryEntry = z.infer<typeof examHistoryEntrySchema>;
+export type ExamStatistics = z.infer<typeof examStatisticsSchema>;

@@ -1,4 +1,11 @@
-import type { DashboardSummary, PracticeDirection, UserPreferences } from '@taptalk/shared';
+import type {
+  DashboardSummary,
+  ExamHistoryEntry,
+  ExamResult,
+  ExamStatistics,
+  PracticeDirection,
+  UserPreferences,
+} from '@taptalk/shared';
 import type { SqliteDatabase } from './database.js';
 import { normalizeAnswer } from './matching.js';
 import { assertPersistableUserId } from './persistence.js';
@@ -405,10 +412,18 @@ export function setUserRole(
 // Policy: a user has at most one active session. Starting a new one abandons the previous one.
 export function startPracticeSession(
   database: SqliteDatabase,
-  session: { id: string; userId: string; direction: PracticeDirection; questionCount: number },
+  session: {
+    id: string;
+    userId: string;
+    direction: PracticeDirection;
+    questionCount: number;
+    /** 'exam' marks a testing session; omitted for ordinary practice. */
+    kind?: SessionKind;
+  },
   now: string,
 ): PracticeSessionRecord {
   assertPersistableUserId(session.userId, 'startPracticeSession');
+  const kind: SessionKind = session.kind ?? 'practice';
   database.exec('BEGIN');
   try {
     database
@@ -419,10 +434,10 @@ export function startPracticeSession(
       .run(now, session.userId);
     database
       .prepare(
-        `INSERT INTO practice_sessions (id, user_id, direction, question_count, status, started_at)
-         VALUES (?, ?, ?, ?, 'active', ?)`,
+        `INSERT INTO practice_sessions (id, user_id, direction, question_count, status, started_at, kind)
+         VALUES (?, ?, ?, ?, 'active', ?, ?)`,
       )
-      .run(session.id, session.userId, session.direction, session.questionCount, now);
+      .run(session.id, session.userId, session.direction, session.questionCount, now, kind);
     database.exec('COMMIT');
   } catch (error) {
     database.exec('ROLLBACK');
@@ -676,4 +691,184 @@ export function countPracticeVocabulary(database: SqliteDatabase, userId: string
   }
   const rows = database.prepare('SELECT id FROM vocabulary_entries').all() as Array<{ id: string }>;
   return rows.reduce((total, row) => total + (excluded.has(row.id) ? 0 : 1), 0);
+}
+
+// --- Exam Mode ---------------------------------------------------------------
+//
+// An exam is a practice session with kind = 'exam', so question selection,
+// answer matching, and session lifecycle are the existing ones. These functions
+// only add what an exam needs on top: results, review, history, and aggregates.
+
+export type SessionKind = 'practice' | 'exam';
+
+/**
+ * Percentage score, rounded to a whole number so the same exam always produces
+ * the same number. An unanswered exam scores 0 rather than dividing by zero.
+ */
+export function examScore(correct: number, total: number): number {
+  return total === 0 ? 0 : Math.round((correct / total) * 100);
+}
+
+/** The full result and its review. Only valid once the exam is no longer active. */
+export function getExamResult(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string,
+): ExamResult | undefined {
+  assertPersistableUserId(userId, 'getExamResult');
+  const session = database
+    .prepare(
+      `SELECT id, direction, status, question_count AS totalQuestions,
+              started_at AS startedAt, ended_at AS endedAt
+       FROM practice_sessions WHERE id = ? AND user_id = ? AND kind = 'exam'`,
+    )
+    .get(sessionId, userId) as
+    | {
+        id: string;
+        direction: PracticeDirection;
+        status: 'active' | 'completed' | 'abandoned';
+        totalQuestions: number;
+        startedAt: string;
+        endedAt: string | null;
+      }
+    | undefined;
+  if (!session || session.status === 'active' || !session.endedAt) return undefined;
+
+  const answers = database
+    .prepare(
+      `SELECT a.vocabulary_entry_id AS vocabularyEntryId, a.prompt, a.direction,
+              a.submitted_answer AS submittedAnswer, a.correct,
+              COALESCE((
+                SELECT v.german_display FROM vocabulary_entries v WHERE v.id = a.vocabulary_entry_id
+              ), a.prompt) AS correctAnswer
+       FROM learning_attempts a
+       WHERE a.practice_session_id = ?
+       ORDER BY a.attempted_at ASC, a.rowid ASC`,
+    )
+    .all(sessionId) as Array<{
+    vocabularyEntryId: string;
+    prompt: string;
+    direction: 'english-to-german' | 'german-to-english';
+    submittedAnswer: string;
+    correct: number;
+    correctAnswer: string;
+  }>;
+
+  const questions = answers.map((row, index) => ({
+    index: index + 1,
+    vocabularyEntryId: row.vocabularyEntryId,
+    prompt: row.prompt,
+    direction: row.direction,
+    submittedAnswer: row.submittedAnswer,
+    correctAnswer: row.correctAnswer,
+    correct: row.correct === 1,
+  }));
+  const correctCount = questions.filter((question) => question.correct).length;
+  const totalQuestions = questions.length;
+  return {
+    id: session.id,
+    direction: session.direction,
+    status: session.status,
+    totalQuestions,
+    correctCount,
+    incorrectCount: totalQuestions - correctCount,
+    score: examScore(correctCount, totalQuestions),
+    durationSeconds: Math.max(
+      0,
+      Math.round((Date.parse(session.endedAt) - Date.parse(session.startedAt)) / 1000),
+    ),
+    startedAt: session.startedAt,
+    endedAt: session.endedAt,
+    questions,
+  };
+}
+
+export function getExamHistory(
+  database: SqliteDatabase,
+  userId: string,
+  limit: number,
+): ExamHistoryEntry[] {
+  assertPersistableUserId(userId, 'getExamHistory');
+  const rows = database
+    .prepare(
+      `SELECT s.id, s.ended_at AS endedAt, s.question_count AS totalQuestions,
+              (SELECT COUNT(*) FROM learning_attempts a
+                WHERE a.practice_session_id = s.id AND a.correct = 1) AS correctCount
+       FROM practice_sessions s
+       WHERE s.user_id = ? AND s.kind = 'exam' AND s.status <> 'active' AND s.ended_at IS NOT NULL
+       ORDER BY s.ended_at DESC, s.id DESC
+       LIMIT ?`,
+    )
+    .all(userId, limit) as Array<{
+    id: string;
+    endedAt: string;
+    totalQuestions: number;
+    correctCount: number;
+  }>;
+  return rows.map((row) => ({
+    id: row.id,
+    score: examScore(Number(row.correctCount), Number(row.totalQuestions)),
+    correctCount: Number(row.correctCount),
+    totalQuestions: Number(row.totalQuestions),
+    endedAt: row.endedAt,
+  }));
+}
+
+/**
+ * Exam aggregates, computed in SQL so the Progress page never has to download the
+ * history to average it. `scoreHistory` is capped and returned oldest first for
+ * the trend, which is the only part that needs the individual results.
+ */
+export function getExamStatistics(
+  database: SqliteDatabase,
+  userId: string,
+  trendLimit: number,
+): ExamStatistics {
+  assertPersistableUserId(userId, 'getExamStatistics');
+  const totals = database
+    .prepare(
+      `SELECT COUNT(*) AS examsCompleted,
+              COALESCE(SUM(s.question_count), 0) AS totalQuestions,
+              COALESCE(SUM((
+                SELECT COUNT(*) FROM learning_attempts a
+                 WHERE a.practice_session_id = s.id AND a.correct = 1
+              )), 0) AS totalCorrect
+       FROM practice_sessions s
+       WHERE s.user_id = ? AND s.kind = 'exam' AND s.status <> 'active' AND s.ended_at IS NOT NULL`,
+    )
+    .get(userId) as { examsCompleted: number; totalQuestions: number; totalCorrect: number };
+
+  const examsCompleted = Number(totals.examsCompleted);
+  const totalCorrect = Number(totals.totalCorrect);
+
+  const trend = database
+    .prepare(
+      `SELECT s.id, s.question_count AS totalQuestions,
+              (SELECT COUNT(*) FROM learning_attempts a
+                WHERE a.practice_session_id = s.id AND a.correct = 1) AS correctCount
+       FROM practice_sessions s
+       WHERE s.user_id = ? AND s.kind = 'exam' AND s.status <> 'active' AND s.ended_at IS NOT NULL
+       ORDER BY s.ended_at ASC, s.id ASC
+       LIMIT ?`,
+    )
+    .all(userId, trendLimit) as Array<{ id: string; totalQuestions: number; correctCount: number }>;
+  const scoreHistory = trend.map((row) =>
+    examScore(Number(row.correctCount), Number(row.totalQuestions)),
+  );
+
+  // Scores are whole percentages, so the average is a mean of those, rounded the
+  // same way. With no exams the figures are 0 rather than undefined.
+  const average =
+    scoreHistory.length === 0
+      ? 0
+      : Math.round(scoreHistory.reduce((sum, score) => sum + score, 0) / scoreHistory.length);
+
+  return {
+    examsCompleted,
+    averageScore: average,
+    bestScore: scoreHistory.length === 0 ? 0 : Math.max(...scoreHistory),
+    latestScore: scoreHistory.length === 0 ? 0 : scoreHistory[scoreHistory.length - 1]!,
+    totalQuestionsAnswered: totalCorrect,
+    scoreHistory,
+  };
 }
