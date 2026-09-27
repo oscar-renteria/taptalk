@@ -1601,3 +1601,70 @@ form {
 h1[tabindex='-1']:focus {
   outline: none;
 }
+
+/* --- Practice vocabulary list (Settings) ------------------------------------
+   The row is the tap target, not the small native box, so a thumb-sized area
+   toggles an entry on a phone while the checkbox itself keeps native keyboard
+   and screen-reader semantics. State is shown by the control and the text, not
+   by colour alone. */
+.vocabulary__list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vocabulary__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  /* The row stays a target too, so the space beside the box is tappable. */
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  cursor: pointer;
+}
+
+.vocabulary__row:hover {
+  border-color: var(--color-ink);
+}
+
+/* The focus ring lives on the checkbox, so keyboard users see exactly which row
+   they are on. */
+.vocabulary__checkbox {
+  /* The control itself is a 44px target, not only the row around it, so the
+     tap area is correct however the row is measured. The native control is kept
+     (only scaled), which preserves its checkbox semantics, focus order, and
+     platform behaviour. */
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  accent-color: var(--color-ink);
+  cursor: pointer;
+}
+
+.vocabulary__checkbox:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+.vocabulary__word {
+  font-weight: 600;
+}
+
+.vocabulary__translation {
+  text-align: right;
+}
+
+.vocabulary__count {
+  margin: 0;
+}
+
+/* The link out of the blocked state sits under the message, full width on a
+   narrow screen so it is an easy target. */
+.practice-dashboard__fix {
+  justify-self: start;
+}

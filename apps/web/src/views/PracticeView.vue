@@ -101,6 +101,8 @@ const showPhonetics = computed(
 
 const lastSubmitted = ref('');
 const expectedAnswer = ref('');
+// True when a round cannot start because nothing is selected for practice.
+const practiceBlocked = ref(false);
 
 // The saved session length drives the question count on the dashboard. The API
 // already returns it alongside the direction, so one request is enough and the
@@ -150,13 +152,20 @@ async function startPractice(): Promise<void> {
     );
     const payload = (await response.json()) as {
       session?: PracticeSession;
-      error?: { message?: string };
+      error?: { code?: string; message?: string };
     };
     if (!response.ok || !payload.session) {
       practiceTone.value = 'error';
-      practiceMessage.value = payload.error?.message ?? t('practice.couldNotStart');
+      // The API's message is developer-facing English, so the blocked case is
+      // shown with a localized message and a way to fix it instead.
+      practiceMessage.value =
+        payload.error?.code === 'NO_PRACTICE_VOCABULARY'
+          ? t('vocabulary.startBlocked')
+          : (payload.error?.message ?? t('practice.couldNotStart'));
+      practiceBlocked.value = payload.error?.code === 'NO_PRACTICE_VOCABULARY';
       return;
     }
+    practiceBlocked.value = false;
     practiceSession.value = payload.session;
     // Focused mode: the shell drops navigation and the hero for the duration.
     focus.practice = true;
@@ -862,5 +871,13 @@ async function endSession(): Promise<void> {
       </div>
     </div>
     <LiveMessage :tone="practiceTone" :message="practiceMessage" />
+    <!-- Shown only when a round cannot start: the way out is to pick some words. -->
+    <RouterLink
+      v-if="practiceBlocked"
+      class="btn btn--secondary practice-dashboard__fix"
+      to="/settings"
+    >
+      {{ t('vocabulary.dashboardLink') }}
+    </RouterLink>
   </section>
 </template>

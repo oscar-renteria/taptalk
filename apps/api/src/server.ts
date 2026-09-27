@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import type { UserPreferences } from '@taptalk/shared';
 import {
   practiceDirectionSchema,
+  practiceVocabularyExclusionsSchema,
   registrationErrors,
   registrationSchema,
   userPreferencesSchema,
@@ -20,6 +21,9 @@ import {
   getVocabularyImportHistory,
   getPracticeSession,
   getPracticeSessionSummary,
+  getPracticeVocabulary,
+  countPracticeVocabulary,
+  setPracticeVocabularyExclusions,
   getPreferences,
   getSelectionCandidates,
   getVocabulary,
@@ -173,6 +177,23 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
     if (actor.type === 'guest') return actor.guestId;
     if (actor.type === 'authenticated') return actor.user.id;
     throw new Error('actorId() used on a route that allows anonymous access.');
+  }
+
+  // The Settings vocabulary list and the stored selection, by actor. Both resolve
+  // from the same rows, so the list a user sees is the list Practice Mode uses.
+  function readPracticeVocabulary(request: FastifyRequest) {
+    const actor = currentActor(request);
+    if (actor.type === 'guest') return guestStore.getPracticeVocabulary(actor.guestId, vocabulary);
+    if (actor.type === 'authenticated') return getPracticeVocabulary(db, actor.user.id);
+    return [];
+  }
+
+  function countPracticeVocabularyFor(request: FastifyRequest): number {
+    const actor = currentActor(request);
+    if (actor.type === 'guest')
+      return guestStore.countPracticeVocabulary(actor.guestId, vocabulary);
+    if (actor.type === 'authenticated') return countPracticeVocabulary(db, actor.user.id);
+    return 0;
   }
 
   // Vocabulary is shared, read-only content, so a guest reads it exactly as a user
@@ -669,10 +690,21 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
           error: { code: 'INVALID_DIRECTION', message: 'Practice direction is invalid.' },
         });
       }
+      // Two distinct refusals: there is no vocabulary at all, or the user has
+      // switched every entry off in Settings. Both stop a broken round, and the
+      // codes let the screen say which one happened.
       if (vocabulary().length === 0) {
         return reply
           .code(404)
           .send({ error: { code: 'NO_VOCABULARY', message: 'No vocabulary is available.' } });
+      }
+      if (countPracticeVocabularyFor(request) === 0) {
+        return reply.code(404).send({
+          error: {
+            code: 'NO_PRACTICE_VOCABULARY',
+            message: 'No vocabulary is currently selected for practice.',
+          },
+        });
       }
       const now = new Date().toISOString();
       const sessionInput = {
@@ -727,6 +759,61 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         ? guestStore.getPracticeSessionSummary(id, session.id, vocabulary)
         : getPracticeSessionSummary(db, id, session.id);
       return reply.send({ session: summary ? publicSession(summary) : null });
+    },
+  );
+
+  // --- Practice vocabulary selection -----------------------------------------
+  // Guest-capable: a guest manages their own selection through the same
+  // endpoints, held in memory rather than the database.
+
+  server.get(
+    '/api/v1/practice/vocabulary',
+    { config: { access: 'guest' } },
+    async (request, reply) => reply.send({ entries: readPracticeVocabulary(request) }),
+  );
+
+  // One request replaces the whole disabled set, so editing the list never
+  // costs a request per checkbox.
+  server.put<{ Body: unknown }>(
+    '/api/v1/practice/vocabulary',
+    { config: { access: 'guest' } },
+    async (request, reply) => {
+      const parsed = practiceVocabularyExclusionsSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_VOCABULARY_SELECTION', message: 'The selection is invalid.' },
+        });
+      }
+      const actor = currentActor(request);
+      try {
+        const entries =
+          actor.type === 'guest'
+            ? guestStore.setPracticeVocabularyExclusions(
+                actor.guestId,
+                vocabulary,
+                parsed.data.disabledIds,
+              )
+            : actor.type === 'authenticated'
+              ? setPracticeVocabularyExclusions(
+                  db,
+                  actor.user.id,
+                  parsed.data.disabledIds,
+                  new Date().toISOString(),
+                )
+              : [];
+        return reply.send({ entries });
+      } catch (error) {
+        if (error instanceof RepositoryError && error.code === 'invalid') {
+          return reply.code(400).send({
+            error: {
+              code: 'UNKNOWN_VOCABULARY_ENTRY',
+              message: 'One or more vocabulary entries do not exist.',
+              details: { unknownIds: error.unknownIds },
+            },
+          });
+        }
+        throw error;
+      }
     },
   );
 

@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -93,7 +93,9 @@ describe('API process lifecycle', () => {
       expect(
         running.database.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get(),
       ).toEqual({
-        count: 2,
+        count: readdirSync(join(repositoryRoot, 'database/migrations')).filter((file) =>
+          file.endsWith('.sql'),
+        ).length,
       });
     } finally {
       await running.close();

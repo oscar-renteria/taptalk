@@ -1,5 +1,13 @@
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { migrateDatabase, openDatabase } from './database.js';
+import { repositoryRoot } from './paths.js';
+
+/** Every migration on disk, so adding one does not require editing this file. */
+const migrationCount = readdirSync(join(repositoryRoot, 'database/migrations')).filter((file) =>
+  file.endsWith('.sql'),
+).length;
 import {
   ensurePreferences,
   findUserByUsername,
@@ -38,7 +46,7 @@ describe('database foundation', () => {
     expect(() => database.prepare('SELECT id FROM schema_migrations').get()).toThrow();
     migrateDatabase(database);
     expect(database.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({
-      count: 2,
+      count: migrationCount,
     });
     database.close();
   });

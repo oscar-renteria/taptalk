@@ -5,6 +5,7 @@ import App from './App.vue';
 import { i18n, setLocale } from './i18n';
 import { createAppRouter, installSessionExpiry } from './router';
 import { forgetGuestState } from './guest';
+import { resetPracticeVocabulary } from './practice-vocabulary';
 import { resetSession } from './session';
 
 type MockResponse = { status?: number; body?: unknown };
@@ -23,7 +24,11 @@ export function mockApi(routes: Record<string, MockResponse | MockResponse[]>) {
     calls.set(key, index + 1);
     const response = Array.isArray(route) ? route[Math.min(index, route.length - 1)] : route;
     const status = response ? (response.status ?? 200) : 404;
-    const body = response ? response.body : { error: { message: `Unmocked ${key}` } };
+    // A fresh copy per call: a shared fixture object must not be mutated by one
+    // test and then observed, already changed, by the next.
+    const body = response
+      ? structuredClone(response.body)
+      : { error: { message: `Unmocked ${key}` } };
     return { ok: status < 400, status, json: async () => body };
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -48,6 +53,17 @@ export const startGuest = {
 };
 export const endGuest = { 'DELETE /api/v1/auth/guest': { status: 204, body: null } };
 
+/** The Settings vocabulary list, as the API returns it. */
+export const vocabularyEntries = [
+  { id: 'entry-apple', english: 'apple', german: 'Apfel', enabled: true },
+  { id: 'entry-house', english: 'house', german: 'Haus', enabled: true },
+  { id: 'entry-car', english: 'car', german: 'Auto', enabled: true },
+];
+export const practiceVocabularyApi = {
+  'GET /api/v1/practice/vocabulary': { body: { entries: vocabularyEntries } },
+  'PUT /api/v1/practice/vocabulary': { body: { entries: vocabularyEntries } },
+};
+
 export const admin = { username: 'admin', role: 'administrator' };
 export const signedInAdmin = { 'GET /api/v1/auth/session': { body: { user: admin } } };
 
@@ -56,6 +72,7 @@ export const signedInAdmin = { 'GET /api/v1/auth/session': { body: { user: admin
 export async function mountApp(path: string) {
   resetSession();
   forgetGuestState();
+  resetPracticeVocabulary();
   // Tests start from English so assertions stay deterministic. A test that
   // needs another locale calls setLocale itself.
   await setLocale('en');

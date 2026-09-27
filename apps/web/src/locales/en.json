@@ -212,5 +212,22 @@
     "menuNotice": "Guest session. Your progress is temporary and is not saved to an account.",
     "banner": "You are using TapTalk as a guest. Nothing is saved to an account.",
     "temporaryNotice": "Guest progress is temporary and is not saved to an account."
+  },
+  "vocabulary": {
+    "title": "Practice vocabulary",
+    "intro": "Choose which words Practice Mode uses. Words you switch off are skipped and never appear in a round.",
+    "loading": "Loading vocabulary...",
+    "saving": "Saving...",
+    "loadFailed": "The vocabulary could not be loaded.",
+    "saveFailed": "Your changes could not be saved.",
+    "empty": "There is no vocabulary yet. An administrator can import some from the Vocabulary screen.",
+    "selectedOf": "{enabled} of {total} words selected for practice",
+    "noneSelected": "No vocabulary is currently selected for practice. Switch at least one word on to start a round.",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "stateEnabled": "selected for practice",
+    "stateDisabled": "not selected for practice",
+    "dashboardLink": "Choose practice vocabulary",
+    "startBlocked": "No vocabulary is currently selected for practice."
   }
 }

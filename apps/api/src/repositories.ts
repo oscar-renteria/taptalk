@@ -44,6 +44,8 @@ export type PracticeSessionSummary = PracticeSessionRecord & {
 };
 
 export class RepositoryError extends Error {
+  /** Ids the caller referenced that do not exist, when the error is about them. */
+  unknownIds: string[] = [];
   constructor(
     message: string,
     readonly code: 'conflict' | 'invalid' | 'storage',
@@ -452,6 +454,9 @@ export function getSelectionCandidates(
   userId: string,
   sessionId: string | null,
 ): SelectionCandidate[] {
+  // Entries the user switched off in Settings are filtered out here, in the one
+  // place questions are chosen from. A disabled entry therefore cannot be asked,
+  // and the Settings list and Practice Mode cannot disagree.
   const rows = database
     .prepare(
       `WITH ranked AS (
@@ -468,10 +473,14 @@ export function getSelectionCandidates(
        FROM vocabulary_entries e
        LEFT JOIN ranked r ON r.vocabulary_entry_id = e.id
        WHERE EXISTS (SELECT 1 FROM vocabulary_answers v WHERE v.vocabulary_entry_id = e.id)
+         AND NOT EXISTS (
+           SELECT 1 FROM user_practice_vocabulary_exclusions x
+           WHERE x.vocabulary_entry_id = e.id AND x.user_id = ?
+         )
        GROUP BY e.id
        ORDER BY e.id`,
     )
-    .all(userId, recentAttemptWindow, sessionId) as SelectionCandidate[];
+    .all(userId, recentAttemptWindow, sessionId, userId) as SelectionCandidate[];
   return rows.map((row) => ({
     id: row.id,
     attempts: Number(row.attempts),
@@ -553,4 +562,118 @@ export function getPracticeSessionSummary(
     accuracy: session.answeredCount === 0 ? 0 : correctCount / session.answeredCount,
     wordsToPractice: wordsToPractice.map((entry) => entry.word),
   };
+}
+
+// --- Practice vocabulary selection -------------------------------------------
+//
+// Practice eligibility is the single source of truth for both the Settings list
+// and question selection: a disabled entry is excluded from `selectQuestion` by
+// the same row that makes its Settings checkbox unticked. There is no second copy
+// of the rule.
+
+export type PracticeVocabularyEntry = {
+  id: string;
+  english: string;
+  german: string;
+  enabled: boolean;
+};
+
+/** The vocabulary a user can practise, with each entry's current state. */
+export function getPracticeVocabulary(
+  database: SqliteDatabase,
+  userId: string,
+): PracticeVocabularyEntry[] {
+  assertPersistableUserId(userId, 'getPracticeVocabulary');
+  const rows = database
+    .prepare(
+      `SELECT e.id, e.english, e.german_display AS german,
+              CASE WHEN x.vocabulary_entry_id IS NULL THEN 1 ELSE 0 END AS enabled
+       FROM vocabulary_entries e
+       LEFT JOIN user_practice_vocabulary_exclusions x
+         ON x.vocabulary_entry_id = e.id AND x.user_id = ?
+       ORDER BY e.english, e.id`,
+    )
+    .all(userId) as Array<{ id: string; english: string; german: string; enabled: number }>;
+  return rows.map((row) => ({
+    id: row.id,
+    english: row.english,
+    german: row.german,
+    enabled: row.enabled === 1,
+  }));
+}
+
+/**
+ * Replaces a user's disabled set. Ids are validated against the real vocabulary
+ * so a client cannot invent entries, and the whole set is written in one
+ * transaction, which is also what keeps this to one request per edit rather than
+ * one per checkbox.
+ */
+export function setPracticeVocabularyExclusions(
+  database: SqliteDatabase,
+  userId: string,
+  disabledIds: string[],
+  now: string,
+): PracticeVocabularyEntry[] {
+  assertPersistableUserId(userId, 'setPracticeVocabularyExclusions');
+  const unique = [...new Set(disabledIds)];
+  if (unique.length > 0) {
+    const placeholders = unique.map(() => '?').join(', ');
+    const known = database
+      .prepare(`SELECT id FROM vocabulary_entries WHERE id IN (${placeholders})`)
+      .all(...unique) as Array<{ id: string }>;
+    if (known.length !== unique.length) {
+      const knownIds = new Set(known.map((row) => row.id));
+      const unknown = unique.filter((id) => !knownIds.has(id));
+      const error = new RepositoryError('One or more vocabulary entries do not exist.', 'invalid');
+      error.unknownIds = unknown.slice(0, 20);
+      throw error;
+    }
+  }
+  database.exec('BEGIN');
+  try {
+    database
+      .prepare('DELETE FROM user_practice_vocabulary_exclusions WHERE user_id = ?')
+      .run(userId);
+    const insert = database.prepare(
+      `INSERT INTO user_practice_vocabulary_exclusions
+         (user_id, vocabulary_entry_id, excluded_at) VALUES (?, ?, ?)`,
+    );
+    for (const id of unique) insert.run(userId, id, now);
+    database.exec('COMMIT');
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  }
+  return getPracticeVocabulary(database, userId);
+}
+
+/** Ids the user has switched off. Used to filter practice candidates. */
+function getExcludedEntryIds(database: SqliteDatabase, userId: string): Set<string> {
+  const rows = database
+    .prepare(
+      'SELECT vocabulary_entry_id FROM user_practice_vocabulary_exclusions WHERE user_id = ?',
+    )
+    .all(userId) as Array<{ vocabulary_entry_id: string }>;
+  return new Set(rows.map((row) => row.vocabulary_entry_id));
+}
+
+/**
+ * Number of entries a user can actually practise. A round is only started when
+ * this is greater than zero, so disabling everything produces a clear message
+ * instead of an empty, broken session.
+ */
+export function countPracticeVocabulary(database: SqliteDatabase, userId: string): number {
+  assertPersistableUserId(userId, 'countPracticeVocabulary');
+  const excluded = getExcludedEntryIds(database, userId);
+  if (excluded.size === 0) {
+    return Number(
+      (
+        database.prepare('SELECT COUNT(*) AS total FROM vocabulary_entries').get() as {
+          total: number;
+        }
+      ).total,
+    );
+  }
+  const rows = database.prepare('SELECT id FROM vocabulary_entries').all() as Array<{ id: string }>;
+  return rows.reduce((total, row) => total + (excluded.has(row.id) ? 0 : 1), 0);
 }

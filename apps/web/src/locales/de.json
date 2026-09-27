@@ -212,5 +212,22 @@
     "menuNotice": "Gastsitzung. Dein Fortschritt ist temporär und wird nicht in einem Konto gespeichert.",
     "banner": "Du nutzt TapTalk als Gast. Nichts wird in einem Konto gespeichert.",
     "temporaryNotice": "Der Gastfortschritt ist temporär und wird nicht in einem Konto gespeichert."
+  },
+  "vocabulary": {
+    "title": "Übungsvokabeln",
+    "intro": "Wähle aus, welche Wörter der Übungsmodus verwendet. Abgewählte Wörter werden übersprungen und erscheinen nie in einer Runde.",
+    "loading": "Vokabeln werden geladen...",
+    "saving": "Wird gespeichert...",
+    "loadFailed": "Die Vokabeln konnten nicht geladen werden.",
+    "saveFailed": "Deine Änderungen konnten nicht gespeichert werden.",
+    "empty": "Es gibt noch keine Vokabeln. Eine Administratorin oder ein Administrator kann welche über den Vokabeln-Bildschirm importieren.",
+    "selectedOf": "{enabled} von {total} Wörtern für die Übung ausgewählt",
+    "noneSelected": "Zurzeit sind keine Vokabeln für die Übung ausgewählt. Wähle mindestens ein Wort aus, um eine Runde zu starten.",
+    "selectAll": "Alle auswählen",
+    "deselectAll": "Alle abwählen",
+    "stateEnabled": "für die Übung ausgewählt",
+    "stateDisabled": "nicht für die Übung ausgewählt",
+    "dashboardLink": "Übungsvokabeln auswählen",
+    "startBlocked": "Zurzeit sind keine Vokabeln für die Übung ausgewählt."
   }
 }
