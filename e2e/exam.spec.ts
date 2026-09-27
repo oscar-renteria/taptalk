@@ -45,8 +45,10 @@ test.describe('exam mode', () => {
 
     // The exam advances explicitly, and the next question is a new one.
     await page.getByRole('button', { name: 'Next question' }).click();
-    await expect(page.getByTestId('exam-prompt')).toBeVisible();
-    expect((await page.getByTestId('exam-prompt').innerText()).trim()).not.toBe(prompt);
+    await expect(page.getByTestId('exam-prompt')).not.toHaveText(prompt);
+    await expect(page.getByLabel('Your answer')).toBeEditable();
+    await page.getByLabel('Your answer').fill('wrong');
+    await expect(page.getByRole('button', { name: 'Submit answer' })).toBeEnabled();
   });
 
   test('the results reveal the answers only after the exam ends', async ({
@@ -139,9 +141,13 @@ test.describe('exam mode', () => {
     await page.getByRole('button', { name: 'Save settings' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Settings saved.' })).toBeVisible();
 
-    await startAndAnswer(page, () => 'wrong');
+    const first = await startAndAnswer(page, () => 'wrong');
     await page.getByRole('button', { name: 'Next question' }).click();
+    // Wait for the new question to arrive: typing earlier is cleared on arrival.
+    await expect(page.getByTestId('exam-prompt')).not.toHaveText(first);
+    await expect(page.getByLabel('Your answer')).toBeEditable();
     await page.getByLabel('Your answer').fill('also wrong');
+    await expect(page.getByRole('button', { name: 'Submit answer' })).toBeEnabled();
     await page.locator('form.practice-card').press('Enter');
     await expect(page.getByRole('heading', { name: 'Exam results' })).toBeVisible();
 
