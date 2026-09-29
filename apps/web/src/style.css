@@ -1612,10 +1612,10 @@ h1[tabindex='-1']:focus {
 }
 
 /* --- Practice vocabulary list (Settings) ------------------------------------
-   The row is the tap target, not the small native box, so a thumb-sized area
-   toggles an entry on a phone while the checkbox itself keeps native keyboard
-   and screen-reader semantics. State is shown by the control and the text, not
-   by colour alone. */
+   The row is the tap target, not the small box, so a thumb-sized area toggles an
+   entry on a phone while the checkbox itself keeps native keyboard and
+   screen-reader semantics. State is shown by the control and the text, not by
+   colour alone. */
 .vocabulary__list {
   display: grid;
   gap: var(--space-1);
@@ -1626,7 +1626,7 @@ h1[tabindex='-1']:focus {
 
 .vocabulary__row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: var(--space-3);
   /* The row stays a target too, so the space beside the box is tappable. */
@@ -1635,41 +1635,232 @@ h1[tabindex='-1']:focus {
   border: 1px solid var(--color-border);
   background: var(--color-panel);
   cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+/* A selected row is tinted and barred, so the state reads at a glance down the
+   list rather than only on the control. The checkbox and the hidden state text
+   still carry it, so this is decoration and not the only signal. */
+.vocabulary__row[data-enabled='true'] {
+  background: var(--color-highlight);
+  box-shadow: inset 3px 0 0 var(--color-success);
+}
+
+.vocabulary__row[data-enabled='false'] {
+  background: var(--color-surface);
 }
 
 .vocabulary__row:hover {
   border-color: var(--color-ink);
 }
 
-/* The focus ring lives on the checkbox, so keyboard users see exactly which row
-   they are on. */
-.vocabulary__checkbox {
-  /* The control itself is a 44px target, not only the row around it, so the
-     tap area is correct however the row is measured. The native control is kept
-     (only scaled), which preserves its checkbox semantics, focus order, and
-     platform behaviour. */
-  width: 44px;
-  height: 44px;
-  margin: 0;
-  accent-color: var(--color-ink);
-  cursor: pointer;
-}
-
-.vocabulary__checkbox:focus-visible {
-  outline: 2px solid var(--color-ink);
-  outline-offset: 2px;
+/* The two lines of a row: the English word above, the German below. Both start
+   at the same edge, so a pair is read downwards rather than across a wide gap. */
+.vocabulary__content {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 .vocabulary__word {
   font-weight: 600;
+  color: var(--color-ink);
 }
 
 .vocabulary__translation {
-  text-align: right;
+  text-align: left;
+}
+
+/* The focus ring lives on the checkbox, so keyboard users see exactly which row
+   they are on. */
+.vocabulary__checkbox {
+  /* The control is a 44px target, but the mark inside it is drawn small: a full
+     44px tick on every row is the loudest thing on the screen once most rows are
+     selected, and carries no information the others do not. The native element
+     is kept, so semantics, focus order and platform behaviour are unchanged. */
+  position: relative;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.vocabulary__checkbox::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--color-control-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+}
+
+.vocabulary__checkbox:checked::before {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+/* The tick itself, drawn rather than borrowed, because the native one is gone
+   with `appearance: none`. It is real content, not a background, so it scales
+   and is never the only cue: the hidden state text says the same thing. */
+.vocabulary__checkbox:checked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 11px;
+  height: 6px;
+  border-left: 2.5px solid var(--color-on-accent);
+  border-bottom: 2.5px solid var(--color-on-accent);
+  transform: translateY(-2px) rotate(-45deg);
+}
+
+/* Indeterminate has to be drawn too. `appearance: none` drops the browser's own
+   partial mark along with the rest of the native rendering, so without this the
+   "some are selected" state is invisible — which would leave the one state that
+   most needs saying out, carried by the count text alone. */
+.vocabulary__checkbox:indeterminate::before {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+.vocabulary__checkbox:indeterminate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 11px;
+  height: 0;
+  border-left: 0;
+  border-bottom: 0;
+  border-top: 2.5px solid var(--color-on-accent);
+  transform: none;
+}
+
+.vocabulary__checkbox:focus-visible {
+  outline: none;
+}
+
+.vocabulary__checkbox:focus-visible::before {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .vocabulary__count {
   margin: 0;
+}
+
+/* --- Vocabulary toolbar ----------------------------------------------------
+   Holds the count, the search and the three controls for the list, so they stay
+   reachable while a long list scrolls past them. The controls sit side by side
+   wherever there is width, because stacked they are taller than the list is
+   worth. On a phone the block is taller than half the screen, so it scrolls
+   away with the page instead: a sticky bar that covers the rows it is meant to
+   help with is worse than one that is merely out of reach. */
+.vocabulary__toolbar {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-paper);
+}
+
+@media (min-width: 48rem) {
+  .vocabulary__toolbar {
+    position: sticky;
+    top: var(--space-2);
+    z-index: 1;
+  }
+}
+
+.vocabulary__master {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+.vocabulary__master-label {
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+.vocabulary__search {
+  min-width: 0;
+}
+
+.vocabulary__search .field {
+  margin: 0;
+}
+
+.vocabulary__group {
+  min-width: 0;
+}
+
+/* The three controls share a row when there is width for them, which keeps the
+   sticky block down to roughly two lines instead of five. */
+@media (min-width: 48rem) {
+  .vocabulary__toolbar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .vocabulary__master,
+  .vocabulary__search {
+    grid-column: span 3;
+  }
+}
+
+/* The matched part of a word, so a hit in the row is visible and not only a
+   fact about which rows survived the filter. */
+.vocabulary__list mark {
+  padding: 0;
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
+}
+
+/* Several accepted answers, shown as separate pills rather than one long string
+   joined with semicolons. The stored text is never changed. */
+.vocabulary__translation .chip {
+  display: inline-block;
+  margin: 0 var(--space-1) var(--space-1) 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius);
+  background: var(--color-segment);
+  color: var(--color-body);
+  font-size: var(--text-sm);
+}
+
+/* Compact: less padding, and the two languages on one line when there is room.
+   The 44px target is kept, so this is denser without becoming harder to tap. */
+.vocabulary__list[data-density='compact'] .vocabulary__row {
+  padding: var(--space-1) var(--space-2);
+}
+
+.vocabulary__list[data-density='compact'] .vocabulary__content {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.vocabulary__undo {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  background: var(--color-surface);
 }
 
 /* The link out of the blocked state sits under the message, full width on a

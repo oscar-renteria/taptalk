@@ -3,9 +3,19 @@ import { answerFor } from './fixtures/vocabulary';
 import { logIn, navigateTo, registerLearner } from './support/app';
 import { learnerPassword } from './support/environment';
 
-/** The Settings vocabulary rows, as accessible checkbox controls. */
+/**
+ * The Settings vocabulary rows, as accessible checkbox controls.
+ *
+ * Scoped to the list on purpose: the toolbar now holds a master checkbox, and a
+ * screen-wide count would include it.
+ */
 function rows(page: import('@playwright/test').Page) {
-  return page.getByRole('checkbox');
+  return page.locator('.vocabulary__list').getByRole('checkbox');
+}
+
+/** The master checkbox, which acts on the rows the learner can currently see. */
+function master(page: import('@playwright/test').Page) {
+  return page.getByRole('checkbox', { name: /^(Select|Deselect)/ });
 }
 
 /** Waits for the debounced save to finish, the way a user waits for "Saving...". */
@@ -107,7 +117,7 @@ test.describe('practice vocabulary selection', () => {
     await logIn(page, await registerLearner(request, testInfo, 'vocab-none'));
     await openSettings(page);
 
-    await page.getByRole('button', { name: 'Deselect all', exact: true }).click();
+    await master(page).click();
     await expect(page.getByText('No vocabulary is currently selected for practice')).toBeVisible();
     await saved(page);
 
@@ -120,7 +130,7 @@ test.describe('practice vocabulary selection', () => {
     await page.getByRole('link', { name: 'Choose practice vocabulary' }).click();
     await expect(page.getByRole('heading', { name: 'Practice vocabulary' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Select all', exact: true }).click();
+    await master(page).click();
     await saved(page);
     await navigateTo(page, 'Practice');
     await page.getByRole('button', { name: 'Start practice' }).click();
@@ -152,11 +162,126 @@ test.describe('practice vocabulary selection', () => {
     for (const prompt of seen) expect(prompt).not.toBe(switchedOff);
   });
 
+  test('deselect all, undo, and the selection is still there after a reload', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await logIn(page, await registerLearner(request, testInfo, 'vocab-undo'));
+    await openSettings(page);
+    const total = await rows(page).count();
+    expect(total).toBeGreaterThan(1);
+
+    // Everything starts selected, so the control offers to deselect.
+    await expect(page.getByRole('checkbox', { name: `Deselect all ${total}` })).toBeVisible();
+    await master(page).click();
+    await expect(page.getByText('No vocabulary is currently selected for practice')).toBeVisible();
+    await saved(page);
+    // With nothing selected the same control now offers to select.
+    await expect(page.getByRole('checkbox', { name: `Select all ${total}` })).toBeVisible();
+
+    // Undo brings it back, and the message stays until it is used.
+    const undo = page.getByRole('button', { name: 'Undo', exact: true });
+    await expect(undo).toBeVisible();
+    await undo.click();
+    await expect(undo).toHaveCount(0);
+    await saved(page);
+
+    // The count is the real proof, and it is what the undo restored.
+    await expect(
+      page.getByText(new RegExp(`^${total} of ${total} words selected for practice$`)),
+    ).toBeVisible();
+
+    // The reload is the rest of the proof: the undo reached the server, not just
+    // this page's memory.
+    await page.reload();
+    await expect(rows(page)).toHaveCount(total);
+    await expect(rows(page).first()).toBeChecked();
+  });
+
+  test('a partial selection is not wiped by one tap on the master checkbox', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await logIn(page, await registerLearner(request, testInfo, 'vocab-mixed'));
+    await openSettings(page);
+    const total = await rows(page).count();
+
+    await rows(page).nth(0).uncheck();
+    await saved(page);
+
+    // The control is between on and off, so it offers to select, not to deselect:
+    // one tap must not throw away a selection that took real work to make.
+    await expect(page.getByRole('checkbox', { name: `Select all ${total}` })).toBeVisible();
+    await master(page).click();
+    await saved(page);
+    await expect(
+      page.getByText(new RegExp(`^${total} of ${total} words selected for practice$`)),
+    ).toBeVisible();
+  });
+
+  test('the density toggle keeps the tap target in both modes', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await logIn(page, await registerLearner(request, testInfo, 'vocab-density'));
+    await openSettings(page);
+
+    const heights = () =>
+      page
+        .locator('.vocabulary__row')
+        .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
+
+    await expect(page.locator('.vocabulary__list')).toHaveAttribute('data-density', 'comfortable');
+    for (const height of await heights()) expect(height).toBeGreaterThanOrEqual(44);
+
+    await page.getByRole('radio', { name: 'Compact' }).check();
+    await expect(page.locator('.vocabulary__list')).toHaveAttribute('data-density', 'compact');
+    // Denser, but never below the tap target minimum.
+    const compact = await heights();
+    for (const height of compact) expect(height).toBeGreaterThanOrEqual(44);
+    const comfortable = await page
+      .locator('.vocabulary__list')
+      .evaluate((node) => Number(getComputedStyle(node).getPropertyValue('--unused')) || 0);
+    expect(comfortable).toBe(0);
+
+    // The choice is remembered, not just applied for this visit.
+    await page.reload();
+    await expect(page.locator('.vocabulary__list')).toHaveAttribute('data-density', 'compact');
+  });
+
+  test('the filter chips narrow the list without hiding a row mid-tap', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await logIn(page, await registerLearner(request, testInfo, 'vocab-filter'));
+    await openSettings(page);
+    const total = await rows(page).count();
+
+    // "Not selected" is empty to begin with, because everything starts selected.
+    await page.getByRole('radio', { name: 'Not selected', exact: true }).check();
+    await expect(rows(page)).toHaveCount(0);
+    await expect(page.getByText('No words match your search or filter.')).toBeVisible();
+
+    await page.getByRole('radio', { name: 'Selected', exact: true }).check();
+    await expect(rows(page)).toHaveCount(total);
+
+    // Unticking under "Selected" must not yank the row from under the pointer.
+    const word = await page.locator('.vocabulary__word').first().innerText();
+    await rows(page).first().uncheck();
+    await expect(rows(page)).toHaveCount(total);
+    await expect(page.locator('.vocabulary__word').first()).toHaveText(word);
+
+    // It moves to the other filter as soon as the learner asks for it.
+    await page.getByRole('radio', { name: 'Not selected', exact: true }).check();
+    await expect(rows(page)).toHaveCount(1);
+    await expect(page.locator('.vocabulary__word')).toHaveText(word);
+  });
+
   test('one account selection does not affect another', async ({ page, request }, testInfo) => {
     const first = await registerLearner(request, testInfo, 'vocab-a');
     await logIn(page, first);
     await openSettings(page);
-    await page.getByRole('button', { name: 'Deselect all', exact: true }).click();
+    await master(page).click();
     await saved(page);
 
     // Sign out first: a signed-in visitor is redirected away from /login.
@@ -182,12 +307,22 @@ test.describe('practice vocabulary selection', () => {
     await openSettings(page);
     await page.getByLabel('App language').selectOption('de');
     await expect(page.getByRole('heading', { name: 'Übungsvokabeln' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Alle auswählen', exact: true })).toBeVisible();
+    // The toolbar is translated too, not just the heading: its control, its
+    // legends and its options.
+    await expect(page.getByRole('toolbar', { name: 'Liste der Übungsvokabeln' })).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: /Alle \d+ abwählen/ })).toBeVisible();
+    await expect(page.getByRole('radio', { name: 'Kompakt' })).toBeVisible();
+    await expect(page.getByLabel('Wörter suchen')).toBeVisible();
+
     await page.getByLabel('App-Sprache').selectOption('es');
     await expect(page.getByRole('heading', { name: 'Vocabulario de práctica' })).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Seleccionar todas', exact: true }),
+      page.getByRole('toolbar', { name: 'Lista de vocabulario de práctica' }),
     ).toBeVisible();
+    // Every row starts selected, so the control offers to deselect them.
+    await expect(page.getByRole('checkbox', { name: /Deseleccionar las \d+/ })).toBeVisible();
+    await expect(page.getByRole('radio', { name: 'Compacta' })).toBeVisible();
+    await expect(page.getByLabel('Buscar palabras')).toBeVisible();
   });
 
   test('the rows are large enough to tap and reachable by keyboard', async ({
@@ -240,7 +375,7 @@ test.describe('a long list stays usable', () => {
     await expect(shownLine).toHaveCount(0);
   });
 
-  test('the bulk buttons only touch the words the search shows', async ({
+  test('the bulk control only touches the words the search shows', async ({
     page,
     request,
   }, testInfo) => {
@@ -256,8 +391,8 @@ test.describe('a long list stays usable', () => {
     expect(shown).toBeGreaterThan(0);
     expect(shown).toBeLessThan(total);
 
-    // The label says how many rows the action will change, not "all".
-    const deselect = page.getByRole('button', { name: `Deselect these ${shown}`, exact: true });
+    // The control's name says how many rows it will change, not "all".
+    const deselect = page.getByRole('checkbox', { name: `Deselect these ${shown}` });
     await expect(deselect).toBeVisible();
     await deselect.click();
     await saved(page);
@@ -282,7 +417,9 @@ test.describe('a long list stays usable', () => {
     await logIn(page, await registerLearner(request, testInfo, 'vocab-nomatch'));
     await openSettings(page);
     await page.getByLabel('Search words').fill('zzzzzz');
-    await expect(page.getByText('No words match your search.')).toBeVisible();
+    // The message now covers a filter as well as a search, since either empties
+    // the list.
+    await expect(page.getByText('No words match your search or filter.')).toBeVisible();
     await expect(rows(page)).toHaveCount(0);
     // The selection itself is untouched: clearing the search restores it.
     await page.getByLabel('Search words').fill('');

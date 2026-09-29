@@ -224,8 +224,6 @@
     "empty": "There is no vocabulary yet. An administrator can import some from the Vocabulary screen.",
     "selectedOf": "{enabled} of {total} words selected for practice",
     "noneSelected": "No vocabulary is currently selected for practice. Switch at least one word on to start a round.",
-    "selectAll": "Select all",
-    "deselectAll": "Deselect all",
     "stateEnabled": "selected for practice",
     "stateDisabled": "not selected for practice",
     "dashboardLink": "Choose practice vocabulary",
@@ -235,7 +233,29 @@
     "showingOf": "{shown} of {total} shown",
     "selectAllVisible": "Select these {count}",
     "deselectAllVisible": "Deselect these {count}",
-    "noMatches": "No words match your search."
+    "noMatches": "No words match your search or filter.",
+    "toolbar": "Practice vocabulary list",
+    "filterLabel": "Show",
+    "filter": {
+      "all": "All",
+      "selected": "Selected",
+      "not-selected": "Not selected"
+    },
+    "sortLabel": "Order",
+    "sort": {
+      "english": "English A–Z",
+      "german": "German A–Z"
+    },
+    "densityLabel": "Density",
+    "density": {
+      "comfortable": "Comfortable",
+      "compact": "Compact"
+    },
+    "selectAllCounted": "Select all {count}",
+    "deselectAllCounted": "Deselect all {count}",
+    "undo": "{count} words changed · {enabled} now selected",
+    "undoAction": "Undo",
+    "undoDismiss": "Dismiss"
   },
   "exam": {
     "eyebrow": "Test yourself",

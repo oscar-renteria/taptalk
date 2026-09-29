@@ -224,8 +224,6 @@
     "empty": "Todavía no hay vocabulario. Una persona administradora puede importar palabras desde la pantalla de Vocabulario.",
     "selectedOf": "{enabled} de {total} palabras seleccionadas para practicar",
     "noneSelected": "Ahora mismo no hay ninguna palabra seleccionada para practicar. Activa al menos una para empezar una ronda.",
-    "selectAll": "Seleccionar todas",
-    "deselectAll": "Deseleccionar todas",
     "stateEnabled": "seleccionada para practicar",
     "stateDisabled": "no seleccionada para practicar",
     "dashboardLink": "Elegir vocabulario de práctica",
@@ -235,7 +233,29 @@
     "showingOf": "{shown} de {total} mostradas",
     "selectAllVisible": "Seleccionar estas {count}",
     "deselectAllVisible": "Deseleccionar estas {count}",
-    "noMatches": "Ninguna palabra coincide con la búsqueda."
+    "noMatches": "Ninguna palabra coincide con la búsqueda o el filtro.",
+    "toolbar": "Lista de vocabulario de práctica",
+    "filterLabel": "Mostrar",
+    "filter": {
+      "all": "Todas",
+      "selected": "Seleccionadas",
+      "not-selected": "No seleccionadas"
+    },
+    "sortLabel": "Orden",
+    "sort": {
+      "english": "Inglés A–Z",
+      "german": "Alemán A–Z"
+    },
+    "densityLabel": "Densidad",
+    "density": {
+      "comfortable": "Cómoda",
+      "compact": "Compacta"
+    },
+    "selectAllCounted": "Seleccionar las {count}",
+    "deselectAllCounted": "Deseleccionar las {count}",
+    "undo": "{count} palabras cambiadas · {enabled} seleccionadas ahora",
+    "undoAction": "Deshacer",
+    "undoDismiss": "Cerrar"
   },
   "exam": {
     "eyebrow": "Ponte a prueba",

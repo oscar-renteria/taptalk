@@ -7,7 +7,7 @@ const nav = (page: import('@playwright/test').Page, name: string) =>
 
 /** Leaves only the first vocabulary word enabled, so an exam is one question. */
 async function enableOnlyFirstWord(page: import('@playwright/test').Page): Promise<string> {
-  const rows = page.getByRole('checkbox');
+  const rows = page.locator('.vocabulary__list').getByRole('checkbox');
   await expect(rows.first()).toBeVisible();
   const total = await rows.count();
   const keep = (await page.locator('.vocabulary__word').first().innerText()).trim();
@@ -109,7 +109,7 @@ test.describe('exam mode', () => {
     await navigateTo(page, 'Settings');
     // Two words enabled cannot make a 10-question exam, and the screen says so
     // before the exam starts rather than surprising the learner afterwards.
-    const rows = page.getByRole('checkbox');
+    const rows = page.locator('.vocabulary__list').getByRole('checkbox');
     await expect(rows.first()).toBeVisible();
     const total = await rows.count();
     for (let i = 2; i < total; i += 1) await rows.nth(i).uncheck();
@@ -127,9 +127,10 @@ test.describe('exam mode', () => {
   }, testInfo) => {
     await logIn(page, await registerLearner(request, testInfo, 'exam-empty'));
     await navigateTo(page, 'Settings');
-    const rows = page.getByRole('checkbox');
+    const rows = page.locator('.vocabulary__list').getByRole('checkbox');
     await expect(rows.first()).toBeVisible();
-    await page.getByRole('button', { name: 'Deselect all', exact: true }).click();
+    // The toolbar's master checkbox is what switches everything off now.
+    await page.getByRole('checkbox', { name: /^Deselect all \d+$/ }).click();
     await page.waitForTimeout(1200);
 
     await page.goto('/exams');
@@ -193,7 +194,7 @@ test.describe('exam mode', () => {
     await logIn(page, await registerLearner(request, testInfo, 'exam-stats'));
     await navigateTo(page, 'Settings');
     // Two words, so the exam is two questions and ends on the second answer.
-    const rows = page.getByRole('checkbox');
+    const rows = page.locator('.vocabulary__list').getByRole('checkbox');
     await expect(rows.first()).toBeVisible();
     const total = await rows.count();
     for (let i = 2; i < total; i += 1) await rows.nth(i).uncheck();

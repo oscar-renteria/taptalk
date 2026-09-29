@@ -3,6 +3,61 @@ import { apiFetch, jsonRequest } from './api';
 import { session } from './session';
 import type { PracticeVocabularyEntry } from '@taptalk/shared';
 
+/** Which rows the list shows. Transient: never sent anywhere, never persisted. */
+export type VocabularyFilter = 'all' | 'selected' | 'not-selected';
+/** Display order. A display choice only, so it is not sent anywhere either. */
+export type VocabularySort = 'english' | 'german';
+/** How tall the rows are. This one is a real preference, so it is remembered. */
+export type VocabularyDensity = 'comfortable' | 'compact';
+
+const densityStorageKey = 'taptalk.vocabularyDensity';
+
+/**
+ * Reads the remembered density.
+ *
+ * Wrapped because storage throws in private browsing on some platforms, and a
+ * list that cannot be made comfortable is still a usable list.
+ */
+export function loadVocabularyDensity(): VocabularyDensity {
+  try {
+    return window.localStorage.getItem(densityStorageKey) === 'compact' ? 'compact' : 'comfortable';
+  } catch {
+    return 'comfortable';
+  }
+}
+
+function storeVocabularyDensity(density: VocabularyDensity): void {
+  try {
+    window.localStorage.setItem(densityStorageKey, density);
+  } catch {
+    // A preference that cannot be stored is simply not remembered.
+  }
+}
+
+/**
+ * Splits a stored answer string into the separate answers it holds.
+ *
+ * The dataset stores "Bist du im Urlaub in?; Sind Sie im Urlaub in?" in one
+ * field. It is split for display only: the stored string is never rewritten, and
+ * the search box still matches the original text.
+ */
+export function splitAnswers(value: string): string[] {
+  return value
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+}
+
+/**
+ * The word the list sorts on.
+ *
+ * Leading punctuation and symbols are dropped, so "(inline) skating" files under
+ * I rather than sorting ahead of every letter on a byte comparison.
+ */
+export function sortKey(value: string): string {
+  return value.replace(/^[^\p{L}\p{N}]+/u, '');
+}
+
 /**
  * The single source of truth for which vocabulary Practice Mode may use.
  *
@@ -22,7 +77,21 @@ export const practiceVocabulary = reactive({
   loaded: false,
   /** Search text for the Settings list. Transient, never sent anywhere. */
   query: '',
+  /** Which rows are shown. Transient, never sent anywhere. */
+  filter: 'all' as VocabularyFilter,
+  /** Display order. Transient, never sent anywhere. */
+  sort: 'english' as VocabularySort,
+  /** Row height. Remembered locally, because it is a display preference. */
+  density: loadVocabularyDensity(),
+  /** The one undo level for a bulk action, or null when there is nothing to undo. */
+  undo: null as { snapshot: Array<{ id: string; enabled: boolean }>; count: number } | null,
 });
+
+/** Sets the density and remembers it. */
+export function setVocabularyDensity(density: VocabularyDensity): void {
+  practiceVocabulary.density = density;
+  storeVocabularyDensity(density);
+}
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let pending: PracticeVocabularyEntry[] | null = null;
@@ -55,7 +124,7 @@ export function enabledCount(): number {
  * one response, so the client already holds every row: paging the reads would not
  * save anything and would make "select everything" ambiguous.
  */
-export const visibleEntries = computed(() => {
+const matchedEntries = computed(() => {
   const query = practiceVocabulary.query.trim().toLowerCase();
   if (!query) return practiceVocabulary.entries;
   return practiceVocabulary.entries.filter(
@@ -64,9 +133,66 @@ export const visibleEntries = computed(() => {
   );
 });
 
-/** True when a search is narrowing the list, so bulk actions must say so. */
+/** Search first, then the All / Selected / Not selected filter. */
+const filteredEntries = computed(() => {
+  const filter = practiceVocabulary.filter;
+  if (filter === 'all') return matchedEntries.value;
+  return matchedEntries.value.filter((entry) =>
+    filter === 'selected' ? entry.enabled : !entry.enabled,
+  );
+});
+
+/**
+ * Rows the filter and search currently admit.
+ *
+ * With "Selected" showing, unticking a row would otherwise make it disappear the
+ * instant the pointer is still on it. So the visible set is frozen whenever the
+ * search or the filter changes, and not on every tick: the row stays put until
+ * the learner next changes what they are looking at.
+ *
+ * The freeze is recomputed on read rather than in a watcher, so it is always in
+ * step with the list. A watcher would lag by a flush and show a row that had
+ * just left the filter, which is the same bug in a different place.
+ */
+let frozenKey: string | null = null;
+let frozenIds: Set<string> = new Set();
+
+function frozenFor(key: string): Set<string> {
+  if (key !== frozenKey) {
+    frozenKey = key;
+    frozenIds = new Set(filteredEntries.value.map((entry) => entry.id));
+  }
+  return frozenIds;
+}
+
+/** The rows on screen, in the chosen order. */
+export const visibleEntries = computed(() => {
+  // The list arriving counts as a change in what is visible; its length does not
+  // change when a save comes back, so a save cannot re-freeze mid-interaction.
+  const key = `${practiceVocabulary.query}|${practiceVocabulary.filter}|${practiceVocabulary.entries.length}`;
+  const ids = frozenFor(key);
+  // Search results, narrowed to the rows the freeze admitted. The Selected
+  // filter is deliberately not re-applied here: it already decided which rows
+  // these are, and re-applying it would drop a row the moment it is unticked.
+  const rows = matchedEntries.value.filter((entry) => ids.has(entry.id));
+  const locale = typeof document === 'undefined' ? 'en' : document.documentElement.lang || 'en';
+  // A collator, not a string compare: it ignores case, orders accented letters
+  // where a reader expects them, and sorts embedded numbers as numbers.
+  const collator = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
+  const field = practiceVocabulary.sort === 'german' ? 'german' : 'english';
+  return [...rows].sort(
+    (a, b) => collator.compare(sortKey(a[field]), sortKey(b[field])) || a.id.localeCompare(b.id),
+  );
+});
+
+/** True when a search or a filter is narrowing the list, so bulk actions must say so. */
 export function isFiltering(): boolean {
-  return practiceVocabulary.query.trim().length > 0;
+  return practiceVocabulary.query.trim().length > 0 || practiceVocabulary.filter !== 'all';
+}
+
+/** How many of the visible rows are currently on, for the master checkbox. */
+export function visibleEnabledCount(): number {
+  return visibleEntries.value.reduce((total, entry) => total + (entry.enabled ? 1 : 0), 0);
 }
 
 /** Loads the list and the stored selection for the current identity. */
@@ -105,11 +231,39 @@ export function setEntryEnabled(id: string, enabled: boolean): void {
  * Settings passes the rows the user can actually see, so a search followed by
  * "deselect" only touches the matches. Without that, filtering to find something
  * and then deselecting would quietly switch off every word that was never shown.
+ *
+ * The previous state of the affected rows is kept so the action can be undone:
+ * a curated selection is worth a lot of work, and losing it to one mis-tap is
+ * not a recoverable mistake. Single-row toggles deliberately do not create an
+ * undo entry; they are already trivial to reverse.
  */
 export function setAllEnabled(enabled: boolean, rows?: PracticeVocabularyEntry[]): void {
-  for (const entry of rows ?? practiceVocabulary.entries) entry.enabled = enabled;
+  const affected = rows ?? practiceVocabulary.entries;
+  practiceVocabulary.undo = {
+    snapshot: affected.map((entry) => ({ id: entry.id, enabled: entry.enabled })),
+    count: affected.length,
+  };
+  for (const entry of affected) entry.enabled = enabled;
   generation += 1;
   scheduleSave();
+}
+
+/** Undoes the last bulk action as one batched change, so it costs one save. */
+export function restoreEnabled(): void {
+  const undo = practiceVocabulary.undo;
+  if (!undo) return;
+  for (const { id, enabled } of undo.snapshot) {
+    const entry = byId.get(id);
+    if (entry) entry.enabled = enabled;
+  }
+  practiceVocabulary.undo = null;
+  generation += 1;
+  scheduleSave();
+}
+
+/** Dismisses the undo message without changing anything. */
+export function dismissUndo(): void {
+  practiceVocabulary.undo = null;
 }
 
 function scheduleSave(): void {
@@ -182,6 +336,12 @@ export function resetPracticeVocabulary(): void {
   generation += 1;
   practiceVocabulary.entries = [];
   practiceVocabulary.query = '';
+  practiceVocabulary.filter = 'all';
+  practiceVocabulary.sort = 'english';
+  practiceVocabulary.density = loadVocabularyDensity();
+  practiceVocabulary.undo = null;
+  frozenKey = null;
+  frozenIds = new Set();
   reindex();
   practiceVocabulary.loading = false;
   practiceVocabulary.saving = false;

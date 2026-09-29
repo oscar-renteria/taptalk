@@ -224,8 +224,6 @@
     "empty": "Es gibt noch keine Vokabeln. Eine Administratorin oder ein Administrator kann welche über den Vokabeln-Bildschirm importieren.",
     "selectedOf": "{enabled} von {total} Wörtern für die Übung ausgewählt",
     "noneSelected": "Zurzeit sind keine Vokabeln für die Übung ausgewählt. Wähle mindestens ein Wort aus, um eine Runde zu starten.",
-    "selectAll": "Alle auswählen",
-    "deselectAll": "Alle abwählen",
     "stateEnabled": "für die Übung ausgewählt",
     "stateDisabled": "nicht für die Übung ausgewählt",
     "dashboardLink": "Übungsvokabeln auswählen",
@@ -235,7 +233,29 @@
     "showingOf": "{shown} von {total} angezeigt",
     "selectAllVisible": "Diese {count} auswählen",
     "deselectAllVisible": "Diese {count} abwählen",
-    "noMatches": "Keine Wörter passen zur Suche."
+    "noMatches": "Keine Wörter passen zur Suche oder zum Filter.",
+    "toolbar": "Liste der Übungsvokabeln",
+    "filterLabel": "Anzeigen",
+    "filter": {
+      "all": "Alle",
+      "selected": "Ausgewählt",
+      "not-selected": "Nicht ausgewählt"
+    },
+    "sortLabel": "Reihenfolge",
+    "sort": {
+      "english": "Englisch A–Z",
+      "german": "Deutsch A–Z"
+    },
+    "densityLabel": "Dichte",
+    "density": {
+      "comfortable": "Komfortabel",
+      "compact": "Kompakt"
+    },
+    "selectAllCounted": "Alle {count} auswählen",
+    "deselectAllCounted": "Alle {count} abwählen",
+    "undo": "{count} Wörter geändert · {enabled} jetzt ausgewählt",
+    "undoAction": "Rückgängig",
+    "undoDismiss": "Schließen"
   },
   "exam": {
     "eyebrow": "Teste dich selbst",

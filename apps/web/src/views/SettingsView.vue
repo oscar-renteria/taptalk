@@ -1,18 +1,28 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { AppButton, SelectField, LiveMessage, TextField } from '../components';
+// LoadingState was used in the template without being imported, so the list
+// rendered nothing at all while the vocabulary was being fetched.
+import { AppButton, SelectField, LiveMessage, LoadingState, TextField } from '../components';
 import { apiFetch, jsonRequest } from '../api';
 import { setLocale, supportedLocales, type LocaleCode } from '../i18n';
 import { directionValues, type Direction, type Tone } from '../types';
 import {
+  dismissUndo,
   enabledCount,
   isFiltering,
   loadPracticeVocabulary,
   practiceVocabulary,
+  restoreEnabled,
   setAllEnabled,
   setEntryEnabled,
+  setVocabularyDensity,
+  splitAnswers,
+  visibleEnabledCount,
   visibleEntries,
+  type VocabularyDensity,
+  type VocabularyFilter,
+  type VocabularySort,
 } from '../practice-vocabulary';
 const { t, locale } = useI18n();
 
@@ -42,6 +52,91 @@ const directionOptions = computed(() =>
     ),
   })),
 );
+
+// --- Practice vocabulary list ------------------------------------------------
+
+const filterValues: VocabularyFilter[] = ['all', 'selected', 'not-selected'];
+const sortValues: VocabularySort[] = ['english', 'german'];
+const densityValues: VocabularyDensity[] = ['comfortable', 'compact'];
+
+const filterOptions = computed(() =>
+  filterValues.map((value) => ({ value, label: t(`vocabulary.filter.${value}`) })),
+);
+const sortOptions = computed(() =>
+  sortValues.map((value) => ({ value, label: t(`vocabulary.sort.${value}`) })),
+);
+const densityOptions = computed(() =>
+  densityValues.map((value) => ({ value, label: t(`vocabulary.density.${value}`) })),
+);
+
+const masterCheckbox = ref<HTMLInputElement | null>(null);
+
+/**
+ * The master checkbox reflects the rows on screen, not the whole list: a search
+ * or a filter narrows what a bulk action would touch, so it narrows what the
+ * control reports too.
+ */
+const visibleCount = computed(() => visibleEntries.value.length);
+const allVisibleEnabled = computed(
+  () => visibleCount.value > 0 && visibleEnabledCount() === visibleCount.value,
+);
+
+/** "Indeterminate" is a property of the element, not an attribute Vue can bind. */
+watchEffect(() => {
+  if (masterCheckbox.value) {
+    masterCheckbox.value.indeterminate = visibleEnabledCount() > 0 && !allVisibleEnabled.value;
+  }
+});
+
+/**
+ * The name a screen reader hears for the master checkbox: what pressing it will
+ * do, and to how many rows. The visible label beside it says how many are
+ * selected instead, so the two are not the same sentence.
+ */
+const masterLabel = computed(() => {
+  const count = visibleCount.value;
+  if (allVisibleEnabled.value) {
+    return isFiltering()
+      ? t('vocabulary.deselectAllVisible', { count })
+      : t('vocabulary.deselectAllCounted', { count });
+  }
+  return isFiltering()
+    ? t('vocabulary.selectAllVisible', { count })
+    : t('vocabulary.selectAllCounted', { count });
+});
+
+function toggleAllVisible(): void {
+  setAllEnabled(!allVisibleEnabled.value, visibleEntries.value);
+}
+
+/**
+ * Wraps the part of a value that the search box matched, so the hit is visible
+ * in the row itself. Built from plain text segments, never from markup.
+ */
+type Segment = { text: string; hit: boolean };
+
+function highlight(value: string): Segment[] {
+  const query = practiceVocabulary.query.trim();
+  if (!query) return [{ text: value, hit: false }];
+  const at = value.toLowerCase().indexOf(query.toLowerCase());
+  if (at < 0) return [{ text: value, hit: false }];
+  return [
+    { text: value.slice(0, at), hit: false },
+    { text: value.slice(at, at + query.length), hit: true },
+    { text: value.slice(at + query.length), hit: false },
+  ].filter((segment) => segment.text.length > 0);
+}
+
+/** The German field as separate pills when it holds several answers. */
+function pills(value: string): string[] {
+  return splitAnswers(value);
+}
+
+const undoMessage = computed(() => {
+  const undo = practiceVocabulary.undo;
+  if (!undo) return '';
+  return t('vocabulary.undo', { count: undo.count, enabled: enabledCount() });
+});
 
 // Language names are shown in their own language, which is the convention users
 // expect from a language picker and needs no per-locale translation.
@@ -173,28 +268,100 @@ async function save(): Promise<void> {
         </p>
 
         <template v-else>
-          <!-- Not a live region: each checkbox already announces its own state, so
-               announcing the count on every tick would only add noise. -->
-          <p class="muted vocabulary__count">
-            {{
-              t('vocabulary.selectedOf', {
-                enabled: enabledCount(),
-                total: practiceVocabulary.entries.length,
-              })
-            }}
-          </p>
-          <p v-if="!enabledCount()" class="field__error">{{ t('vocabulary.noneSelected') }}</p>
+          <!-- One toolbar for the whole list: what is selected, how to find a
+               word, which ones to show, in what order, and how tall. It sticks to
+               the top of the list so the count and the search stay reachable
+               while a long list scrolls. -->
+          <div class="vocabulary__toolbar" role="toolbar" :aria-label="t('vocabulary.toolbar')">
+            <div class="vocabulary__master">
+              <input
+                id="vocabulary-select-all"
+                ref="masterCheckbox"
+                type="checkbox"
+                class="vocabulary__checkbox"
+                :checked="allVisibleEnabled"
+                :aria-label="masterLabel"
+                @change="toggleAllVisible"
+              />
+              <label for="vocabulary-select-all" class="vocabulary__master-label">
+                {{
+                  t('vocabulary.selectedOf', {
+                    enabled: enabledCount(),
+                    total: practiceVocabulary.entries.length,
+                  })
+                }}
+              </label>
+            </div>
 
-          <!-- Filtering the list narrows what the bulk buttons act on, so the
-               labels below say how many words they will touch. -->
-          <TextField
-            id="vocabulary-search"
-            v-model="practiceVocabulary.query"
-            type="search"
-            :label="t('vocabulary.searchLabel')"
-            :placeholder="t('vocabulary.searchPlaceholder')"
-            autocomplete="off"
-          />
+            <!-- TextField passes extra attributes to the input, not to the element
+                 that sits in the grid, so the width is set on a wrapper. -->
+            <div class="vocabulary__search">
+              <TextField
+                id="vocabulary-search"
+                v-model="practiceVocabulary.query"
+                type="search"
+                :label="t('vocabulary.searchLabel')"
+                :placeholder="t('vocabulary.searchPlaceholder')"
+                autocomplete="off"
+              />
+            </div>
+
+            <fieldset class="segmented vocabulary__group">
+              <legend>{{ t('vocabulary.filterLabel') }}</legend>
+              <div class="segmented__options">
+                <label
+                  v-for="option in filterOptions"
+                  :key="option.value"
+                  class="segmented__option"
+                >
+                  <input
+                    v-model="practiceVocabulary.filter"
+                    type="radio"
+                    name="vocabulary-filter"
+                    :value="option.value"
+                  />
+                  <span>{{ option.label }}</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="segmented vocabulary__group">
+              <legend>{{ t('vocabulary.sortLabel') }}</legend>
+              <div class="segmented__options">
+                <label v-for="option in sortOptions" :key="option.value" class="segmented__option">
+                  <input
+                    v-model="practiceVocabulary.sort"
+                    type="radio"
+                    name="vocabulary-sort"
+                    :value="option.value"
+                  />
+                  <span>{{ option.label }}</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="segmented vocabulary__group">
+              <legend>{{ t('vocabulary.densityLabel') }}</legend>
+              <div class="segmented__options">
+                <label
+                  v-for="option in densityOptions"
+                  :key="option.value"
+                  class="segmented__option"
+                >
+                  <input
+                    :checked="practiceVocabulary.density === option.value"
+                    type="radio"
+                    name="vocabulary-density"
+                    :value="option.value"
+                    @change="setVocabularyDensity(option.value as VocabularyDensity)"
+                  />
+                  <span>{{ option.label }}</span>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+
+          <p v-if="!enabledCount()" class="field__error">{{ t('vocabulary.noneSelected') }}</p>
 
           <p v-if="isFiltering()" class="muted vocabulary__count">
             {{
@@ -205,46 +372,62 @@ async function save(): Promise<void> {
             }}
           </p>
 
-          <div class="button-row">
-            <AppButton variant="secondary" @click="setAllEnabled(true, visibleEntries)">
-              {{
-                isFiltering()
-                  ? t('vocabulary.selectAllVisible', { count: visibleEntries.length })
-                  : t('vocabulary.selectAll')
-              }}
-            </AppButton>
-            <AppButton variant="secondary" @click="setAllEnabled(false, visibleEntries)">
-              {{
-                isFiltering()
-                  ? t('vocabulary.deselectAllVisible', { count: visibleEntries.length })
-                  : t('vocabulary.deselectAll')
-              }}
-            </AppButton>
-          </div>
-
           <p v-if="!visibleEntries.length" class="muted">
             {{ t('vocabulary.noMatches') }}
           </p>
 
           <!-- A native checkbox per row, wrapped in a label so the whole row is the
-               tap target. State is carried by the control itself, not by colour. -->
-          <ul class="vocabulary__list">
+               tap target. State is carried by the control itself and by the hidden
+               state text, never by colour alone. -->
+          <ul class="vocabulary__list" :data-density="practiceVocabulary.density">
             <li v-for="entry in visibleEntries" :key="entry.id">
-              <label class="vocabulary__row">
+              <label class="vocabulary__row" :data-enabled="entry.enabled">
                 <input
                   type="checkbox"
                   class="vocabulary__checkbox"
                   :checked="entry.enabled"
                   @change="setEntryEnabled(entry.id, ($event.target as HTMLInputElement).checked)"
                 />
-                <span class="vocabulary__word">{{ entry.english }}</span>
-                <span class="vocabulary__translation muted">{{ entry.german }}</span>
+                <span class="vocabulary__content">
+                  <span class="vocabulary__word">
+                    <template v-for="(segment, index) in highlight(entry.english)" :key="index">
+                      <mark v-if="segment.hit">{{ segment.text }}</mark
+                      ><template v-else>{{ segment.text }}</template>
+                    </template>
+                  </span>
+                  <span class="vocabulary__translation muted">
+                    <template v-if="pills(entry.german).length > 1">
+                      <span
+                        v-for="(answer, index) in pills(entry.german)"
+                        :key="index"
+                        class="chip"
+                        >{{ answer }}</span
+                      >
+                    </template>
+                    <template v-else>{{ entry.german }}</template>
+                  </span>
+                </span>
                 <span class="visually-hidden">
                   {{ entry.enabled ? t('vocabulary.stateEnabled') : t('vocabulary.stateDisabled') }}
                 </span>
               </label>
             </li>
           </ul>
+
+          <!-- Undo for a bulk action. It stays until the learner dismisses it,
+               runs another bulk action, or leaves: a message that vanishes on a
+               timer takes the only way back with it. -->
+          <div v-if="practiceVocabulary.undo" class="vocabulary__undo">
+            <p class="muted" role="status">{{ undoMessage }}</p>
+            <div class="button-row">
+              <AppButton variant="secondary" @click="restoreEnabled()">
+                {{ t('vocabulary.undoAction') }}
+              </AppButton>
+              <AppButton variant="secondary" @click="dismissUndo()">
+                {{ t('vocabulary.undoDismiss') }}
+              </AppButton>
+            </div>
+          </div>
         </template>
       </template>
     </section>

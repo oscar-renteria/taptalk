@@ -17,8 +17,44 @@
 
 ## Unreleased
 
+### Added
+
+- The Practice vocabulary list in Settings was rebuilt around a single sticky
+  toolbar: a three-state master checkbox that says how many rows it will change,
+  the search box with the matched text highlighted in each row, All / Selected /
+  Not selected filter chips, an English or German A–Z sort, and a Comfortable or
+  Compact density. The two bulk buttons are gone, replaced by the master
+  checkbox.
+- Undo for a bulk action in Settings, with the message kept until it is used,
+  dismissed, or the learner leaves: a message that disappears on a timer takes
+  the only way back with it. One level, and a single-row toggle does not create
+  one.
+- The visible set is frozen when the search or filter changes rather than on
+  every tick, so unticking a row under "Selected" does not make it vanish from
+  under the pointer.
+- The remembered Comfortable or Compact density, stored under
+  `taptalk.vocabularyDensity` and read in a `try`/`catch`, so a browser that
+  blocks storage still gets a usable list.
+
 ### Changed
 
+- Vocabulary rows are now two lines, English above German, both starting at the
+  same edge instead of pushed to opposite sides, so a pair is read downwards
+  rather than across the width of the screen. Several accepted answers are shown
+  as separate pills instead of one long string joined with semicolons. Nothing in
+  the stored vocabulary is changed: the split is for display only, and the search
+  box still matches the original text.
+- The checkbox draws a 22px mark inside its 44px target instead of a 44px tick,
+  and a selected row is tinted and barred, so the state is readable down the
+  list rather than only on the control. The control, its tap target, its focus
+  ring and the hidden "selected for practice" text are unchanged, so state is
+  still never carried by colour alone.
+- The list is sorted in the browser with an `Intl.Collator`, ignoring leading
+  punctuation and case, so "(inline) skating" files under I instead of sorting
+  ahead of every letter. This is a display sort only: the server's order is
+  untouched.
+- `LoadingState` was used in the Settings template without being imported, so
+  the list rendered nothing at all while the vocabulary was being fetched.
 - **An exam no longer reveals correctness while it runs.** The answer endpoint
   returned `{ result: { correct } }` on every submission and the card showed a
   verdict band, a `data-state` of `correct`/`miss`, and a `role="alert"`, so a
