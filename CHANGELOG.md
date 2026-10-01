@@ -39,6 +39,10 @@
   Self-referral and revoked shares are refused.
 - Share revocation (`DELETE /api/v1/share/results/:id`) for the owner. The public URL
   does not change, so a leaked link can be retired without resending anything.
+- `SHARE_RATE_LIMIT_MAX` (default 300 per 15 minutes) limits the public shared-result
+  lookup. It is deliberately separate from `AUTH_RATE_LIMIT_MAX`: a classroom shares
+  one public address, so opening a shared link must not consume the budget that
+  protects sign-in from brute force.
 - The Practice vocabulary list in Settings was rebuilt around a single sticky
   toolbar: a three-state master checkbox that says how many rows it will change,
   the search box with the matched text highlighted in each row, All / Selected /

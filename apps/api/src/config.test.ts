@@ -24,6 +24,7 @@ describe('production configuration', () => {
       webOrigins: ['https://taptalk.example'],
       trustProxy: true,
       authRateLimitMax: 20,
+      shareRateLimitMax: 300,
       logLevel: 'info',
       shutdownTimeoutMs: 10_000,
       guestSessionSecret: 'test-guest-secret',
@@ -71,6 +72,7 @@ describe('development and test configuration', () => {
       webOrigins: [],
       trustProxy: false,
       authRateLimitMax: 20,
+      shareRateLimitMax: 300,
       logLevel: 'info',
       shutdownTimeoutMs: 10_000,
     });

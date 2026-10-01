@@ -273,6 +273,39 @@ describe('share endpoints', () => {
     }
   });
 
+  it('keeps the public lookup off the sign-in budget', async () => {
+    // A classroom shares one public address. Opening a shared link must not consume
+    // the per-IP allowance that protects login from brute force.
+    const strict = buildServer(openDatabase(':memory:'), {
+      secureCookies: false,
+      authRateLimit: { max: 2, windowMs: 60_000 },
+      shareRateLimit: { max: 50, windowMs: 60_000 },
+    });
+    try {
+      const statuses: number[] = [];
+      for (let i = 0; i < 6; i += 1) {
+        const response = await strict.inject({
+          method: 'GET',
+          url: `/api/v1/share/card/${'z'.repeat(43)}`,
+        });
+        statuses.push(response.statusCode);
+      }
+      // Six reads against a share budget of 50 and a sign-in budget of 2: every one
+      // reaches the handler, so the limiter refused none of them.
+      expect(statuses).toEqual([404, 404, 404, 404, 404, 404]);
+
+      // Sign-in still has its own small budget, untouched by those reads.
+      const first = await strict.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { username: 'nobody', password: 'Wrong-Password-1' },
+      });
+      expect(first.statusCode).toBe(401);
+    } finally {
+      await strict.close();
+    }
+  });
+
   it('answers unknown, malformed, and revoked tokens identically', async () => {
     const cookie = await signIn('owner');
     const sessionId = completedSession('owner', 1, 1);

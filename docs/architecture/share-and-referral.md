@@ -85,7 +85,10 @@ attributed to one would outlive the session that made it.
 
 The public endpoint answers **one** response for every failure -- unknown, malformed,
 revoked, orphaned. A different error per case would let a caller test whether a token
-ever existed. It is rate limited for the same reason.
+ever existed. It is rate limited for the same reason, on `SHARE_RATE_LIMIT_MAX`
+(default 300 per 15 minutes) rather than the sign-in budget: a classroom shares one
+public address, so opening a shared link must not consume the allowance that protects
+login from brute force.
 
 ## Referral attribution
 

@@ -13,6 +13,14 @@ export type AppConfig = Readonly<{
   webOrigins: string[];
   trustProxy: boolean | string[];
   authRateLimitMax: number;
+  /**
+   * Requests per window allowed on the public share-card lookup.
+   *
+   * Deliberately separate from `authRateLimitMax`: a classroom shares one public
+   * IP, so a dozen classmates opening a shared link must not consume the budget
+   * that protects sign-in from brute force.
+   */
+  shareRateLimitMax: number;
   logLevel: LogLevel;
   shutdownTimeoutMs: number;
   /**
@@ -26,6 +34,8 @@ export type AppConfig = Readonly<{
 const defaultApiHost = '0.0.0.0';
 const defaultApiPort = 3000;
 const defaultAuthRateLimitMax = 20;
+/** A whole classroom can open the same link at once from one public IP. */
+const defaultShareRateLimitMax = 300;
 const defaultLogLevel: LogLevel = 'info';
 const defaultShutdownTimeoutMs = 10_000;
 const logLevels: LogLevel[] = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'];
@@ -159,6 +169,13 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     1,
     Number.MAX_SAFE_INTEGER,
   );
+  const shareRateLimitMax = parseInteger(
+    environment.SHARE_RATE_LIMIT_MAX,
+    'SHARE_RATE_LIMIT_MAX',
+    defaultShareRateLimitMax,
+    1,
+    Number.MAX_SAFE_INTEGER,
+  );
   const shutdownTimeoutMs = parseInteger(
     environment.SHUTDOWN_TIMEOUT_MS,
     'SHUTDOWN_TIMEOUT_MS',
@@ -176,6 +193,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     webOrigins: parseWebOrigins(environment.WEB_ORIGIN, nodeEnv === 'production'),
     trustProxy: parseTrustProxy(environment.TRUST_PROXY),
     authRateLimitMax,
+    shareRateLimitMax,
     logLevel: parseLogLevel(environment.LOG_LEVEL),
     shutdownTimeoutMs,
   };

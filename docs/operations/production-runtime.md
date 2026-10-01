@@ -37,6 +37,7 @@ Production configuration is supplied by the process environment, VM secret manag
 | `WEB_ORIGIN`          | Required exact HTTPS origin, such as `https://taptalk.example`    | Allowed browser origin and same-origin CSRF guard                 |
 | `TRUST_PROXY`         | `true` behind the single Caddy proxy, or an explicit IP/CIDR list | Correct client IP rate limiting                                   |
 | `AUTH_RATE_LIMIT_MAX` | Positive integer                                                  | Login and registration attempts per client address per 15 minutes |
+| `SHARE_RATE_LIMIT_MAX` | Positive integer, default `300`                                | Public shared-result lookups per client address per 15 minutes   |
 | `LOG_LEVEL`           | `fatal`, `error`, `warn`, `info`, `debug`, `trace`, or `silent`   | Structured log severity                                           |
 | `SHUTDOWN_TIMEOUT_MS` | Integer from `1000` to `120000`                                   | Maximum graceful drain time                                       |
 

@@ -154,6 +154,9 @@ function rejectSourceName(reply: FastifyReply) {
 export type ServerOptions = {
   // Per-IP limit shared by login and registration attempts.
   authRateLimit?: RateLimitOptions;
+  // Per-IP limit for the public share-card lookup, kept separate so opening a
+  // shared link can never consume the sign-in budget.
+  shareRateLimit?: RateLimitOptions;
   // Adds the Secure cookie attribute; defaults to true in production.
   secureCookies?: boolean;
   // Source of randomness for question selection; injectable for deterministic tests.
@@ -232,6 +235,15 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
   server.removeContentTypeParser('text/plain');
   const authLimiter = createRateLimiter(
     options.authRateLimit ?? { max: config.authRateLimitMax, windowMs: 15 * 60 * 1000 },
+  );
+  // The public share lookup gets its own budget. Sharing the sign-in budget would
+  // mean one classroom behind a single public IP could exhaust it by opening a
+  // shared link, and lock every learner out of logging in.
+  const shareLimiter = createRateLimiter(
+    options.shareRateLimit ?? {
+      max: config.shareRateLimitMax,
+      windowMs: 15 * 60 * 1000,
+    },
   );
   const secureCookies = options.secureCookies ?? config.nodeEnv === 'production';
   const random = options.random ?? Math.random;
@@ -327,6 +339,22 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
       .header('retry-after', String(decision.retryAfterSeconds))
       .send({
         error: { code: 'RATE_LIMITED', message: 'Too many attempts. Try again in a few minutes.' },
+      });
+    return true;
+  }
+
+  /** The same policy, on the share-card budget rather than the sign-in one. */
+  function rejectIfShareLimited(request: FastifyRequest, reply: FastifyReply): boolean {
+    const decision = shareLimiter.check(request.ip);
+    if (decision.allowed) return false;
+    void reply
+      .code(429)
+      .header('retry-after', String(decision.retryAfterSeconds))
+      .send({
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Too many requests for shared results. Try again in a moment.',
+        },
       });
     return true;
   }
@@ -1297,6 +1325,8 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
     '/api/v1/share/results',
     { config: { access: 'user' } },
     async (request, reply) => {
+      // Creating a share is authenticated and infrequent, so it sits on the sign-in
+      // budget rather than the far larger public-read one.
       if (rejectIfRateLimited(request, reply)) return reply;
       const parsed = createShareResultSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -1394,7 +1424,7 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
     '/api/v1/share/card/:token',
     { config: { access: 'public' } },
     async (request, reply) => {
-      if (rejectIfRateLimited(request, reply)) return reply;
+      if (rejectIfShareLimited(request, reply)) return reply;
       const unavailable = () =>
         reply.code(404).send({
           error: { code: 'SHARE_NOT_FOUND', message: 'This shared result is not available.' },
