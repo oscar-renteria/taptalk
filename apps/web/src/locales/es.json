@@ -29,7 +29,8 @@
     "readyWhenYouAre": "Cuando quieras, empezamos",
     "later": "Más tarde",
     "questions": "{count} pregunta | {count} preguntas",
-    "points": "{count} punto | {count} puntos"
+    "points": "{count} punto | {count} puntos",
+    "close": "Cerrar"
   },
   "auth": {
     "loginTitle": "Inicia sesión para practicar",
@@ -314,5 +315,42 @@
     "examsWithScore": "{count} examen | {count} exámenes",
     "openResult": "Abrir resultado",
     "backToExams": "Volver a los exámenes"
+  },
+  "share": {
+    "shareResult": "Compartir resultado",
+    "dialogTitle": "Comparte tu resultado",
+    "nativeShare": "Compartir",
+    "sharing": "Abriendo el menú de compartir...",
+    "saving": "Creando la imagen...",
+    "saveImage": "Guardar imagen",
+    "copyLink": "Copiar enlace",
+    "copyMessage": "Copiar mensaje",
+    "linkCopied": "Enlace copiado.",
+    "messageCopied": "Mensaje copiado.",
+    "copyFailed": "No se pudo copiar. Puedes seleccionar el enlace a mano.",
+    "shared": "Compartido.",
+    "shareFailed": "No se pudo compartir. Prueba a copiar el enlace.",
+    "nativeUnsupported": "Este navegador no puede compartir. Copia el enlace.",
+    "imageSaved": "Imagen guardada.",
+    "imageFailed": "No se pudo crear la imagen.",
+    "notShareable": "Este resultado no se puede compartir.",
+    "privacyNote": "Solo se comparte tu puntuación. Tu nombre nunca se incluye.",
+    "practice": "Práctica",
+    "exam": "Examen",
+    "englishToGerman": "Inglés → Alemán",
+    "germanToEnglish": "Alemán → Inglés",
+    "mixed": "Direcciones mezcladas",
+    "beatMyScore": "¿Puedes superar mi puntuación?",
+    "tryTapTalk": "Prueba TapTalk",
+    "messageHeadline": "¡Acerté {correct}/{total} en TapTalk!",
+    "messageInvitation": "¿Puedes superar mi puntuación?",
+    "eyebrow": "Resultado compartido",
+    "pageTitle": "¡Alguien completó un reto de TapTalk!",
+    "canYouBeat": "¿Puedes superar la puntuación?",
+    "explain": "TapTalk es un entrenador de vocabulario gratuito para inglés y alemán. Haz una ronda corta y compara tu puntuación.",
+    "logIn": "Iniciar sesión",
+    "unavailableTitle": "Este resultado compartido no está disponible",
+    "unavailableBody": "Puede que el enlace esté incompleto o que el resultado ya no se comparta.",
+    "accessibleSummary": "Resultado de {kind}, {direction}. {correct} de {total} correctos, {percent} por ciento."
   }
 }

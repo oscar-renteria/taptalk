@@ -1995,3 +1995,87 @@ h1[tabindex='-1']:focus {
   gap: var(--space-1);
   margin: 0;
 }
+
+/* --- Share results ---------------------------------------------------------
+   The dialog is a scrim plus one card. It is a plain sibling rather than
+   <dialog> so focus trapping and the scrim click target stay explicit and
+   testable; the ARIA roles on the card supply the semantics. */
+.share-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.share-overlay__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(31 42 36 / 45%);
+  cursor: pointer;
+}
+
+.share-dialog {
+  position: relative;
+  width: min(100%, 28rem);
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow-y: auto;
+}
+
+.share-dialog__preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  margin-block: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.share-dialog__score {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 12vw, 3.5rem);
+  line-height: 1;
+  color: var(--color-ink);
+}
+
+.share-dialog__percent {
+  font-weight: 700;
+  font-size: var(--text-lg);
+  color: var(--color-success);
+}
+
+.share-dialog__note,
+.share-public__note {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+/* --- Public shared result ---------------------------------------------------
+   The score is the message, so it is set large and never relies on colour: the
+   percentage carries a tick and the ratio is plain text. */
+.share-public__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.share-public__ratio {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  line-height: 1;
+  color: var(--color-ink);
+}
+
+.share-public__percent {
+  font-family: var(--font-ui);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-success);
+}

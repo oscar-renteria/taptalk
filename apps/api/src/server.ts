@@ -1,7 +1,8 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
-import type { UserPreferences } from '@taptalk/shared';
+import type { ShareResultPayload, UserPreferences } from '@taptalk/shared';
 import {
+  createShareResultSchema,
   defaultExamLength,
   examLengthSchema,
   practiceDirectionSchema,
@@ -33,9 +34,17 @@ import {
   getExamQuestionAt,
   getPreferences,
   getSelectionCandidates,
+  getSharedResultByToken,
+  getShareReferralStats,
   getVocabulary,
   insertUser,
+  listSharedResults,
+  markReferralConverted,
+  readShareableResult,
   recordAttempt,
+  recordReferralAttribution,
+  createOrGetSharedResult,
+  revokeSharedResult,
   startPracticeSession,
   updatePasswordHash,
   updatePreferences,
@@ -43,6 +52,14 @@ import {
   type PracticeSessionRecord,
   type VocabularyRecord,
 } from './repositories.js';
+import {
+  buildSharePayload,
+  createShareToken,
+  hasScorableResult,
+  isShareableStatus,
+  isShareToken,
+  sharePath,
+} from './share.js';
 import { clearedGuestCookie, createGuestId, guestCookie, signGuestToken } from './guest.js';
 import * as guestStore from './guest-store.js';
 import type { GuestAttempt } from './guest-store.js';
@@ -70,6 +87,42 @@ import {
   sessionCookie,
   verifyLogin,
 } from './auth.js';
+
+// --- Referral attribution cookie ----------------------------------------------
+//
+// A learner arriving from a shared result is attributed to that share when they
+// later register or log in. The mechanism is a first-party cookie rather than
+// localStorage, so nothing about the referral is readable by the page's own
+// scripts and there is no persistent client-side tracking identifier.
+//
+// The cookie holds only the opaque public token. It confers nothing: the value
+// is resolved through `recordReferralAttribution`, which refuses revoked shares
+// and self-referral, so a tampered or replayed cookie cannot be used to
+// impersonate the sharer or to attribute a signup to a share that does not
+// exist.
+export const referralCookieName = 'taptalk_referral';
+export const referralDurationMs = 1000 * 60 * 60 * 24 * 30;
+
+export function referralCookie(token: string, secure: boolean): string {
+  return `${referralCookieName}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${referralDurationMs / 1000}${secure ? '; Secure' : ''}`;
+}
+
+export function clearedReferralCookie(secure: boolean): string {
+  return `${referralCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`;
+}
+
+export function readReferralToken(request: {
+  headers: { cookie?: string | undefined };
+}): string | null {
+  const raw = request.headers.cookie
+    ?.split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${referralCookieName}=`))
+    ?.slice(referralCookieName.length + 1);
+  // A cookie value is attacker-controlled. Only the exact token shape is accepted,
+  // so a tampered value can never reach a query as anything but an opaque string.
+  return raw && isShareToken(decodeURIComponent(raw)) ? decodeURIComponent(raw) : null;
+}
 
 function safeUser(user: {
   id: string;
@@ -349,6 +402,10 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         insertUser(database, user);
         ensurePreferences(database, user.id, now);
         token = createSession(database, user.id, now);
+        // Attribution happens inside the same transaction as the account, so a
+        // referral can never be recorded for an account that failed to register.
+        const referral = readReferralToken(request);
+        if (referral) recordReferralAttribution(database, referral, user.id, now);
         database.exec('COMMIT');
       } catch (error) {
         database.exec('ROLLBACK');
@@ -359,7 +416,16 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         }
         throw error;
       }
-      reply.header('set-cookie', sessionCookie(token, secureCookies));
+      // Fastify replaces a header unless set-cookie is given an array, so the consumed
+      // referral rides along with the session cookie when there is one. With no
+      // referral the header stays a single string, exactly as before.
+      const referral = readReferralToken(request);
+      reply.header(
+        'set-cookie',
+        referral
+          ? [sessionCookie(token, secureCookies), clearedReferralCookie(secureCookies)]
+          : sessionCookie(token, secureCookies),
+      );
       return reply.code(201).send({ user: safeUser(user) });
     },
   );
@@ -388,7 +454,18 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         updatePasswordHash(database, user.id, await hashPassword(candidate), now);
       }
       const token = createSession(database, user.id, now);
-      reply.header('set-cookie', sessionCookie(token, secureCookies));
+      // An existing learner who arrived through a share is attributed at sign-in, so a
+      // referral is not lost when the recipient already has an account. The
+      // consumed cookie rides along with the session cookie; with no referral the
+      // header stays a single string, as before.
+      const referral = readReferralToken(request);
+      if (referral) recordReferralAttribution(database, referral, user.id, now);
+      reply.header(
+        'set-cookie',
+        referral
+          ? [sessionCookie(token, secureCookies), clearedReferralCookie(secureCookies)]
+          : sessionCookie(token, secureCookies),
+      );
       return reply.send({ user: safeUser(user) });
     },
   );
@@ -681,6 +758,9 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
       guestStore.recordAttempt(id, attempt);
     } else {
       recordAttempt(db, { ...attempt, userId: id });
+      // A referred learner's first recorded answer is the conversion event. No
+      // session is required: answering on the Dashboard counts as starting.
+      markReferralConverted(db, id, new Date().toISOString());
     }
     // A user's answeredCount is derived from learning_attempts by the query, so only the
     // guest's in-memory counter needs advancing.
@@ -1178,6 +1258,158 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         ? guestStore.getExamStatistics(id, examTrendLimit)
         : getExamStatistics(db, id, examTrendLimit);
       return reply.send({ statistics });
+    },
+  );
+
+  // --- Share results ---------------------------------------------------------
+  //
+  // A share is created from a persisted session, never from client-supplied
+  // numbers: `readShareableResult` recomputes the score from the recorded
+  // attempts every time the card is read, and `createShareResultSchema` is
+  // `.strict()` so a body that also carries a score is refused outright.
+  //
+  // Guests are refused here (`access: 'user'`): a guest has no durable identity,
+  // so a share attributed to one would outlive the session that made it.
+
+  /** The public payload for a share, or undefined when it cannot be served. */
+  function resolveSharePayload(share: {
+    sessionId: string;
+    kind: 'practice' | 'exam';
+    direction: 'english-to-german' | 'german-to-english' | 'random';
+    status: string;
+    correctCount: number;
+    totalQuestions: number;
+  }): ShareResultPayload | undefined {
+    // Revoked, still running, abandoned, or backed by no recorded answer: all four
+    // collapse to one generic "not available" response, never a specific reason.
+    if (!isShareableStatus(share.status)) return undefined;
+    if (!hasScorableResult(share.correctCount, share.totalQuestions)) return undefined;
+    return buildSharePayload({
+      kind: share.kind,
+      direction: share.direction,
+      correctCount: share.correctCount,
+      totalQuestions: share.totalQuestions,
+      sharedAt: new Date().toISOString(),
+    });
+  }
+
+  server.post<{ Body: unknown }>(
+    '/api/v1/share/results',
+    { config: { access: 'user' } },
+    async (request, reply) => {
+      if (rejectIfRateLimited(request, reply)) return reply;
+      const parsed = createShareResultSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_SHARE_REQUEST', message: 'Only a session id may be shared.' },
+        });
+      }
+      const user = currentUser(request);
+      const result = readShareableResult(db, user.id, parsed.data.sessionId);
+      const payload = result ? resolveSharePayload(result) : undefined;
+      // One generic failure for "not yours", "still running", "already abandoned",
+      // and "nothing recorded". Distinguishing them would let a caller probe
+      // which session ids exist and whose they are.
+      if (!result || !payload) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'NOT_SHAREABLE', message: 'That result cannot be shared.' } });
+      }
+      const share = createOrGetSharedResult(
+        db,
+        user.id,
+        result.sessionId,
+        createShareToken(),
+        new Date().toISOString(),
+      );
+      return reply.code(201).send({
+        share: {
+          id: share.id,
+          token: share.token,
+          path: sharePath(share.token),
+          revoked: share.revokedAt !== null,
+          createdAt: share.createdAt,
+          // The sanitized card fields, not the stored session row.
+          ...payload,
+        },
+      });
+    },
+  );
+
+  /** The owner's own shares. There is deliberately no route that lists others'. */
+  server.get('/api/v1/share/results', { config: { access: 'user' } }, async (request, reply) => {
+    const user = currentUser(request);
+    const shares = listSharedResults(db, user.id).map((share) => {
+      const result = readShareableResult(db, user.id, share.sessionId);
+      const payload = result ? resolveSharePayload(result) : undefined;
+      return {
+        id: share.id,
+        token: share.token,
+        path: sharePath(share.token),
+        revoked: share.revokedAt !== null,
+        createdAt: share.createdAt,
+        ...getShareReferralStats(db, user.id, share.id),
+        // A revoked share, or one whose session has since been removed, reports the
+        // minimum rather than a card that no longer resolves publicly.
+        ...(payload ?? {
+          kind: 'practice',
+          direction: 'random',
+          correctCount: 0,
+          totalQuestions: 0,
+          score: 0,
+          sharedAt: share.createdAt,
+        }),
+      };
+    });
+    return reply.send({ shares });
+  });
+
+  server.delete<{ Params: { id: string } }>(
+    '/api/v1/share/results/:id',
+    { config: { access: 'user' } },
+    async (request, reply) => {
+      const user = currentUser(request);
+      if (revokeSharedResult(db, user.id, request.params.id, new Date().toISOString())) {
+        return reply.send({ revoked: true });
+      }
+      // Not revoked: either it does not exist or it belongs to somebody else. The
+      // two are indistinguishable on purpose.
+      return reply
+        .code(404)
+        .send({ error: { code: 'NOT_FOUND', message: 'That share does not exist.' } });
+    },
+  );
+
+  /**
+   * The public card. Anonymous by design: this is the one route that must work
+   * for somebody who has never signed in.
+   *
+   * It returns only the allow-listed scalars in `shareResultPayloadSchema` -- never
+   * the owner, a username, or a per-word answer. Unknown, malformed, revoked, and
+   * orphaned tokens all produce the same single response, so the endpoint cannot be
+   * used to test whether a token ever existed. Rate limited because the token is
+   * all that stands between a stranger and a database lookup.
+   */
+  server.get<{ Params: { token: string } }>(
+    '/api/v1/share/card/:token',
+    { config: { access: 'public' } },
+    async (request, reply) => {
+      if (rejectIfRateLimited(request, reply)) return reply;
+      const unavailable = () =>
+        reply.code(404).send({
+          error: { code: 'SHARE_NOT_FOUND', message: 'This shared result is not available.' },
+        });
+      const token = request.params.token;
+      if (!isShareToken(token)) return unavailable();
+      const share = getSharedResultByToken(db, token);
+      if (!share || share.revokedAt !== null) return unavailable();
+      const result = readShareableResult(db, share.userId, share.sessionId);
+      const payload = result ? resolveSharePayload(result) : undefined;
+      if (!payload) return unavailable();
+      // Remember the referral so a later registration or login is attributed to
+      // this share. Opening the card still never reveals the sharer.
+      reply.header('set-cookie', referralCookie(token, secureCookies));
+      return reply.send({ result: payload });
     },
   );
 

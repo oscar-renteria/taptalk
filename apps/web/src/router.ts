@@ -16,6 +16,7 @@ import PracticeView from './views/PracticeView.vue';
 import ProgressView from './views/ProgressView.vue';
 import ExamView from './views/ExamView.vue';
 import SettingsView from './views/SettingsView.vue';
+import SharedResultView from './views/SharedResultView.vue';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -80,6 +81,16 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
         name: 'admin-import',
         component: AdminImportView,
         meta: { titleKey: 'admin.title', access: 'administrator' },
+      },
+      {
+        // Public: a recipient opens this without an account, so it declares
+        // `any` rather than being exempted from the guard. No existing route is
+        // relaxed to accommodate it.
+        path: '/share/:token',
+        name: 'shared-result',
+        component: SharedResultView,
+        props: true,
+        meta: { titleKey: 'share.pageTitle', access: 'any' },
       },
       {
         path: '/:pathMatch(.*)*',

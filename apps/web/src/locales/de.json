@@ -29,7 +29,8 @@
     "readyWhenYouAre": "Bereit, wenn du es bist",
     "later": "Später",
     "questions": "{count} Frage | {count} Fragen",
-    "points": "{count} Punkt | {count} Punkte"
+    "points": "{count} Punkt | {count} Punkte",
+    "close": "Schließen"
   },
   "auth": {
     "loginTitle": "Zum Üben anmelden",
@@ -314,5 +315,42 @@
     "examsWithScore": "{count} Prüfung | {count} Prüfungen",
     "openResult": "Ergebnis öffnen",
     "backToExams": "Zurück zu den Prüfungen"
+  },
+  "share": {
+    "shareResult": "Ergebnis teilen",
+    "dialogTitle": "Teile dein Ergebnis",
+    "nativeShare": "Teilen",
+    "sharing": "Teilen wird geöffnet ...",
+    "saving": "Bild wird erstellt ...",
+    "saveImage": "Bild speichern",
+    "copyLink": "Link kopieren",
+    "copyMessage": "Nachricht kopieren",
+    "linkCopied": "Link kopiert.",
+    "messageCopied": "Nachricht kopiert.",
+    "copyFailed": "Kopieren fehlgeschlagen. Du kannst den Link auch markieren.",
+    "shared": "Geteilt.",
+    "shareFailed": "Teilen fehlgeschlagen. Kopiere stattdessen den Link.",
+    "nativeUnsupported": "Dieser Browser kann nicht teilen. Kopiere stattdessen den Link.",
+    "imageSaved": "Bild gespeichert.",
+    "imageFailed": "Das Bild konnte nicht erstellt werden.",
+    "notShareable": "Dieses Ergebnis kann nicht geteilt werden.",
+    "privacyNote": "Nur dein Punktestand wird geteilt. Dein Name wird nie mitgeschickt.",
+    "practice": "Üben",
+    "exam": "Prüfung",
+    "englishToGerman": "Englisch → Deutsch",
+    "germanToEnglish": "Deutsch → Englisch",
+    "mixed": "Gemischte Richtungen",
+    "beatMyScore": "Kannst du meinen Punktestand schlagen?",
+    "tryTapTalk": "TapTalk ausprobieren",
+    "messageHeadline": "Ich habe {correct}/{total} richtig in TapTalk!",
+    "messageInvitation": "Kannst du meinen Punktestand schlagen?",
+    "eyebrow": "Geteiltes Ergebnis",
+    "pageTitle": "Jemand hat eine TapTalk-Runde geschafft!",
+    "canYouBeat": "Kannst du den Punktestand schlagen?",
+    "explain": "TapTalk ist ein kostenloser Vokabeltrainer für Englisch und Deutsch. Mach eine kurze Runde und vergleiche deinen Punktestand.",
+    "logIn": "Anmelden",
+    "unavailableTitle": "Dieses geteilte Ergebnis ist nicht verfügbar",
+    "unavailableBody": "Der Link ist eventuell unvollständig oder das Ergebnis wird nicht mehr geteilt.",
+    "accessibleSummary": "{kind}-Ergebnis, {direction}. {correct} von {total} richtig, {percent} Prozent."
   }
 }

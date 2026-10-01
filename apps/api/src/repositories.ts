@@ -953,3 +953,240 @@ export function getExamStatistics(
     scoreHistory,
   };
 }
+// --- Shared results & referral attribution -------------------------------------
+//
+// A share row is a pointer, not a copy: the card is always rendered from the
+// session's persisted attempts (see `readShareableResult`), so there is exactly
+// one source of truth for a score and no snapshot that can fall out of date.
+
+export type ShareableResult = {
+  sessionId: string;
+  kind: SessionKind;
+  direction: PracticeDirection;
+  status: PracticeSessionStatus;
+  correctCount: number;
+  totalQuestions: number;
+};
+
+export type SharedResultRecord = {
+  id: string;
+  userId: string;
+  sessionId: string;
+  token: string;
+  createdAt: string;
+  revokedAt: string | null;
+};
+
+/**
+ * The authoritative result behind a share, scoped to the owner.
+ *
+ * Scoping by `user_id` in the WHERE clause is the authorization check: a session
+ * belonging to somebody else returns `undefined`, which the route reports as a
+ * generic "not found", so ownership cannot be probed through the error.
+ *
+ * `totalQuestions` counts recorded attempts rather than the questions the
+ * session planned, so a card can never claim an answer to a question that was
+ * never asked, and cannot be inflated by ending a session early.
+ */
+export function readShareableResult(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string,
+): ShareableResult | undefined {
+  assertPersistableUserId(userId, 'readShareableResult');
+  const row = database
+    .prepare(
+      `SELECT s.id AS sessionId, s.kind, s.direction, s.status,
+              COALESCE(SUM(a.correct), 0) AS correctCount,
+              COUNT(a.id) AS totalQuestions
+       FROM practice_sessions s
+       LEFT JOIN learning_attempts a ON a.practice_session_id = s.id
+       WHERE s.id = ? AND s.user_id = ?
+       GROUP BY s.id`,
+    )
+    .get(sessionId, userId) as
+    | {
+        sessionId: string;
+        kind: SessionKind;
+        direction: PracticeDirection;
+        status: PracticeSessionStatus;
+        correctCount: number;
+        totalQuestions: number;
+      }
+    | undefined;
+  if (!row) return undefined;
+  return {
+    sessionId: row.sessionId,
+    kind: row.kind,
+    direction: row.direction,
+    status: row.status,
+    correctCount: Number(row.correctCount),
+    totalQuestions: Number(row.totalQuestions),
+  };
+}
+
+/** Resolve a share by its public token, or `undefined` when it is unknown. */
+export function getSharedResultByToken(
+  database: SqliteDatabase,
+  token: string,
+): SharedResultRecord | undefined {
+  const row = database
+    .prepare(
+      `SELECT id, user_id AS userId, session_id AS sessionId, token,
+              created_at AS createdAt, revoked_at AS revokedAt
+       FROM shared_results WHERE token = ?`,
+    )
+    .get(token) as SharedResultRecord | undefined;
+  return row;
+}
+
+/**
+ * Return the existing share for this session, creating one if needed.
+ *
+ * Idempotent by `(user_id, session_id)`: re-sharing a result returns the same
+ * token and the same public URL rather than minting a second one. The lookup and
+ * the insert share one immediate transaction so two concurrent shares of the same
+ * session cannot both insert.
+ */
+export function createOrGetSharedResult(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string,
+  token: string,
+  now: string,
+): SharedResultRecord {
+  assertPersistableUserId(userId, 'createOrGetSharedResult');
+  database.exec('BEGIN IMMEDIATE');
+  try {
+    const existing = database
+      .prepare(
+        `SELECT id, user_id AS userId, session_id AS sessionId, token,
+                created_at AS createdAt, revoked_at AS revokedAt
+         FROM shared_results WHERE user_id = ? AND session_id = ?`,
+      )
+      .get(userId, sessionId) as SharedResultRecord | undefined;
+    if (existing) {
+      database.exec('COMMIT');
+      return existing;
+    }
+    const id = crypto.randomUUID();
+    database
+      .prepare(
+        `INSERT INTO shared_results (id, user_id, session_id, token, created_at, revoked_at)
+         VALUES (?, ?, ?, ?, ?, NULL)`,
+      )
+      .run(id, userId, sessionId, token, now);
+    database.exec('COMMIT');
+    return { id, userId, sessionId, token, createdAt: now, revokedAt: null };
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw mapDatabaseError(error);
+  }
+}
+
+/** The owner's own shares, newest first. Scoped to the owner, never a public listing. */
+export function listSharedResults(database: SqliteDatabase, userId: string): SharedResultRecord[] {
+  assertPersistableUserId(userId, 'listSharedResults');
+  return database
+    .prepare(
+      `SELECT id, user_id AS userId, session_id AS sessionId, token,
+              created_at AS createdAt, revoked_at AS revokedAt
+       FROM shared_results WHERE user_id = ? ORDER BY created_at DESC, rowid DESC`,
+    )
+    .all(userId) as SharedResultRecord[];
+}
+
+/** Revoke one of the owner's shares. False when the id is not theirs. */
+export function revokeSharedResult(
+  database: SqliteDatabase,
+  userId: string,
+  shareId: string,
+  now: string,
+): boolean {
+  assertPersistableUserId(userId, 'revokeSharedResult');
+  const result = database
+    .prepare(
+      `UPDATE shared_results SET revoked_at = ?
+       WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+    )
+    .run(now, shareId, userId);
+  return result.changes > 0;
+}
+/**
+ * Record that `referredUserId` arrived through `token`'s share, at registration
+ * or login.
+ *
+ * Self-referral is refused: a share can never be attributed to the person who
+ * made it, which is what stops a token being used to manufacture fake signups.
+ * The token is resolved by lookup rather than trusted from the cookie, so a
+ * tampered cookie cannot name a share that does not exist, and `INSERT OR IGNORE`
+ * keeps repeated logins idempotent against the unique (share, referred) index.
+ */
+export function recordReferralAttribution(
+  database: SqliteDatabase,
+  token: string,
+  referredUserId: string,
+  now: string,
+): boolean {
+  assertPersistableUserId(referredUserId, 'recordReferralAttribution');
+  const share = getSharedResultByToken(database, token);
+  if (!share || share.revokedAt !== null) return false;
+  if (share.userId === referredUserId) return false;
+  database
+    .prepare(
+      `INSERT OR IGNORE INTO referral_attributions
+         (id, shared_result_id, referred_user_id, created_at, converted_at)
+       VALUES (?, ?, ?, ?, NULL)`,
+    )
+    .run(crypto.randomUUID(), share.id, referredUserId, now);
+  return true;
+}
+
+/**
+ * Mark the referred learner's attribution converted on their first attempt.
+ * True only for the row that flipped, so a caller counts one conversion rather
+ * than one per answer.
+ */
+export function markReferralConverted(
+  database: SqliteDatabase,
+  referredUserId: string,
+  now: string,
+): boolean {
+  assertPersistableUserId(referredUserId, 'markReferralConverted');
+  const pending = database
+    .prepare(
+      `SELECT id FROM referral_attributions
+       WHERE referred_user_id = ? AND converted_at IS NULL LIMIT 1`,
+    )
+    .get(referredUserId) as { id: string } | undefined;
+  if (!pending) return false;
+  database
+    .prepare('UPDATE referral_attributions SET converted_at = ? WHERE id = ?')
+    .run(now, pending.id);
+  return true;
+}
+
+/** Aggregate referral counts for one share. Counts only, never the referred identity. */
+export function getShareReferralStats(
+  database: SqliteDatabase,
+  userId: string,
+  shareId: string,
+): { sharedResultId: string; signups: number; startedPracticing: number } | undefined {
+  assertPersistableUserId(userId, 'getShareReferralStats');
+  const share = database
+    .prepare('SELECT id FROM shared_results WHERE id = ? AND user_id = ?')
+    .get(shareId, userId) as { id: string } | undefined;
+  if (!share) return undefined;
+  const totals = database
+    .prepare(
+      `SELECT COUNT(*) AS signups,
+              COALESCE(SUM(CASE WHEN converted_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS converted
+       FROM referral_attributions WHERE shared_result_id = ?`,
+    )
+    .get(shareId) as { signups: number; converted: number };
+  return {
+    sharedResultId: share.id,
+    signups: Number(totals.signups),
+    startedPracticing: Number(totals.converted),
+  };
+}

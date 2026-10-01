@@ -19,6 +19,26 @@
 
 ### Added
 
+- **Share results and referral links.** A completed Practice round or Exam can be
+  shared from the results screen. The API decides whether a result is shareable and
+  what its score is; the browser turns that sanitized payload into a card, a
+  generated PNG, a share message, and a public URL at `/share/<token>`.
+- The public card is reachable without an account and carries only six scalars:
+  result type, direction, correct count, total questions, percentage, and the time
+  it was shared. No username, account id, class, vocabulary list, per-word answer, or
+  learning history. See `docs/architecture/share-and-referral.md` and ADR-007.
+- Native sharing where the browser supports it, preferring the generated image so
+  WhatsApp and SMS are one tap away on a phone. Without it, `Copy link`,
+  `Copy message`, and `Save image` stay available, because a desktop browser can
+  offer the share sheet and still refuse to attach a file.
+- The result image is drawn client-side with the Canvas 2D API from the sanitized
+  payload. No image-generation service and no new dependency.
+- Referral attribution via an `HttpOnly` first-party cookie set when a shared card is
+  opened and consumed at registration or login, then marked converted on the referred
+  learner's first answer. No `localStorage` and no client-side tracking identifier.
+  Self-referral and revoked shares are refused.
+- Share revocation (`DELETE /api/v1/share/results/:id`) for the owner. The public URL
+  does not change, so a leaked link can be retired without resending anything.
 - The Practice vocabulary list in Settings was rebuilt around a single sticky
   toolbar: a three-state master checkbox that says how many rows it will change,
   the search box with the matched text highlighted in each row, All / Selected /

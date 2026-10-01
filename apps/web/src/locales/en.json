@@ -29,7 +29,8 @@
     "next": "Next",
     "later": "Later",
     "questions": "{count} question | {count} questions",
-    "points": "{count} point | {count} points"
+    "points": "{count} point | {count} points",
+    "close": "Close"
   },
   "auth": {
     "loginTitle": "Log in to practise",
@@ -314,5 +315,42 @@
     "examsWithScore": "{count} exam | {count} exams",
     "openResult": "Open result",
     "backToExams": "Back to exams"
+  },
+  "share": {
+    "shareResult": "Share result",
+    "dialogTitle": "Share your result",
+    "nativeShare": "Share",
+    "sharing": "Opening share sheet...",
+    "saving": "Making image...",
+    "saveImage": "Save image",
+    "copyLink": "Copy link",
+    "copyMessage": "Copy message",
+    "linkCopied": "Link copied.",
+    "messageCopied": "Message copied.",
+    "copyFailed": "Copying failed. You can select the link manually.",
+    "shared": "Shared.",
+    "shareFailed": "Sharing failed. Try copying the link instead.",
+    "nativeUnsupported": "This browser cannot share. Copy the link instead.",
+    "imageSaved": "Image saved.",
+    "imageFailed": "The image could not be created.",
+    "notShareable": "This result cannot be shared.",
+    "privacyNote": "Only your score is shared. Your name is never included.",
+    "practice": "Practice",
+    "exam": "Exam",
+    "englishToGerman": "English → German",
+    "germanToEnglish": "German → English",
+    "mixed": "Mixed directions",
+    "beatMyScore": "Can you beat my score?",
+    "tryTapTalk": "Try TapTalk",
+    "messageHeadline": "I got {correct}/{total} right in TapTalk!",
+    "messageInvitation": "Can you beat my score?",
+    "eyebrow": "Shared result",
+    "pageTitle": "Someone completed a TapTalk challenge!",
+    "canYouBeat": "Can you beat the score?",
+    "explain": "TapTalk is a free vocabulary trainer for English and German. Take a short round and compare your score.",
+    "logIn": "Log in",
+    "unavailableTitle": "This shared result is not available",
+    "unavailableBody": "The link may be incomplete, or the result may no longer be shared.",
+    "accessibleSummary": "{kind} result, {direction}. {correct} out of {total} correct, {percent} percent."
   }
 }

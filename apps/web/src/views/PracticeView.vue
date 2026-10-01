@@ -3,6 +3,8 @@ import { useI18n } from 'vue-i18n';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { AppButton, ProgressIndicator, StatTile, LiveMessage, TextField } from '../components';
+import ShareResultDialog from '../components/ShareResultDialog.vue';
+import { useShareResult } from '../useShareResult';
 import { apiFetch, jsonRequest } from '../api';
 import { focus, session } from '../session';
 import type { Direction, Tone } from '../types';
@@ -55,6 +57,26 @@ const sessionSummary = ref<SessionSummary | null>(null);
 const answerInput = ref<InstanceType<typeof TextField> | null>(null);
 const nextButton = ref<InstanceType<typeof AppButton> | null>(null);
 const summaryHeading = ref<HTMLHeadingElement | null>(null);
+
+/**
+ * Sharing is offered only for a completed session. `shareSession` asks the API to
+ * create the share; if the API refuses (a guest, or a session it does not consider
+ * finished) nothing opens.
+ *
+ * The refs are destructured so the template's `v-if` narrows `payload` to a
+ * non-null value before it is passed to the dialog.
+ */
+const {
+  open: shareOpen,
+  path: sharePath,
+  payload: sharePayload,
+  shareSession,
+  close: closeShare,
+} = useShareResult();
+
+function openShare(sessionId: string): void {
+  void shareSession(sessionId);
+}
 const practiceMessage = ref('');
 const practiceTone = ref<Tone>('info');
 const practiceLoading = ref(false);
@@ -483,7 +505,27 @@ async function endSession(): Promise<void> {
         <AppButton variant="secondary" @click="router.push('/progress')">
           {{ t('practice.goToProgress') }}
         </AppButton>
+        <!--
+          Only a completed, scored session can be shared, and the server decides
+          that. The button appears only once the local summary says so, so the UI
+          never offers an action the API would refuse.
+        -->
+        <AppButton
+          v-if="sessionSummary.status === 'completed' && sessionSummary.answeredCount > 0"
+          variant="secondary"
+          data-testid="share-result"
+          @click="openShare(sessionSummary.id)"
+        >
+          {{ t('share.shareResult') }}
+        </AppButton>
       </div>
+      <ShareResultDialog
+        v-if="sharePayload"
+        :open="shareOpen"
+        :path="sharePath"
+        :payload="sharePayload"
+        @close="closeShare"
+      />
     </div>
 
     <div v-else-if="!practiceSession" class="dashboard">

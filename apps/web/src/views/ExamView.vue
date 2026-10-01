@@ -12,6 +12,8 @@ import {
   TextField,
 } from '../components';
 import { apiFetch } from '../api';
+import ShareResultDialog from '../components/ShareResultDialog.vue';
+import { useShareResult } from '../useShareResult';
 import { defaultExamLength, examLengths } from '@taptalk/shared';
 import {
   abandonExam,
@@ -79,6 +81,26 @@ const trimmed = computed(() => availableCount.value > 0 && actualLength.value < 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat(locale.value).format(value);
 }
+/**
+ * Sharing is offered only once the exam has ended. `shareSession` asks the API to
+ * create the share; if the API refuses (a guest, or an exam it does not consider
+ * finished) nothing opens.
+ *
+ * The refs are destructured so the template's `v-if` narrows `payload` to a
+ * non-null value before it is passed to the dialog.
+ */
+const {
+  open: shareOpen,
+  path: sharePath,
+  payload: sharePayload,
+  shareSession,
+  close: closeShare,
+} = useShareResult();
+
+function openShare(sessionId: string): void {
+  void shareSession(sessionId);
+}
+
 function formatPercent(score: number): string {
   return new Intl.NumberFormat(locale.value, { style: 'percent', maximumFractionDigits: 0 }).format(
     score / 100,
@@ -277,7 +299,26 @@ onMounted(async () => {
           >
             {{ t('exam.again') }}
           </AppButton>
+          <!--
+            Only a finished exam carries a final score, so the action appears with
+            the results. The API still decides: an abandoned exam is refused there.
+          -->
+          <AppButton
+            v-if="exam.result?.status === 'completed'"
+            variant="secondary"
+            data-testid="share-result"
+            @click="openShare(exam.result.id)"
+          >
+            {{ t('share.shareResult') }}
+          </AppButton>
         </div>
+        <ShareResultDialog
+          v-if="sharePayload"
+          :open="shareOpen"
+          :path="sharePath"
+          :payload="sharePayload"
+          @close="closeShare"
+        />
       </div>
     </template>
 

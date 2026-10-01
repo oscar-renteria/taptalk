@@ -26,6 +26,12 @@ Global rules for every prompt:
 
 ### DONE
 
+- Share results and referral links (`.roadmap/share_referral.md`): a completed
+  Practice round or Exam can be shared, the public card at `/share/<token>` is
+  reachable without an account and carries only six sanitized scalars, referral
+  attribution uses an HttpOnly cookie rather than `localStorage`, the card image is
+  drawn client-side with Canvas 2D, and the token model is ADR-007.
+
 - Prompt 001: Repository operating rules
 - Prompt 002: Product requirements baseline
 - Prompt 003: Architecture and ADR process

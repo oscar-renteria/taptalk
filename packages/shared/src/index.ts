@@ -239,6 +239,60 @@ export const dashboardSummarySchema = z.object({
   repeatedErrorWords: z.array(z.string().min(1)),
 });
 
+// --- Share results & referral links --------------------------------------------
+//
+// The public share payload is the ONLY representation of a result that ever
+// leaves the owner's session. It is deliberately built from a strict allow-list
+// of scalars: no user id, username, class, per-word answers, or history. The
+// `.strict()` object below makes an accidental extra field a validation failure
+// rather than a silent privacy leak if a future handler returns too much.
+
+/** The sanitized, publicly visible representation of one completed result. */
+export const shareResultPayloadSchema = z
+  .object({
+    kind: z.enum(['practice', 'exam']),
+    direction: practiceDirectionSchema,
+    correctCount: z.number().int().nonnegative(),
+    totalQuestions: z.number().int().nonnegative(),
+    score: z.number().int().min(0).max(100),
+    sharedAt: z.string().datetime(),
+  })
+  .strict();
+
+export type ShareResultPayload = z.infer<typeof shareResultPayloadSchema>;
+
+/**
+ * Create-share input. Only the session id is accepted: the score, counts, and
+ * direction are derived by the API from persisted results, never from the
+ * client. The strict length bound keeps an arbitrary string from reaching a
+ * query, and `.strict()` rejects a payload that also tries to send a score.
+ */
+export const createShareResultSchema = z.object({ sessionId: z.string().min(1).max(64) }).strict();
+
+/** One entry in the owner's list of shares (includes the owner's own token). */
+export const sharedResultListItemSchema = shareResultPayloadSchema.extend({
+  id: z.string().min(1),
+  token: z.string().min(1),
+  path: z.string().startsWith('/share/'),
+  revoked: z.boolean(),
+});
+
+export type SharedResultListItem = z.infer<typeof sharedResultListItemSchema>;
+
+/**
+ * How many people a share brought in. Acquisition metadata only: a count and a
+ * converted count, never the referred learner's identity.
+ */
+export const shareReferralStatsSchema = z
+  .object({
+    sharedResultId: z.string().min(1),
+    signups: z.number().int().nonnegative(),
+    startedPracticing: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type ShareReferralStats = z.infer<typeof shareReferralStatsSchema>;
+
 export type Registration = z.infer<typeof registrationSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;
 export type PublicUser = z.infer<typeof publicUserSchema>;
