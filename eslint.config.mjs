@@ -5,7 +5,17 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', 'node_modules/**'],
+    // Generated output. ESLint's flat config does not read .gitignore, so
+    // build and test artefacts have to be listed here as well. Without
+    // `playwright-report` and `test-results`, `npm run lint` fails for anyone who
+    // has run `npm run test:e2e` first.
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      'node_modules/**',
+      'playwright-report/**',
+      'test-results/**',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

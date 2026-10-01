@@ -816,13 +816,25 @@ export function getExamResult(
     | undefined;
   if (!session || session.status === 'active' || !session.endedAt) return undefined;
 
+  // `correctAnswer` is the side the learner owed, which the direction decides:
+  // English -> German owes the German, German -> English owes the English. This CASE
+  // mirrors `correctAnswerFor` in review.ts, and review.test.ts pins the two together
+  // so the persisted review cannot drift from the guest review again.
+  //
+  // COALESCE falls back to the prompt only when the vocabulary entry has since been
+  // deleted, where the prompt is the only thing left to show.
   const answers = database
     .prepare(
       `SELECT a.vocabulary_entry_id AS vocabularyEntryId, a.prompt, a.direction,
               a.submitted_answer AS submittedAnswer, a.correct,
-              COALESCE((
-                SELECT v.german_display FROM vocabulary_entries v WHERE v.id = a.vocabulary_entry_id
-              ), a.prompt) AS correctAnswer
+              COALESCE(CASE a.direction
+                WHEN 'english-to-german' THEN (
+                  SELECT v.german_display FROM vocabulary_entries v WHERE v.id = a.vocabulary_entry_id
+                )
+                ELSE (
+                  SELECT v.english FROM vocabulary_entries v WHERE v.id = a.vocabulary_entry_id
+                )
+              END, a.prompt) AS correctAnswer
        FROM learning_attempts a
        WHERE a.practice_session_id = ?
        ORDER BY a.attempted_at ASC, a.rowid ASC`,

@@ -21,6 +21,7 @@ import type {
   PracticeSessionSummary,
   VocabularyRecord,
 } from './repositories.js';
+import { correctAnswerFor } from './review.js';
 
 // Guest data lives here, in process memory, and nowhere else. This module has no
 // database handle at all: it cannot write to SQLite even by accident, which is
@@ -429,10 +430,7 @@ export function getExamResult(
       prompt: attempt.prompt,
       direction: attempt.direction,
       submittedAnswer: attempt.submittedAnswer,
-      correctAnswer:
-        entry && attempt.direction === 'english-to-german'
-          ? entry.germanDisplay
-          : (entry?.english ?? ''),
+      correctAnswer: correctAnswerFor(attempt.direction, entry, attempt.prompt),
       correct: attempt.correct,
     };
   });

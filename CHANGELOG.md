@@ -17,6 +17,28 @@
 
 ## Unreleased
 
+### Changed
+
+- `eslint.config.mjs` now ignores `playwright-report/` and `test-results/`. ESLint's
+  flat config does not read `.gitignore`, so `npm run lint` failed for anyone who ran
+  `npm run test:e2e` first, reporting thousands of errors from the generated report.
+
+### Fixed
+
+- The exam result review showed the question back to the learner as the "Correct
+  answer" for every German-to-English question. The stored review query returned
+  `vocabulary_entries.german_display` unconditionally, so when the prompt was the
+  German side, the correct answer was the same string as the question. The review now
+  resolves the expected answer from the direction actually used for that question:
+  the German for English-to-German, the English for German-to-English. The rule lives
+  in `apps/api/src/review.ts` and is asserted against the SQL so the two cannot
+  drift again.
+  - Only the read path changed. No attempt, score, or correctness value was
+    rewritten, so historical results are unaffected apart from now displaying the
+    right expected answer.
+  - The guest exam review was already correct, and the Practice answer endpoint
+    already resolved it by direction, so neither changed behaviour.
+
 ### Added
 
 - **Share results and referral links.** A completed Practice round or Exam can be

@@ -20,3 +20,17 @@ export function answerFor(prompt: string): string {
   }
   return entry.german;
 }
+
+/**
+ * The English side of a German prompt, for German -> English exams.
+ *
+ * The inverse of `answerFor`, and needed because the two directions ask for
+ * different sides of the same entry.
+ */
+export function englishFor(germanPrompt: string): string {
+  const entry = allVocabulary.find((candidate) => candidate.german === germanPrompt);
+  if (!entry) {
+    throw new Error(`Prompt "${germanPrompt}" is not part of the e2e vocabulary fixtures.`);
+  }
+  return entry.english;
+}

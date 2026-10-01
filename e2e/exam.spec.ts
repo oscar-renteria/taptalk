@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { answerFor } from './fixtures/vocabulary';
+import { answerFor, englishFor } from './fixtures/vocabulary';
 import { logIn, navigateTo, registerLearner } from './support/app';
 
 const nav = (page: import('@playwright/test').Page, name: string) =>
@@ -86,6 +86,35 @@ test.describe('exam mode', () => {
     // The correct answer is readable for the first time.
     await expect(page.getByText('Correct answer')).toBeVisible();
     await expect(page.getByText(answerFor(prompt))).toBeVisible();
+  });
+
+  test('the review shows the translation, not the question, for a German to English miss', async ({
+    page,
+    request,
+  }, testInfo) => {
+    await logIn(page, await registerLearner(request, testInfo, 'exam-review-de'));
+    await navigateTo(page, 'Settings');
+    const english = await enableOnlyFirstWord(page);
+    const german = answerFor(english);
+
+    await page.goto('/exams');
+    await page.getByRole('radio', { name: 'German → English' }).check();
+    await page.getByRole('button', { name: 'Start exam' }).click();
+    await expect(page.getByTestId('exam-prompt')).toBeVisible();
+    // The question is the German side of the entry.
+    expect((await page.getByTestId('exam-prompt').innerText()).trim()).toBe(german);
+
+    await page.getByLabel('Your answer').fill('definitely wrong');
+    await page.locator('form.practice-card').press('Enter');
+    await expect(page.getByRole('heading', { name: 'Exam results' })).toBeVisible();
+
+    const item = page.locator('.exam-review__item').first();
+    await expect(item).toContainText(german);
+    await expect(item).toContainText(englishFor(german));
+    // The regression: the correct-answer line must not echo the question back.
+    const correctLine = item.locator('.exam-review__line', { hasText: 'Correct answer' });
+    await expect(correctLine).toContainText(englishFor(german));
+    await expect(correctLine).not.toContainText(german);
   });
 
   test('an exam respects the vocabulary selection', async ({ page, request }, testInfo) => {

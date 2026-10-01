@@ -175,12 +175,21 @@ export const examAnswerProgressSchema = z.object({
   complete: z.boolean(),
 });
 
+/**
+ * The direction a single question was asked in.
+ *
+ * Narrower than `practiceDirectionSchema`: a session may be 'random', but by the
+ * time a question exists the direction for that one question has been resolved.
+ */
+export const attemptDirectionSchema = z.enum(['english-to-german', 'german-to-english']);
+export type AttemptDirection = z.infer<typeof attemptDirectionSchema>;
+
 /** One answered question, shown only after the exam has been completed. */
 export const examQuestionResultSchema = z.object({
   index: z.number().int().positive(),
   vocabularyEntryId: z.string().min(1),
   prompt: z.string().min(1),
-  direction: z.enum(['english-to-german', 'german-to-english']),
+  direction: attemptDirectionSchema,
   submittedAnswer: z.string(),
   correctAnswer: z.string().min(1),
   correct: z.boolean(),
@@ -232,7 +241,7 @@ export const dashboardSummarySchema = z.object({
   recentActivity: z.array(
     z.object({
       attemptedAt: z.string().datetime(),
-      direction: z.enum(['english-to-german', 'german-to-english']),
+      direction: attemptDirectionSchema,
       correct: z.boolean(),
     }),
   ),

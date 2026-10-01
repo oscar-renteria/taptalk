@@ -274,6 +274,131 @@ describe('exam start screen', () => {
     expect(wrapper.find('.exam-results').exists()).toBe(false);
     expect(wrapper.get('.dashboard__start').text()).toContain('Start exam');
   });
+
+  it('shows the authoritative correct answer, not the question, for a miss', async () => {
+    // The reported bug: a German -> English review repeated the German prompt as
+    // the correct answer. The API is the only source of both fields; the view
+    // must render them as two separate things.
+    mockApi(
+      routes({
+        'GET /api/v1/exams/exam-review': {
+          body: {
+            result: {
+              id: 'exam-review',
+              direction: 'german-to-english',
+              status: 'completed',
+              totalQuestions: 1,
+              correctCount: 0,
+              incorrectCount: 1,
+              score: 0,
+              durationSeconds: 30,
+              startedAt: '2026-01-01T00:00:00.000Z',
+              endedAt: '2026-01-01T00:00:30.000Z',
+              questions: [
+                {
+                  index: 1,
+                  vocabularyEntryId: 'entry-1',
+                  prompt: 'Das (hier) ist',
+                  direction: 'german-to-english',
+                  submittedAnswer: 'wrong thing',
+                  correctAnswer: 'That is',
+                  correct: false,
+                },
+              ],
+            },
+          },
+        },
+      }),
+    );
+    const { wrapper } = await mountApp('/exams?result=exam-review');
+    await flushPromises();
+    expect(wrapper.find('.exam-results').exists()).toBe(true);
+    const review = wrapper.get('.exam-review').text();
+    expect(review).toContain('Das (hier) ist');
+    expect(review).toContain('That is');
+    expect(review).toContain('Incorrect');
+    // The correct answer must not be the question again.
+    expect(review).not.toContain('Correct answer: Das (hier) ist');
+  });
+
+  it('shows the correct answer for an English -> German miss', async () => {
+    mockApi(
+      routes({
+        'GET /api/v1/exams/exam-forward': {
+          body: {
+            result: {
+              id: 'exam-forward',
+              direction: 'english-to-german',
+              status: 'completed',
+              totalQuestions: 1,
+              correctCount: 0,
+              incorrectCount: 1,
+              score: 0,
+              durationSeconds: 30,
+              startedAt: '2026-01-01T00:00:00.000Z',
+              endedAt: '2026-01-01T00:00:30.000Z',
+              questions: [
+                {
+                  index: 1,
+                  vocabularyEntryId: 'entry-1',
+                  prompt: 'That is',
+                  direction: 'english-to-german',
+                  submittedAnswer: 'falsch',
+                  correctAnswer: 'Das (hier) ist',
+                  correct: false,
+                },
+              ],
+            },
+          },
+        },
+      }),
+    );
+    const { wrapper } = await mountApp('/exams?result=exam-forward');
+    await flushPromises();
+    const review = wrapper.get('.exam-review').text();
+    expect(review).toContain('That is');
+    expect(review).toContain('Das (hier) ist');
+    expect(review).not.toContain('Correct answer: That is');
+  });
+
+  it('keeps hiding the correct answer for a correct response', async () => {
+    mockApi(
+      routes({
+        'GET /api/v1/exams/exam-right': {
+          body: {
+            result: {
+              id: 'exam-right',
+              direction: 'english-to-german',
+              status: 'completed',
+              totalQuestions: 1,
+              correctCount: 1,
+              incorrectCount: 0,
+              score: 100,
+              durationSeconds: 30,
+              startedAt: '2026-01-01T00:00:00.000Z',
+              endedAt: '2026-01-01T00:00:30.000Z',
+              questions: [
+                {
+                  index: 1,
+                  vocabularyEntryId: 'entry-1',
+                  prompt: 'hello',
+                  direction: 'english-to-german',
+                  submittedAnswer: 'Hallo',
+                  correctAnswer: 'Hallo',
+                  correct: true,
+                },
+              ],
+            },
+          },
+        },
+      }),
+    );
+    const { wrapper } = await mountApp('/exams?result=exam-right');
+    await flushPromises();
+    const review = wrapper.get('.exam-review').text();
+    expect(review).toContain('Correct');
+    expect(review).not.toContain('Correct answer');
+  });
 });
 
 describe('exam section naming', () => {
