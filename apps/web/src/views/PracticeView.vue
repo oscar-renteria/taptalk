@@ -2,11 +2,19 @@
 import { useI18n } from 'vue-i18n';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { AppButton, ProgressIndicator, StatTile, LiveMessage, TextField } from '../components';
+import {
+  AppButton,
+  VocabularyScopePicker,
+  ProgressIndicator,
+  StatTile,
+  LiveMessage,
+  TextField,
+} from '../components';
 import ShareResultDialog from '../components/ShareResultDialog.vue';
 import { useShareResult } from '../useShareResult';
 import { apiFetch, jsonRequest } from '../api';
 import { focus, session } from '../session';
+import { selectedGroupCount, selectedGroupId } from '../vocabulary-groups';
 import type { Direction, Tone } from '../types';
 const { t, locale } = useI18n();
 
@@ -170,7 +178,8 @@ async function startPractice(): Promise<void> {
   try {
     const response = await apiFetch(
       '/api/v1/practice/sessions',
-      jsonRequest('POST', { direction: direction.value }),
+      // Only a scope id travels. Which words that resolves to is the API's call.
+      jsonRequest('POST', { direction: direction.value, groupId: selectedGroupId() }),
     );
     const payload = (await response.json()) as {
       session?: PracticeSession;
@@ -178,13 +187,19 @@ async function startPractice(): Promise<void> {
     };
     if (!response.ok || !payload.session) {
       practiceTone.value = 'error';
-      // The API's message is developer-facing English, so the blocked case is
-      // shown with a localized message and a way to fix it instead.
+      // The API's message is developer-facing English, so the blocked cases are
+      // shown with a localized message and a way to fix them instead.
+      const scopeCode = payload.error?.code;
       practiceMessage.value =
-        payload.error?.code === 'NO_PRACTICE_VOCABULARY'
+        scopeCode === 'NO_PRACTICE_VOCABULARY'
           ? t('vocabulary.startBlocked')
-          : (payload.error?.message ?? t('practice.couldNotStart'));
-      practiceBlocked.value = payload.error?.code === 'NO_PRACTICE_VOCABULARY';
+          : scopeCode === 'GROUP_EMPTY'
+            ? t('practice.scope.emptyWarning')
+            : scopeCode === 'GROUP_TOO_SMALL'
+              ? // The fix is real and nearby, so say it rather than just refusing.
+                t('practice.scope.tooSmallWarning', { count: selectedGroupCount() ?? 0 })
+              : (payload.error?.message ?? t('practice.couldNotStart'));
+      practiceBlocked.value = scopeCode === 'NO_PRACTICE_VOCABULARY' || scopeCode === 'GROUP_EMPTY';
       return;
     }
     practiceBlocked.value = false;
@@ -555,6 +570,7 @@ async function endSession(): Promise<void> {
             </label>
           </div>
         </fieldset>
+        <VocabularyScopePicker />
         <div class="dashboard__start">
           <AppButton
             class="btn--large"

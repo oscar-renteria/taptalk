@@ -117,7 +117,17 @@
     "germanToEnglish": "German → English",
     "englishToGerman": "English → German",
     "pointsEarned": "+{points} points",
-    "correctNoPoints": "Second try, so no points this time."
+    "correctNoPoints": "Second try, so no points this time.",
+    "scope": {
+      "label": "Words to practise",
+      "all": "All available words",
+      "group": "Group: {name}",
+      "count": "{name} ({count} words)",
+      "changeInSettings": "Manage groups in Settings",
+      "emptyWarning": "This group has no words available to practise.",
+      "tooSmallWarning": "This group has only {count} words, fewer than the session length. Shorten the session or pick a bigger group.",
+      "requiredAccount": "Vocabulary groups are only available to registered learners."
+    }
   },
   "progress": {
     "eyebrow": "Your progress",
@@ -256,7 +266,46 @@
     "deselectAllCounted": "Deselect all {count}",
     "undo": "{count} words changed · {enabled} now selected",
     "undoAction": "Undo",
-    "undoDismiss": "Dismiss"
+    "undoDismiss": "Dismiss",
+    "groups": {
+      "title": "Vocabulary groups",
+      "intro": "A group is a named set of words you can practise or test on its own. Groups never change your vocabulary or your results.",
+      "signInRequired": "Sign in to create groups.",
+      "empty": "You have no groups yet. Create one to practise just the words you need.",
+      "create": "New group",
+      "createPlaceholder": "Group name",
+      "createAction": "Create",
+      "wordCount": "{count} words",
+      "wordCountOne": "1 word",
+      "none": "No words yet",
+      "open": "Choose words",
+      "rename": "Rename",
+      "renameAction": "Save name",
+      "delete": "Delete",
+      "deleteConfirm": "Delete the group \"{name}\"? Its words stay in your vocabulary and your results are kept. This cannot be undone.",
+      "deleteCancel": "Cancel",
+      "loadFailed": "Your groups could not be loaded.",
+      "createFailed": "That group name could not be used. Pick another name.",
+      "renameFailed": "The group could not be renamed.",
+      "deleteFailed": "The group could not be deleted.",
+      "loading": "Loading groups…",
+      "practiseWith": "Practise this group"
+    },
+    "groupEditor": {
+      "title": "Choose words",
+      "back": "Back to groups",
+      "intro": "Tick the words to include. A word can belong to more than one group.",
+      "search": "Search words",
+      "selectAll": "Select all",
+      "clearAll": "Clear all",
+      "selectAllVisible": "Select all {count} shown",
+      "clearAllVisible": "Clear all {count} shown",
+      "selectedOf": "{selected} of {total} selected",
+      "empty": "No words match your search.",
+      "loading": "Loading words…",
+      "saveFailed": "Your changes could not be saved.",
+      "undo": "{action} {count} words"
+    }
   },
   "exam": {
     "eyebrow": "Test yourself",

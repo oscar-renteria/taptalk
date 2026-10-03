@@ -302,6 +302,84 @@ export const shareReferralStatsSchema = z
 
 export type ShareReferralStats = z.infer<typeof shareReferralStatsSchema>;
 
+// --- Custom vocabulary groups -----------------------------------------------
+//
+// A group is a vocabulary *scope*: a named, user-owned selection of existing
+// vocabulary entries. It stores references, never a copy, so attempts and
+// weighting stay attached to the original entry.
+
+export const groupNameRules = { minLength: 1, maxLength: 80 } as const;
+
+/**
+ * Group names are user-generated. Surrounding whitespace is trimmed and an empty
+ * result is rejected, so "   " is not a usable name. Not unique: a learner may
+ * reuse a name, and different learners may pick the same one.
+ */
+export const vocabularyGroupNameSchema = z
+  .string()
+  .trim()
+  .min(groupNameRules.minLength, 'Group name is required.')
+  .max(
+    groupNameRules.maxLength,
+    `Group name must be at most ${groupNameRules.maxLength} characters.`,
+  );
+
+export const createVocabularyGroupSchema = z
+  .object({ name: vocabularyGroupNameSchema })
+  // The owner always comes from the session, so a browser-supplied owner is refused
+  // rather than ignored.
+  .strict();
+
+export const renameVocabularyGroupSchema = z.object({ name: vocabularyGroupNameSchema }).strict();
+
+/** Replace the membership of a group with exactly the listed vocabulary ids. */
+export const setVocabularyGroupEntriesSchema = z
+  .object({
+    vocabularyEntryIds: z.array(z.string().min(1).max(64)).max(2000),
+  })
+  .strict();
+
+/**
+ * Choosing a vocabulary scope when starting a session or exam.
+ *
+ * `groupId` absent or null means all available vocabulary, which is the existing
+ * behaviour. The browser may only name a scope; it may never send vocabulary ids,
+ * because the API resolves membership itself.
+ *
+ * Deliberately not `.strict()`: this schema is read from the same request body as
+ * `direction` and `questionCount`, which have their own schemas. Strictness that
+ * actually matters -- never accepting a browser-supplied owner -- lives on
+ * `createVocabularyGroupSchema`.
+ */
+export const vocabularyScopeSchema = z.object({
+  groupId: z.string().min(1).max(64).nullable().optional(),
+});
+
+export const vocabularyGroupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  selectedCount: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+/** One row of the group editor: the vocabulary entry plus its membership state. */
+export const vocabularyGroupEntrySchema = z.object({
+  vocabularyEntryId: z.string().min(1),
+  english: z.string().min(1),
+  german: z.string().min(1),
+  selected: z.boolean(),
+});
+
+export const vocabularyGroupDetailSchema = z.object({
+  group: vocabularyGroupSchema,
+  entries: z.array(vocabularyGroupEntrySchema),
+});
+
+export type VocabularyGroup = z.infer<typeof vocabularyGroupSchema>;
+export type VocabularyGroupEntry = z.infer<typeof vocabularyGroupEntrySchema>;
+export type VocabularyGroupDetail = z.infer<typeof vocabularyGroupDetailSchema>;
+
 export type Registration = z.infer<typeof registrationSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;
 export type PublicUser = z.infer<typeof publicUserSchema>;

@@ -117,7 +117,17 @@
     "germanToEnglish": "Alemán → Inglés",
     "englishToGerman": "Inglés → Alemán",
     "pointsEarned": "+{points} puntos",
-    "correctNoPoints": "Segundo intento, esta vez sin puntos."
+    "correctNoPoints": "Segundo intento, esta vez sin puntos.",
+    "scope": {
+      "label": "Palabras para practicar",
+      "all": "Todas las palabras disponibles",
+      "group": "Grupo: {name}",
+      "count": "{name} ({count} palabras)",
+      "changeInSettings": "Gestionar grupos en Ajustes",
+      "emptyWarning": "Este grupo no tiene palabras disponibles para practicar.",
+      "tooSmallWarning": "Este grupo solo tiene {count} palabras, menos que la duración de la sesión. Acorta la sesión o elige un grupo más grande.",
+      "requiredAccount": "Los grupos de vocabulario solo están disponibles para aprendientes registrados."
+    }
   },
   "progress": {
     "eyebrow": "Tu progreso",
@@ -256,7 +266,46 @@
     "deselectAllCounted": "Deseleccionar las {count}",
     "undo": "{count} palabras cambiadas · {enabled} seleccionadas ahora",
     "undoAction": "Deshacer",
-    "undoDismiss": "Cerrar"
+    "undoDismiss": "Cerrar",
+    "groups": {
+      "title": "Grupos de vocabulario",
+      "intro": "Un grupo es un conjunto de palabras con nombre que puedes practicar o examinar por separado. Los grupos nunca cambian tu vocabulario ni tus resultados.",
+      "signInRequired": "Inicia sesión para crear grupos.",
+      "empty": "Todavía no tienes grupos. Crea uno para practicar solo las palabras que necesites.",
+      "create": "Nuevo grupo",
+      "createPlaceholder": "Nombre del grupo",
+      "createAction": "Crear",
+      "wordCount": "{count} palabras",
+      "wordCountOne": "1 palabra",
+      "none": "Todavía sin palabras",
+      "open": "Elegir palabras",
+      "rename": "Renombrar",
+      "renameAction": "Guardar nombre",
+      "delete": "Eliminar",
+      "deleteConfirm": "¿Eliminar el grupo «{name}»? Sus palabras seguirán en tu vocabulario y tus resultados se conservan. Esto no se puede deshacer.",
+      "deleteCancel": "Cancelar",
+      "loadFailed": "No se pudieron cargar tus grupos.",
+      "createFailed": "No se pudo usar ese nombre de grupo. Elige otro nombre.",
+      "renameFailed": "No se pudo renombrar el grupo.",
+      "deleteFailed": "No se pudo eliminar el grupo.",
+      "loading": "Cargando grupos…",
+      "practiseWith": "Practicar este grupo"
+    },
+    "groupEditor": {
+      "title": "Elegir palabras",
+      "back": "Volver a los grupos",
+      "intro": "Marca las palabras que quieres incluir. Una palabra puede pertenecer a más de un grupo.",
+      "search": "Buscar palabras",
+      "selectAll": "Seleccionar todas",
+      "clearAll": "Borrar selección",
+      "selectAllVisible": "Seleccionar las {count} mostradas",
+      "clearAllVisible": "Borrar la selección de las {count} mostradas",
+      "selectedOf": "{selected} de {total} seleccionadas",
+      "empty": "Ninguna palabra coincide con tu búsqueda.",
+      "loading": "Cargando palabras…",
+      "saveFailed": "No se pudieron guardar tus cambios.",
+      "undo": "{action} {count} palabras"
+    }
   },
   "exam": {
     "eyebrow": "Ponte a prueba",

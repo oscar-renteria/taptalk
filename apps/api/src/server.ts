@@ -3,20 +3,35 @@ import cors from '@fastify/cors';
 import type { ShareResultPayload, UserPreferences } from '@taptalk/shared';
 import {
   createShareResultSchema,
+  createVocabularyGroupSchema,
   defaultExamLength,
   examLengthSchema,
   practiceDirectionSchema,
   practiceVocabularyExclusionsSchema,
   registrationErrors,
   registrationSchema,
+  renameVocabularyGroupSchema,
+  setVocabularyGroupEntriesSchema,
   userPreferencesSchema,
+  vocabularyScopeSchema,
 } from '@taptalk/shared';
 import { loadConfig, type AppConfig } from './config.js';
 import { createId, openDatabase, type SqliteDatabase } from './database.js';
 import {
   commitVocabularyImport,
   countIncorrectAttemptsInSession,
+  createVocabularyGroup,
+  deleteVocabularyGroup,
+  getSessionVocabularyScope,
+  getVocabularyGroup,
+  listGroupEntryIds,
+  listSessionVocabularyIds,
+  listVocabularyGroupEntries,
+  listVocabularyGroups,
+  renameVocabularyGroup,
+  setVocabularyGroupEntries,
   endPracticeSession,
+  freezeSessionVocabulary,
   ensurePreferences,
   findUserByUsername,
   getDashboardSummary,
@@ -284,12 +299,47 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
   function getSelectionCandidatesFor(
     request: FastifyRequest,
     sessionId: string | null,
+    groupId: string | null = null,
   ): SelectionCandidate[] {
     const actor = currentActor(request);
+    // A guest owns no groups, so their scope is always all available vocabulary.
     if (actor.type === 'guest')
       return guestStore.getSelectionCandidates(actor.guestId, sessionId, vocabulary);
-    if (actor.type === 'authenticated') return getSelectionCandidates(db, actor.user.id, sessionId);
+    if (actor.type === 'authenticated')
+      return getSelectionCandidates(db, actor.user.id, sessionId, groupId);
     return [];
+  }
+
+  /**
+   * Turn a requested vocabulary scope into one this actor may actually use.
+   *
+   * Returns the resolved scope, or a reply that has already been sent so a route
+   * can `return` it directly. The group is resolved by lookup against the
+   * authenticated user's own groups, so an unknown id and somebody else's id give
+   * the same answer and group ids cannot be probed.
+   */
+  function resolveVocabularyScope(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    groupId: string | null,
+  ): { groupId: string | null; groupName: string | null } | FastifyReply {
+    if (!groupId) return { groupId: null, groupName: null };
+    const actor = currentActor(request);
+    if (actor.type !== 'authenticated') {
+      return reply.code(403).send({
+        error: {
+          code: 'GROUP_REQUIRES_ACCOUNT',
+          message: 'Vocabulary groups are only available to registered learners.',
+        },
+      });
+    }
+    const group = getVocabularyGroup(db, actor.user.id, groupId);
+    if (!group) {
+      return reply.code(404).send({
+        error: { code: 'GROUP_NOT_FOUND', message: 'That vocabulary group does not exist.' },
+      });
+    }
+    return { groupId: group.id, groupName: group.name };
   }
 
   // Vocabulary is shared, read-only content, so a guest reads it exactly as a user
@@ -640,10 +690,26 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
           error: { code: 'INVALID_DIRECTION', message: 'Practice direction is invalid.' },
         });
       }
+      // The scope comes from the session, never from the request, so a client
+      // cannot change which vocabulary a running session or exam may draw from.
+      const sessionGroupId = practiceSession
+        ? isGuest(request)
+          ? null
+          : (getSessionVocabularyScope(db, id, practiceSession.id)?.groupId ?? null)
+        : null;
+      // The pool comes from the session, never from the request, so a client cannot
+      // change which vocabulary a running session may draw from. When a session
+      // has no pinned pool -- a guest, or one that predates this table -- the
+      // current settings apply, which is the behaviour that always existed.
+      const pinned =
+        practiceSession && !isGuest(request)
+          ? listSessionVocabularyIds(db, id, practiceSession.id)
+          : undefined;
+      const candidates = isGuest(request)
+        ? guestStore.getSelectionCandidates(id, practiceSession?.id ?? null, vocabulary)
+        : getSelectionCandidates(db, id, practiceSession?.id ?? null, sessionGroupId);
       const selection = selectQuestion(
-        isGuest(request)
-          ? guestStore.getSelectionCandidates(id, practiceSession?.id ?? null, vocabulary)
-          : getSelectionCandidates(db, id, practiceSession?.id ?? null),
+        pinned ? candidates.filter((candidate) => pinned.has(candidate.id)) : candidates,
         {
           repetitionPreference: preferences.repetitionPreference,
           previousEntryId: practiceSession
@@ -846,15 +912,62 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         });
       }
       const now = new Date().toISOString();
+      // A named group narrows the vocabulary this session may draw from. The
+      // browser names a scope; membership is always resolved here.
+      const scopeInput = vocabularyScopeSchema.safeParse(request.body ?? {});
+      if (!scopeInput.success) {
+        return reply.code(400).send({
+          error: {
+            code: 'INVALID_VOCABULARY_SCOPE',
+            message: 'The vocabulary scope is not valid.',
+          },
+        });
+      }
+      const scope = resolveVocabularyScope(request, reply, scopeInput.data.groupId ?? null);
+      if ('statusCode' in scope) return scope;
+      if (scope.groupId) {
+        const scopedCount = getSelectionCandidatesFor(request, null, scope.groupId).length;
+        if (scopedCount === 0) {
+          // An empty group, or one whose words are all switched off, must not
+          // quietly widen to all vocabulary.
+          return reply.code(422).send({
+            error: {
+              code: 'GROUP_EMPTY',
+              message: 'That vocabulary group has no words available to practise.',
+            },
+          });
+        }
+        if (scopedCount < preferences.sessionLength) {
+          return reply.code(422).send({
+            error: {
+              code: 'GROUP_TOO_SMALL',
+              message: 'That vocabulary group has too few words for this session length.',
+            },
+          });
+        }
+      }
       const sessionInput = {
         id: createId(),
         direction: direction.data,
         questionCount: preferences.sessionLength,
+        // Fixed at start: later edits to the group cannot change this session.
+        vocabularyGroupId: scope.groupId,
+        vocabularyGroupName: scope.groupName,
       };
       // A guest round is held in memory; only a user creates a practice_sessions row.
       const session = isGuest(request)
         ? guestStore.startPracticeSession(id, sessionInput, now)
         : startPracticeSession(db, { ...sessionInput, userId: id }, now);
+      // Pin the pool once, here. From this point the session draws from exactly
+      // these entries no matter how the settings or the group change.
+      if (!isGuest(request)) {
+        freezeSessionVocabulary(
+          db,
+          id,
+          session.id,
+          getSelectionCandidatesFor(request, null, scope.groupId).map((entry) => entry.id),
+        );
+      }
       return reply.code(201).send({ session: publicSession(session) });
     },
   );
@@ -993,8 +1106,36 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         });
       }
       // The same eligible pool as Practice Mode, so the vocabulary selection in
-      // Settings governs exams too.
-      const candidates = getSelectionCandidatesFor(request, null);
+      // Settings governs exams too. A named group narrows it further.
+      const examScopeInput = vocabularyScopeSchema.safeParse(request.body ?? {});
+      if (!examScopeInput.success) {
+        return reply.code(400).send({
+          error: {
+            code: 'INVALID_VOCABULARY_SCOPE',
+            message: 'The vocabulary scope is not valid.',
+          },
+        });
+      }
+      const examScope = resolveVocabularyScope(request, reply, examScopeInput.data.groupId ?? null);
+      if ('statusCode' in examScope) return examScope;
+      const candidates = getSelectionCandidatesFor(request, null, examScope.groupId);
+      if (examScope.groupId && candidates.length === 0) {
+        return reply.code(422).send({
+          error: {
+            code: 'GROUP_EMPTY',
+            message: 'That vocabulary group has no words available to test.',
+          },
+        });
+      }
+      if (examScope.groupId && candidates.length < questionCount.data) {
+        // Never silently expand to vocabulary outside the group.
+        return reply.code(422).send({
+          error: {
+            code: 'GROUP_TOO_SMALL',
+            message: 'That vocabulary group has too few words for this exam length.',
+          },
+        });
+      }
       if (candidates.length === 0) {
         return reply.code(404).send({
           error: {
@@ -1012,6 +1153,10 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         // capped by the pool and corrected below where the questions are stored.
         questionCount: questionCount.data,
         kind: 'exam' as const,
+        // Recorded on the session, so the drawn set -- already frozen into
+        // exam_questions -- and its label survive later group edits or deletion.
+        vocabularyGroupId: examScope.groupId,
+        vocabularyGroupName: examScope.groupName,
       };
       const actor = currentActor(request);
       // Checked explicitly so the actor is narrowed to the two real cases below,
@@ -1286,6 +1431,138 @@ export function buildServer(database?: SqliteDatabase, options: ServerOptions = 
         ? guestStore.getExamStatistics(id, examTrendLimit)
         : getExamStatistics(db, id, examTrendLimit);
       return reply.send({ statistics });
+    },
+  );
+
+  // --- Custom vocabulary groups ---------------------------------------------
+  //
+  // Groups are a vocabulary scope, not a new vocabulary source. Every route here
+  // resolves the caller from the session and scopes the query by user_id, so there
+  // is no path that reads or writes a group without proving ownership first.
+
+  server.get('/api/v1/groups', { config: { access: 'user' } }, async (request, reply) => {
+    const groups = listVocabularyGroups(db, currentUser(request).id);
+    return reply.send({ groups });
+  });
+
+  server.post<{ Body: unknown }>(
+    '/api/v1/groups',
+    { config: { access: 'user' } },
+    async (request, reply) => {
+      const parsed = createVocabularyGroupSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_GROUP_NAME', message: 'The group name is not valid.' },
+        });
+      }
+      // The owner is the session, never the body: `createVocabularyGroupSchema` is
+      // strict, so a browser-supplied owner is refused rather than ignored.
+      const group = createVocabularyGroup(
+        db,
+        currentUser(request).id,
+        parsed.data.name,
+        new Date().toISOString(),
+      );
+      return reply.code(201).send({ group });
+    },
+  );
+
+  server.get<{ Params: { id: string } }>(
+    '/api/v1/groups/:id',
+    { config: { access: 'user' } },
+    async (request, reply) => {
+      const user = currentUser(request);
+      const group = getVocabularyGroup(db, user.id, request.params.id);
+      if (!group) {
+        return reply.code(404).send({
+          error: { code: 'GROUP_NOT_FOUND', message: 'That vocabulary group does not exist.' },
+        });
+      }
+      // One request returns the group and every entry with its membership state, so
+      // the editor never needs a request per word.
+      const entries = listVocabularyGroupEntries(db, user.id, group.id);
+      return reply.send({ group, entries });
+    },
+  );
+
+  server.patch<{ Params: { id: string }; Body: unknown }>(
+    '/api/v1/groups/:id',
+    { config: { access: 'user' } },
+    async (request, reply) => {
+      const parsed = renameVocabularyGroupSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: { code: 'INVALID_GROUP_NAME', message: 'The group name is not valid.' },
+        });
+      }
+      const renamed = renameVocabularyGroup(
+        db,
+        currentUser(request).id,
+        request.params.id,
+        parsed.data.name,
+        new Date().toISOString(),
+      );
+      if (!renamed) {
+        return reply.code(404).send({
+          error: { code: 'GROUP_NOT_FOUND', message: 'That vocabulary group does not exist.' },
+        });
+      }
+      const group = getVocabularyGroup(db, currentUser(request).id, request.params.id)!;
+      return reply.send({ group });
+    },
+  );
+
+  server.delete<{ Params: { id: string } }>(
+    '/api/v1/groups/:id',
+    { config: { access: 'user' } },
+    async (request, reply) => {
+      // Cascades to membership rows only. Vocabulary, answers and attempts are
+      // untouched, and sessions keep their stored group-name snapshot.
+      const removed = deleteVocabularyGroup(db, currentUser(request).id, request.params.id);
+      if (!removed) {
+        return reply.code(404).send({
+          error: { code: 'GROUP_NOT_FOUND', message: 'That vocabulary group does not exist.' },
+        });
+      }
+      return reply.send({ deleted: true });
+    },
+  );
+
+  server.put<{ Params: { id: string }; Body: unknown }>(
+    '/api/v1/groups/:id/entries',
+    { config: { access: 'user' } },
+    async (request, reply) => {
+      const parsed = setVocabularyGroupEntriesSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: {
+            code: 'INVALID_GROUP_ENTRIES',
+            message: 'The vocabulary selection is not valid.',
+          },
+        });
+      }
+      const user = currentUser(request);
+      // Every id is checked against the real vocabulary table inside the
+      // repository, so owning the group is not on its own sufficient.
+      const saved = setVocabularyGroupEntries(
+        db,
+        user.id,
+        request.params.id,
+        parsed.data.vocabularyEntryIds,
+        new Date().toISOString(),
+      );
+      if (!saved) {
+        return reply.code(404).send({
+          error: {
+            code: 'GROUP_OR_ENTRY_NOT_FOUND',
+            message: 'That vocabulary group or vocabulary entry does not exist.',
+          },
+        });
+      }
+      return reply.send({
+        group: getVocabularyGroup(db, user.id, request.params.id),
+        entryIds: listGroupEntryIds(db, user.id, request.params.id),
+      });
     },
   );
 

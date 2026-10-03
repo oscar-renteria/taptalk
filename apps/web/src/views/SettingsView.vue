@@ -3,7 +3,16 @@ import { computed, onMounted, ref, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 // LoadingState was used in the template without being imported, so the list
 // rendered nothing at all while the vocabulary was being fetched.
-import { AppButton, SelectField, LiveMessage, LoadingState, TextField } from '../components';
+import {
+  AppButton,
+  SelectField,
+  LiveMessage,
+  LoadingState,
+  TextField,
+  VocabularyGroupsPanel,
+} from '../components';
+import { loadGroups } from '../vocabulary-groups';
+import { session } from '../session';
 import { apiFetch, jsonRequest } from '../api';
 import { setLocale, supportedLocales, type LocaleCode } from '../i18n';
 import { directionValues, type Direction, type Tone } from '../types';
@@ -158,6 +167,9 @@ function show(nextTone: Tone, text: string): void {
 onMounted(async () => {
   loading.value = true;
   void loadPracticeVocabulary();
+  // Groups are a separate, optional scope, so they load on their own and a
+  // failure there never blocks the vocabulary list above.
+  void loadGroups();
   try {
     const response = await apiFetch('/api/v1/settings');
     const payload = (await response.json()) as { settings?: Partial<Settings> };
@@ -431,6 +443,10 @@ async function save(): Promise<void> {
         </template>
       </template>
     </section>
+
+    <!-- Groups: a separate, optional scope over the same vocabulary. Signed-in
+         learners only, because a group belongs to an account. -->
+    <VocabularyGroupsPanel v-if="session.user" />
 
     <LiveMessage :tone="tone" :message="message" />
   </section>

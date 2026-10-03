@@ -12,3 +12,5 @@ export { default as StatTile } from './StatTile.vue';
 export { default as StatusMessage } from './StatusMessage.vue';
 export { default as TextField } from './TextField.vue';
 export { default as UpdateBanner } from './UpdateBanner.vue';
+export { default as VocabularyGroupsPanel } from './VocabularyGroupsPanel.vue';
+export { default as VocabularyScopePicker } from './VocabularyScopePicker.vue';

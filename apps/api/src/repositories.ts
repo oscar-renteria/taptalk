@@ -427,6 +427,13 @@ export function startPracticeSession(
     questionCount: number;
     /** 'exam' marks a testing session; omitted for ordinary practice. */
     kind?: SessionKind;
+    /**
+     * The vocabulary scope this session runs under, fixed at start. A group id is
+     * stored alongside a name snapshot so the session keeps its label even if the
+     * group is later renamed or deleted.
+     */
+    vocabularyGroupId?: string | null;
+    vocabularyGroupName?: string | null;
   },
   now: string,
 ): PracticeSessionRecord {
@@ -442,10 +449,19 @@ export function startPracticeSession(
       .run(now, session.userId);
     database
       .prepare(
-        `INSERT INTO practice_sessions (id, user_id, direction, question_count, status, started_at, kind)
-         VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+        `INSERT INTO practice_sessions (id, user_id, direction, question_count, status, started_at, kind, vocabulary_group_id, vocabulary_group_name)
+         VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?)`,
       )
-      .run(session.id, session.userId, session.direction, session.questionCount, now, kind);
+      .run(
+        session.id,
+        session.userId,
+        session.direction,
+        session.questionCount,
+        now,
+        kind,
+        session.vocabularyGroupId ?? null,
+        session.vocabularyGroupName ?? null,
+      );
     database.exec('COMMIT');
   } catch (error) {
     database.exec('ROLLBACK');
@@ -463,6 +479,8 @@ export function getPracticeSession(
     .prepare(
       `SELECT s.id, s.user_id AS userId, s.direction, s.question_count AS questionCount, s.status,
               s.started_at AS startedAt, s.ended_at AS endedAt,
+              s.vocabulary_group_id AS vocabularyGroupId,
+              s.vocabulary_group_name AS vocabularyGroupName,
               (SELECT COUNT(*) FROM learning_attempts a WHERE a.practice_session_id = s.id) AS answeredCount
        FROM practice_sessions s WHERE s.id = ? AND s.user_id = ?`,
     )
@@ -546,10 +564,22 @@ export function getExamQuestionAt(
 
 // Per-entry learning history for question selection. Only entries with at least one accepted
 // answer are candidates, so unanswerable entries are never asked.
+/**
+ * The vocabulary a user may practise, with each entry's selection statistics.
+ *
+ * `groupId` narrows the result to one of the learner's own groups. The ownership
+ * check is the `g.user_id = ?` inside the EXISTS rather than a separate lookup,
+ * so an unknown id, another learner's group, and "no group" cannot be told apart
+ * by any caller that has not already proved ownership.
+ *
+ * Group membership narrows on top of the existing per-user on/off selection; it
+ * never widens it, and it does not touch attempts, so weighting is unchanged.
+ */
 export function getSelectionCandidates(
   database: SqliteDatabase,
   userId: string,
   sessionId: string | null,
+  groupId: string | null = null,
 ): SelectionCandidate[] {
   // Entries the user switched off in Settings are filtered out here, in the one
   // place questions are chosen from. A disabled entry therefore cannot be asked,
@@ -574,10 +604,23 @@ export function getSelectionCandidates(
            SELECT 1 FROM user_practice_vocabulary_exclusions x
            WHERE x.vocabulary_entry_id = e.id AND x.user_id = ?
          )
+         AND (? IS NULL OR EXISTS (
+           SELECT 1 FROM vocabulary_group_entries ge
+           JOIN vocabulary_groups g ON g.id = ge.group_id
+           WHERE ge.vocabulary_entry_id = e.id AND ge.group_id = ? AND g.user_id = ?
+         ))
        GROUP BY e.id
        ORDER BY e.id`,
     )
-    .all(userId, recentAttemptWindow, sessionId, userId) as SelectionCandidate[];
+    .all(
+      userId,
+      recentAttemptWindow,
+      sessionId,
+      userId,
+      groupId,
+      groupId,
+      userId,
+    ) as SelectionCandidate[];
   return rows.map((row) => ({
     id: row.id,
     attempts: Number(row.attempts),
@@ -886,6 +929,7 @@ export function getExamHistory(
   const rows = database
     .prepare(
       `SELECT s.id, s.ended_at AS endedAt, s.question_count AS totalQuestions,
+              s.vocabulary_group_name AS vocabularyGroupName,
               (SELECT COUNT(*) FROM learning_attempts a
                 WHERE a.practice_session_id = s.id AND a.correct = 1) AS correctCount
        FROM practice_sessions s
@@ -1201,4 +1245,287 @@ export function getShareReferralStats(
     signups: Number(totals.signups),
     startedPracticing: Number(totals.converted),
   };
+}
+
+// --- Custom vocabulary groups -------------------------------------------------
+//
+// A group is a vocabulary scope: a named, user-owned selection of existing
+// entries. Membership is a relationship, never a copy, so removing a word from a
+// group leaves the vocabulary entry, its attempts, and its weighting untouched.
+//
+// Ownership is part of every query here rather than a separate check in the route,
+// so there is no code path where a group id could be used without also proving
+// the caller owns it.
+
+export type VocabularyGroupRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  selectedCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Every vocabulary entry the learner may put in a group, with its membership flag.
+ *
+ * Returned in one request so the editor never needs a call per word. Entries are
+ * the whole vocabulary the learner can see, not the ones enabled for Practice:
+ * a group is an independent scope, and letting a learner add a word to a group
+ * without also enabling it for Practice would be a surprising second rule.
+ */
+export function listVocabularyGroupEntries(
+  database: SqliteDatabase,
+  userId: string,
+  groupId: string,
+): { vocabularyEntryId: string; english: string; german: string; selected: boolean }[] {
+  assertPersistableUserId(userId, 'listVocabularyGroupEntries');
+  const rows = database
+    .prepare(
+      `SELECT e.id AS vocabularyEntryId, e.english, e.german_display AS german,
+              EXISTS (
+                SELECT 1 FROM vocabulary_group_entries ge
+                WHERE ge.group_id = ? AND ge.vocabulary_entry_id = e.id
+              ) AS selected
+       FROM vocabulary_entries e
+       ORDER BY e.english COLLATE NOCASE ASC, e.rowid ASC`,
+    )
+    .all(groupId) as Array<{
+    vocabularyEntryId: string;
+    english: string;
+    german: string;
+    selected: number;
+  }>;
+  return rows.map((row) => ({
+    vocabularyEntryId: row.vocabularyEntryId,
+    english: row.english,
+    german: row.german,
+    selected: row.selected === 1,
+  }));
+}
+
+/** The learner's own groups, newest edit first. Scoped by user_id in the query. */
+export function listVocabularyGroups(
+  database: SqliteDatabase,
+  userId: string,
+): VocabularyGroupRecord[] {
+  assertPersistableUserId(userId, 'listVocabularyGroups');
+  return database
+    .prepare(
+      `SELECT g.id, g.user_id AS userId, g.name,
+              (SELECT COUNT(*) FROM vocabulary_group_entries ge WHERE ge.group_id = g.id)
+                AS selectedCount,
+              g.created_at AS createdAt, g.updated_at AS updatedAt
+       FROM vocabulary_groups g
+       WHERE g.user_id = ?
+       ORDER BY g.updated_at DESC, g.rowid DESC`,
+    )
+    .all(userId) as VocabularyGroupRecord[];
+}
+
+/** One group, or undefined when it does not exist *or* is not the learner's. */
+export function getVocabularyGroup(
+  database: SqliteDatabase,
+  userId: string,
+  groupId: string,
+): VocabularyGroupRecord | undefined {
+  assertPersistableUserId(userId, 'getVocabularyGroup');
+  const row = database
+    .prepare(
+      `SELECT g.id, g.user_id AS userId, g.name,
+              (SELECT COUNT(*) FROM vocabulary_group_entries ge WHERE ge.group_id = g.id)
+                AS selectedCount,
+              g.created_at AS createdAt, g.updated_at AS updatedAt
+       FROM vocabulary_groups g WHERE g.id = ? AND g.user_id = ?`,
+    )
+    .get(groupId, userId) as VocabularyGroupRecord | undefined;
+  if (!row) return undefined;
+  return { ...row, selectedCount: Number(row.selectedCount) };
+}
+
+/** The group's membership as vocabulary ids, in the order the entries appear. */
+export function listGroupEntryIds(
+  database: SqliteDatabase,
+  userId: string,
+  groupId: string,
+): string[] {
+  assertPersistableUserId(userId, 'listGroupEntryIds');
+  return (
+    database
+      .prepare(
+        `SELECT ge.vocabulary_entry_id AS id FROM vocabulary_group_entries ge
+         JOIN vocabulary_groups g ON g.id = ge.group_id
+         WHERE ge.group_id = ? AND g.user_id = ?`,
+      )
+      .all(groupId, userId) as Array<{ id: string }>
+  ).map((row) => row.id);
+}
+
+export function createVocabularyGroup(
+  database: SqliteDatabase,
+  userId: string,
+  name: string,
+  now: string,
+): VocabularyGroupRecord {
+  assertPersistableUserId(userId, 'createVocabularyGroup');
+  const id = crypto.randomUUID();
+  database
+    .prepare(
+      `INSERT INTO vocabulary_groups (id, user_id, name, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(id, userId, name, now, now);
+  return { id, userId, name, selectedCount: 0, createdAt: now, updatedAt: now };
+}
+
+/** Rename. Ownership is in the WHERE clause, so another learner's group is untouched. */
+export function renameVocabularyGroup(
+  database: SqliteDatabase,
+  userId: string,
+  groupId: string,
+  name: string,
+  now: string,
+): boolean {
+  assertPersistableUserId(userId, 'renameVocabularyGroup');
+  const result = database
+    .prepare('UPDATE vocabulary_groups SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+    .run(name, now, groupId, userId);
+  return result.changes > 0;
+}
+
+/**
+ * Delete a group. Cascades to its membership rows only.
+ *
+ * `practice_sessions.vocabulary_group_id` is ON DELETE SET NULL and the name
+ * snapshot is untouched, so historical sessions keep the label they were created
+ * with and no vocabulary, attempt or score is affected.
+ */
+export function deleteVocabularyGroup(
+  database: SqliteDatabase,
+  userId: string,
+  groupId: string,
+): boolean {
+  assertPersistableUserId(userId, 'deleteVocabularyGroup');
+  const result = database
+    .prepare('DELETE FROM vocabulary_groups WHERE id = ? AND user_id = ?')
+    .run(groupId, userId);
+  return result.changes > 0;
+}
+
+/**
+ * Replace a group's membership with exactly `vocabularyEntryIds`.
+ *
+ * Membership is replaced rather than merged so the editor's "Select all" and
+ * "Clear all" are one round trip rather than a diff the client has to compute.
+ * Every id is validated against the real vocabulary table before anything is
+ * written, so a caller cannot smuggle in an id that does not exist.
+ */
+export function setVocabularyGroupEntries(
+  database: SqliteDatabase,
+  userId: string,
+  groupId: string,
+  vocabularyEntryIds: string[],
+  now: string,
+): boolean {
+  assertPersistableUserId(userId, 'setVocabularyGroupEntries');
+  database.exec('BEGIN IMMEDIATE');
+  try {
+    // Ownership first: without a row this is somebody else's group.
+    const owns = database
+      .prepare('SELECT 1 AS ok FROM vocabulary_groups WHERE id = ? AND user_id = ?')
+      .get(groupId, userId);
+    if (!owns) {
+      database.exec('ROLLBACK');
+      return false;
+    }
+    if (vocabularyEntryIds.length > 0) {
+      const placeholders = vocabularyEntryIds.map(() => '?').join(',');
+      const found = database
+        .prepare(`SELECT COUNT(*) AS n FROM vocabulary_entries WHERE id IN (${placeholders})`)
+        .get(...vocabularyEntryIds) as { n: number };
+      if (Number(found.n) !== new Set(vocabularyEntryIds).size) {
+        database.exec('ROLLBACK');
+        return false;
+      }
+    }
+    database.prepare('DELETE FROM vocabulary_group_entries WHERE group_id = ?').run(groupId);
+    const insert = database.prepare(
+      `INSERT INTO vocabulary_group_entries (group_id, vocabulary_entry_id, added_at)
+       VALUES (?, ?, ?)`,
+    );
+    // The primary key already prevents duplicates; dedupe keeps the insert count
+    // honest rather than relying on a constraint error to abort the transaction.
+    for (const entryId of new Set(vocabularyEntryIds)) insert.run(groupId, entryId, now);
+    database.prepare('UPDATE vocabulary_groups SET updated_at = ? WHERE id = ?').run(now, groupId);
+    database.exec('COMMIT');
+    return true;
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw mapDatabaseError(error);
+  }
+}
+
+/**
+ * The vocabulary scope a started session is running under.
+ *
+ * Read from the session, never from the request, so a client cannot widen or
+ * narrow the vocabulary of a running session or exam. The name is the snapshot
+ * taken at start, which is why it survives the group being renamed or deleted.
+ */
+export function getSessionVocabularyScope(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string,
+): { groupId: string | null; groupName: string | null } | undefined {
+  const row = database
+    .prepare(
+      `SELECT vocabulary_group_id AS groupId, vocabulary_group_name AS groupName
+       FROM practice_sessions WHERE id = ? AND user_id = ?`,
+    )
+    .get(sessionId, userId) as { groupId: string | null; groupName: string | null } | undefined;
+  return row ?? undefined;
+}
+
+/**
+ * Pin the vocabulary a practice session may draw from.
+ *
+ * Written once, inside the session's own transaction, so the pool is resolved
+ * exactly once. Later edits to a group cannot widen or narrow a running session,
+ * and deleting the group cannot empty it.
+ */
+export function freezeSessionVocabulary(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string,
+  vocabularyEntryIds: string[],
+): void {
+  assertPersistableUserId(userId, 'freezeSessionVocabulary');
+  if (vocabularyEntryIds.length === 0) return;
+  const insert = database.prepare(
+    `INSERT OR IGNORE INTO practice_session_vocabulary (session_id, vocabulary_entry_id)
+     VALUES (?, ?)`,
+  );
+  for (const entryId of vocabularyEntryIds) insert.run(sessionId, entryId);
+}
+
+/**
+ * The vocabulary pinned to a session, or undefined when none was pinned.
+ *
+ * Undefined means "no pin", which is how a guest session and every session that
+ * predates this table behave: their pool stays whatever the current settings say,
+ * which is exactly the behaviour they had before grouping existed.
+ */
+export function listSessionVocabularyIds(
+  database: SqliteDatabase,
+  userId: string,
+  sessionId: string,
+): Set<string> | undefined {
+  const rows = database
+    .prepare(
+      `SELECT sv.vocabulary_entry_id AS id FROM practice_session_vocabulary sv
+       JOIN practice_sessions s ON s.id = sv.session_id
+       WHERE sv.session_id = ? AND s.user_id = ?`,
+    )
+    .all(sessionId, userId) as Array<{ id: string }>;
+  if (rows.length === 0) return undefined;
+  return new Set(rows.map((row) => row.id));
 }

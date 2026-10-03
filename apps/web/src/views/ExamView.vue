@@ -10,8 +10,10 @@ import {
   ProgressIndicator,
   StatusMessage,
   TextField,
+  VocabularyScopePicker,
 } from '../components';
 import { apiFetch } from '../api';
+import { selectedGroupCount } from '../vocabulary-groups';
 import ShareResultDialog from '../components/ShareResultDialog.vue';
 import { useShareResult } from '../useShareResult';
 import { defaultExamLength, examLengths } from '@taptalk/shared';
@@ -446,6 +448,16 @@ onMounted(async () => {
             tone="warning"
             :message="t('vocabulary.startBlocked')"
           />
+          <StatusMessage
+            v-else-if="exam.failed === 'groupEmpty'"
+            tone="warning"
+            :message="t('practice.scope.emptyWarning')"
+          />
+          <StatusMessage
+            v-else-if="exam.failed === 'groupTooSmall'"
+            tone="warning"
+            :message="t('practice.scope.tooSmallWarning', { count: selectedGroupCount() ?? 0 })"
+          />
           <StatusMessage v-else-if="exam.failed" tone="error" :message="t('exam.failed')" />
 
           <fieldset class="segmented">
@@ -466,6 +478,8 @@ onMounted(async () => {
               </label>
             </div>
           </fieldset>
+
+          <VocabularyScopePicker />
 
           <!-- The exam length is the exam's own setting: 5, 10, or 20 questions. It
                is deliberately not the Practice "questions per session" preference. -->

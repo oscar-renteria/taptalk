@@ -117,7 +117,17 @@
     "germanToEnglish": "Deutsch → Englisch",
     "englishToGerman": "Englisch → Deutsch",
     "pointsEarned": "+{points} Punkte",
-    "correctNoPoints": "Zweiter Versuch, diesmal keine Punkte."
+    "correctNoPoints": "Zweiter Versuch, diesmal keine Punkte.",
+    "scope": {
+      "label": "Zu übende Wörter",
+      "all": "Alle verfügbaren Wörter",
+      "group": "Gruppe: {name}",
+      "count": "{name} ({count} Wörter)",
+      "changeInSettings": "Gruppen in den Einstellungen verwalten",
+      "emptyWarning": "Diese Gruppe hat keine Wörter zum Üben.",
+      "tooSmallWarning": "Diese Gruppe hat nur {count} Wörter, weniger als die Sitzungslänge. Kürze die Sitzung oder wähle eine größere Gruppe.",
+      "requiredAccount": "Vokabelgruppen sind nur für registrierte Lernende verfügbar."
+    }
   },
   "progress": {
     "eyebrow": "Dein Fortschritt",
@@ -256,7 +266,46 @@
     "deselectAllCounted": "Alle {count} abwählen",
     "undo": "{count} Wörter geändert · {enabled} jetzt ausgewählt",
     "undoAction": "Rückgängig",
-    "undoDismiss": "Schließen"
+    "undoDismiss": "Schließen",
+    "groups": {
+      "title": "Vokabelgruppen",
+      "intro": "Eine Gruppe ist ein benannter Satz von Wörtern, den du separat üben oder abfragen kannst. Gruppen ändern weder deinen Wortschatz noch deine Ergebnisse.",
+      "signInRequired": "Melde dich an, um Gruppen zu erstellen.",
+      "empty": "Du hast noch keine Gruppen. Erstelle eine, um nur die nötigen Wörter zu üben.",
+      "create": "Neue Gruppe",
+      "createPlaceholder": "Gruppenname",
+      "createAction": "Erstellen",
+      "wordCount": "{count} Wörter",
+      "wordCountOne": "1 Wort",
+      "none": "Noch keine Wörter",
+      "open": "Wörter auswählen",
+      "rename": "Umbenennen",
+      "renameAction": "Namen speichern",
+      "delete": "Löschen",
+      "deleteConfirm": "Gruppe „{name}“ löschen? Ihre Wörter bleiben im Wortschatz und deine Ergebnisse bleiben erhalten. Das lässt sich nicht rückgängig machen.",
+      "deleteCancel": "Abbrechen",
+      "loadFailed": "Deine Gruppen konnten nicht geladen werden.",
+      "createFailed": "Dieser Gruppenname konnte nicht verwendet werden. Wähle einen anderen Namen.",
+      "renameFailed": "Die Gruppe konnte nicht umbenannt werden.",
+      "deleteFailed": "Die Gruppe konnte nicht gelöscht werden.",
+      "loading": "Gruppen werden geladen…",
+      "practiseWith": "Diese Gruppe üben"
+    },
+    "groupEditor": {
+      "title": "Wörter auswählen",
+      "back": "Zurück zu den Gruppen",
+      "intro": "Hake die Wörter an, die dazugehören sollen. Ein Wort kann in mehreren Gruppen sein.",
+      "search": "Wörter suchen",
+      "selectAll": "Alle auswählen",
+      "clearAll": "Auswahl aufheben",
+      "selectAllVisible": "Alle {count} angezeigten auswählen",
+      "clearAllVisible": "Auswahl der {count} angezeigten aufheben",
+      "selectedOf": "{selected} von {total} ausgewählt",
+      "empty": "Keine Wörter passen zu deiner Suche.",
+      "loading": "Wörter werden geladen…",
+      "saveFailed": "Deine Änderungen konnten nicht gespeichert werden.",
+      "undo": "{action} {count} Wörter"
+    }
   },
   "exam": {
     "eyebrow": "Teste dich selbst",

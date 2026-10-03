@@ -1,5 +1,6 @@
 import { reactive } from 'vue';
 import { apiFetch, jsonRequest } from './api';
+import { selectedGroupId } from './vocabulary-groups';
 import type { ExamHistoryEntry, ExamResult, ExamStatistics } from '@taptalk/shared';
 
 /**
@@ -28,7 +29,7 @@ export const exam = reactive({
   loading: false,
   ending: false,
   /** '' | 'start' | 'answer' | 'end' | 'vocabulary' */
-  failed: '' as '' | 'start' | 'answer' | 'end' | 'vocabulary',
+  failed: '' as '' | 'start' | 'answer' | 'end' | 'vocabulary' | 'groupEmpty' | 'groupTooSmall',
 });
 
 /** Test helper: returns the view to its starting state. */
@@ -57,7 +58,8 @@ export async function startExam(direction: string, questionCount: number): Promi
   try {
     const response = await apiFetch(
       '/api/v1/exams',
-      jsonRequest('POST', { direction, questionCount }),
+      // Only a scope id travels. Which words that resolves to is the API's call.
+      jsonRequest('POST', { direction, questionCount, groupId: selectedGroupId() }),
     );
     const payload = (await response.json()) as {
       session?: { id: string; questionCount: number };
@@ -65,7 +67,17 @@ export async function startExam(direction: string, questionCount: number): Promi
     };
     if (!response.ok || !payload.session) {
       // The API's message is developer English, so the user sees a localized one.
-      exam.failed = payload.error?.code === 'NO_PRACTICE_VOCABULARY' ? 'vocabulary' : 'start';
+      // A chosen scope that cannot satisfy the exam is its own case, because the
+      // fix is to shorten the exam or pick a bigger group.
+      const code = payload.error?.code;
+      exam.failed =
+        code === 'NO_PRACTICE_VOCABULARY'
+          ? 'vocabulary'
+          : code === 'GROUP_EMPTY'
+            ? 'groupEmpty'
+            : code === 'GROUP_TOO_SMALL'
+              ? 'groupTooSmall'
+              : 'start';
       return false;
     }
     exam.sessionId = payload.session.id;
