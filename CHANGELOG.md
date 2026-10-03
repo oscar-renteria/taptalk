@@ -1,21 +1,39 @@
 # Changelog
 
-## 0.2.0 - 2026-09-26
+## 0.9.0 - 2026-10-02
 
-### Changed
+### Added
 
-- The web UI was rebuilt to the redesign in `.roadmap/redesign.md`: a full-width
-  header with brand, underline tabs and an account chip; a two-column dashboard
-  with a segmented direction control; a centred practice card with an in-card
-  feedback band; a matching summary card; and a phone bottom navigation.
-- Newsreader and Instrument Sans are bundled from `@fontsource-variable` and
-  served from the app's own origin, so `font-src 'self'` is unchanged. The IPA
-  family is not bundled and uses the text font.
-- `POST /api/v1/practice/answer` accepts an optional `retry` flag for a second
-  attempt. It is checked with the normal matching policy but not recorded, so it
-  earns no points and does not affect the session, accuracy, or history.
+- Custom vocabulary groups. A group is a named, user-owned *scope* over the
+  existing vocabulary: a selection of entries that a Practice session or Exam
+  can draw from. It stores references rather than copies, so editing the
+  vocabulary stays visible through the group, and attempts, scores and
+  weighting stay attached to the original entry. One word may belong to any
+  number of groups.
+  - Created, renamed, and deleted in Settings, alongside the existing
+    vocabulary list. Deleting a group removes the scope and nothing else: no
+    vocabulary, answers, attempts or scores are affected.
+  - A session or exam can be limited to one group. Unscoped is still the
+    default, so a learner with no groups sees exactly the previous behaviour.
+  - A group narrows on top of the existing per-user on/off selection in
+    Settings and never widens it, so the list a learner curates and the words
+    they are actually asked cannot drift apart.
+  - The vocabulary a session may use is fixed when it starts. Editing a group
+    mid-session, or deleting it, cannot change what a running session asks.
+    Sessions keep the group name they were created under, so historical results
+    are not rewritten when a group is later renamed or removed.
+  - An empty group, or one with fewer words than the requested session or exam
+    length, is refused with an explanatory message instead of quietly falling
+    back to the whole vocabulary. Shorten the session or pick a larger group.
+  - Available to registered learners; a guest owns no groups.
+  - Adds 39 strings to English, German and Spanish.
 
-## Unreleased
+This also resolves the `OPEN DECISION 004` deferral in
+`docs/architecture/question-selection.md`, which left `selectQuestion`'s
+`filter` hook unused and explicitly reserved it for "a future vocabulary list
+or tag".
+
+## 0.8.2 - 2026-10-01
 
 ### Changed
 
@@ -38,6 +56,21 @@
     right expected answer.
   - The guest exam review was already correct, and the Practice answer endpoint
     already resolved it by direction, so neither changed behaviour.
+
+## 0.2.0 - 2026-09-26
+
+### Changed
+
+- The web UI was rebuilt to the redesign in `.roadmap/redesign.md`: a full-width
+  header with brand, underline tabs and an account chip; a two-column dashboard
+  with a segmented direction control; a centred practice card with an in-card
+  feedback band; a matching summary card; and a phone bottom navigation.
+- Newsreader and Instrument Sans are bundled from `@fontsource-variable` and
+  served from the app's own origin, so `font-src 'self'` is unchanged. The IPA
+  family is not bundled and uses the text font.
+- `POST /api/v1/practice/answer` accepts an optional `retry` flag for a second
+  attempt. It is checked with the normal matching policy but not recorded, so it
+  earns no points and does not affect the session, accuracy, or history.
 
 ### Added
 
